@@ -1,0 +1,55 @@
+# bari-link population generator configuration
+seed: 42
+reference_date: "2026-01-01"
+n_households: 3000
+
+# Household size distribution (values 2 to 8 members)
+# Weights are assumed (target mean about 4.3)
+household_size_dist:
+  sizes: [2, 3, 4, 5, 6, 7, 8]
+  weights: [0.10, 0.20, 0.30, 0.22, 0.11, 0.05, 0.02]
+
+# Head of household demographics
+head_gender_dist:
+  male_share: 0.85
+  female_share: 0.15
+
+# Name sampling parameters (Zipf-Mandelbrot: P(k) ~ (k + q)^(-s))
+# Parameters are assumed, not calibrated to published name-frequency data.
+name_sampling:
+  zipf_exponent: 1.1
+  zipf_offset: 3.0
+  hindu_share: 0.10
+
+# Phone ownership rates (Bangladeshi mobile format: 01[3-9]XXXXXXXX)
+phone_ownership:
+  household_penetration: 0.88
+  adult_male_individual: 0.60
+  adult_female_individual: 0.30
+  min_phone_age: 15
+
+# Geographic hierarchy: 2 districts, 3 upazilas each, 3 unions each, 4 villages each (72 villages total)
+geography:
+  districts:
+    - name: "Kurigram"
+      upazilas:
+        - name: "Chilmari"
+          unions: ["Chilmari", "Ramna", "Thanahat"]
+        - name: "Ulipur"
+          unions: ["Bazra", "Gunaiyagachh", "Durgapur"]
+        - name: "Rajarhat"
+          unions: ["Chakirpashar", "Bidyananda", "Gharialdanga"]
+    - name: "Gaibandha"
+      upazilas:
+        - name: "Sundarganj"
+          unions: ["Belka", "Haripur", "Chandipur"]
+        - name: "Sadullapur"
+          unions: ["Naldanga", "Damodarpur", "Rasulpur"]
+        - name: "Gobindaganj"
+          unions: ["Kamdia", "Kochashahar", "Mahimaganj"]
+  villages_per_union:
+    - "Mondal Para"
+    - "Dokkhin Para"
+    - "Uttar Para"
+    - "Majher Char"
+

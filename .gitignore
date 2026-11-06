@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & quality tools
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# bari-link data artifacts
+data/generated/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
