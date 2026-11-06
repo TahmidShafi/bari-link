@@ -1,0 +1,8 @@
+{
+  "method": "splink_v1",
+  "dev_run": "demo",
+  "t_cost": 0.99,
+  "t_p99": null,
+  "min_cost": 1143.0,
+  "t_p99_explanation": "No threshold achieves cluster-level precision >= 0.99 (maximum observed: 0.8884)"
+}

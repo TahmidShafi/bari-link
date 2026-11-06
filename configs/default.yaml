@@ -158,3 +158,15 @@ evaluation:
   cost_missed_duplicate: 1.0   # Assumed: missed duplicate yields redundant payment
   review_threshold_low: 0.5    # Assumed: lower bound for clerical review window
 
+# ==============================================================================
+# Phase 4: Probabilistic Record Linkage Configuration (Splink 4)
+# ==============================================================================
+linkage:
+  use_term_frequency: true
+  use_kinship: true
+  jw_thresholds: [0.92, 0.85]
+  jw_village_threshold: 0.88
+  prob_random_match_recall: 0.60
+  u_max_pairs: 2000000
+
+

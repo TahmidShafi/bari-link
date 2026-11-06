@@ -13,8 +13,13 @@ from barilink.baselines.exact import run_exact_baseline
 from barilink.baselines.phone import run_exact_or_phone_baseline, run_phone_baseline
 from barilink.corrupt.registry import export_registries
 from barilink.corrupt.transliteration import get_rule_counts
+from barilink.evaluate.contracts import PairwisePredictions
+from barilink.evaluate.error_analysis import generate_error_analysis
 from barilink.evaluate.report import generate_evaluation_report
 from barilink.generate.population import generate_population
+from barilink.link.diagnostics import export_model_diagnostics
+from barilink.link.model import predict_splink_model, train_splink_model
+from barilink.link.normalise import export_features
 
 
 def _print_name_shares(df: pd.DataFrame, sex: str, label: str) -> None:
@@ -418,7 +423,16 @@ def run_baseline(
         f"({len(records_df):,} records)..."
     )
 
-    if method == "exact":
+    if method == "no_link":
+        n_rec = len(records_df)
+        cand_pairs = (n_rec * (n_rec - 1)) // 2
+        empty_df = pd.DataFrame(columns=["record_id_l", "record_id_r", "match_probability"])
+        res = PairwisePredictions(
+            predictions_df=empty_df,
+            candidate_pair_count=cand_pairs,
+            metadata={"method": "no_link", "description": "Empty predictions baseline (no links)"},
+        )
+    elif method == "exact":
         res = run_exact_baseline(records_df)
     elif method == "phone":
         res = run_phone_baseline(records_df)
@@ -515,6 +529,87 @@ def run_evaluate(
     print(f"Report written to: {out_dir / 'report.md'}")
     print("=" * 70)
     return 0
+
+
+def run_link(
+    action: str,
+    run_name: str,
+    model: str = "splink_v1",
+    config_path: str = "configs/default.yaml",
+    base_data_dir: str = "data/generated",
+    base_results_dir: str = "results",
+    threads: Optional[int] = None,
+) -> int:
+    """Run Splink model workflow (train, predict, diagnose)."""
+    cfg_p = Path(config_path)
+    config = {}
+    if cfg_p.exists():
+        with open(cfg_p, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    model_dir = Path(base_results_dir) / "models" / model
+    model_path = model_dir / "model.json"
+
+    if action == "train":
+        print(f"Generating features for run '{run_name}'...")
+        features_df = export_features(run_name, base_data_dir)
+        print(
+            f"Training Splink model '{model}' on '{run_name}' "
+            f"({len(features_df):,} records)..."
+        )
+        train_splink_model(features_df, config, model_path, threads=threads)
+        print(f"Model saved to: {model_path.resolve()}")
+        return 0
+
+    elif action == "predict":
+        reg_dir = Path(base_data_dir) / run_name / "registry"
+        feat_path = reg_dir / "features.parquet"
+        if not feat_path.exists():
+            print(f"Generating features for run '{run_name}'...")
+            features_df = export_features(run_name, base_data_dir)
+        else:
+            features_df = pd.read_parquet(feat_path)
+
+        if not model_path.exists():
+            print(f"Trained model not found at {model_path.resolve()}. Run 'link train' first.")
+            return 1
+
+        print(f"Scoring candidates for run '{run_name}' with model '{model}'...")
+        preds_df, _, cand_count = predict_splink_model(
+            features_df, model_path, run_name, base_results_dir, threads=threads
+        )
+        print("Prediction complete:")
+        print(f"  Candidate pairs evaluated: {cand_count:,}")
+        print(f"  Scored pairs persisted: {len(preds_df):,}")
+        return 0
+
+    elif action == "diagnose":
+        if not model_path.exists():
+            print(f"Trained model not found at {model_path.resolve()}.")
+            return 1
+
+        reg_dir = Path(base_data_dir) / run_name / "registry"
+        feat_path = reg_dir / "features.parquet"
+        features_df = pd.read_parquet(feat_path) if feat_path.exists() else None
+
+        charts_dir = Path(base_results_dir) / run_name / model / "charts"
+        print(f"Exporting model charts to {charts_dir.resolve()}...")
+        export_model_diagnostics(model_path, charts_dir, features_df)
+
+        print(f"Generating error analysis for '{model}' on run '{run_name}'...")
+        generate_error_analysis(
+            run_name=run_name,
+            method=model,
+            base_data_dir=base_data_dir,
+            base_results_dir=base_results_dir,
+        )
+        err_path = Path(base_results_dir) / run_name / model / "error_analysis.md"
+        print(f"Error analysis written to: {err_path.resolve()}")
+        return 0
+
+    else:
+        print(f"Unknown link action: {action}")
+        return 1
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -643,7 +738,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "-m",
         type=str,
         required=True,
-        choices=["exact", "phone", "exact_or_phone"],
+        choices=["no_link", "exact", "phone", "exact_or_phone"],
         help="Baseline deduplication method",
     )
     base_parser.add_argument(
@@ -711,6 +806,54 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Base directory for evaluation results",
     )
 
+    # 6. link
+    link_parser = subparsers.add_parser("link", help="Splink probabilistic linkage commands")
+    link_parser.add_argument(
+        "action",
+        choices=["train", "predict", "diagnose"],
+        help="Link action: train, predict, or diagnose",
+    )
+    link_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="demo",
+        help="Run identifier name",
+    )
+    link_parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default="splink_v1",
+        help="Model identifier name",
+    )
+    link_parser.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        default="configs/default.yaml",
+        help="Path to configuration YAML file",
+    )
+    link_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory holding generated runs",
+    )
+    link_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for evaluation results",
+    )
+    link_parser.add_argument(
+        "--threads",
+        type=int,
+        default=None,
+        help="DuckDB execution threads (set 1 for determinism)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "generate":
@@ -752,6 +895,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             config_path=args.config,
             base_data_dir=args.data_dir,
             base_results_dir=args.results_dir,
+        )
+    elif args.command == "link":
+        return run_link(
+            action=args.action,
+            run_name=args.run_name,
+            model=args.model,
+            config_path=args.config,
+            base_data_dir=args.data_dir,
+            base_results_dir=args.results_dir,
+            threads=args.threads,
         )
 
     return 1

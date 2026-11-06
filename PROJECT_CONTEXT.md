@@ -162,3 +162,42 @@ This section records all architectural, demographic, and technical design decisi
 - **Decision 4.6: Truth Directory Security Scan**:
   - Implemented an AST-based static analysis test verifying that only `barilink.evaluate`, `barilink.generate`, and `barilink.corrupt` ever reference the `truth/` directory as a path component, ignoring comments and docstrings.
 
+### Log Entry 005: 2026-11-06 — Phase 4 Normalisation & Splink Probabilistic Record Linkage
+- **Decision 5.1: Strict Normalisation & Canonicalisation Order**:
+  - Implemented `barilink.link.normalise` to engineer features strictly from model-visible files (`records.parquet`, `rosters.parquet`) writing to `features.parquet`.
+  - Strip honorific prefixes (`md`, `mohammad`, `mohd`, `mst`, `most`, `mosammat`, `late`).
+  - Extracted trailing female titles (`khatun`, `khatoon`, `begum`, `akter`, `bibi`, `rani`, `bala`) into canonical classes (`khatoon` -> `khatun`), stripping them from `name_clean`.
+  - Canonicalisation executed in strict hierarchical order:
+    1. Multi-character substitutions first (`oo->u`, `ee->i`, `ph->f`, `kh->k`, `sh->s`, `rehman->rahman`, `muhammad/mohammed->mohammad`).
+    2. Single-character substitutions second (`o->a`, `e->i`, `z->j`, `v->b`).
+    3. Removal of whitespace and hyphens.
+  - This sequence guarantees `"Khatoon"` resolves to `"katun"` rather than `"khataan"`. `"Rohima"` and `"Rahima"` resolve to `"rahima"`, while `"Kolsum"` and `"Kulsum"` remain distinct (`"kalsum"` != `"kulsum"`), respecting generator-private rules.
+  - Tokens sorted alphabetically (`name_tokens_sorted`) provide token transposition invariance (`"Mia Abdul Karim"` == `"Abdul Karim Mia"`).
+- **Decision 5.2: Kinship Comparison Redesign (No Double Counting)**:
+  - Replaced legacy scalar kin names with `roster_skels`: an array of consonant skeletons of household roster members ONLY from `rosters.parquet`. Set to `NULL` for records without rosters, and strictly omits the beneficiary's own guardian to prevent double-counting guardian evidence.
+  - Formulated 5 null-safe comparison levels in DuckDB SQL:
+    a) Both rosters null (`roster_skels_l IS NULL AND roster_skels_r IS NULL`, marked `is_null_level = True`)
+    b) Roster intersection size $\ge 2$
+    c) Cross-household guardian match: `list_contains(roster_skels_l, guardian_skeleton_r) OR list_contains(roster_skels_r, guardian_skeleton_l)`
+    d) Roster intersection size $\ge 1$
+    e) Else level
+- **Decision 5.3: Splink 4 Probabilistic Model & Blocking Rules**:
+  - Configured 9 Fellegi-Sunter comparisons in DuckDB: `given_name`, `guardian_name`, `kinship`, `phone`, `birth_year`, `village`, `union`, `sex`, and `title_token`.
+  - Established 5 prediction blocking rules:
+    1. `given_first_skel + village_canon`
+    2. `phone_norm`
+    3. `guardian_skeleton + village_canon`
+    4. `name_skeleton + union_raw`
+    5. `given_first_skel + birth_year_est`
+  - Scored candidates counted via `splink.blocking_analysis.cumulative_comparisons_to_be_scored_from_blocking_rules_data` (49,984 candidate pairs on `demo`, 45,507 on `holdout`).
+- **Decision 5.4: Unsupervised Fellegi-Sunter Training & Dev/Holdout Separation**:
+  - Model trained on `demo` only, using deterministic rule (`phone_norm` & `name_skeleton`, recall 0.60) for prior probability, random sampling ($2 \times 10^6$ pairs) for $u$-probabilities, and two Expectation-Maximisation sessions (Session A: `phone_norm`; Session B: `name_skeleton + village_canon`).
+  - Saved model to `results/models/splink_v1/model.json`.
+  - Holdout predictions load the saved model without retraining. Both `demo` and `holdout` evaluate at frozen operational threshold $t_{\text{cost}} = 0.99$.
+- **Decision 5.5: Benchmarking & Error Analysis**:
+  - Implemented `no_link` baseline (empty predictions; cluster precision 1.0, recall 0.0, reach error +32.03%).
+  - On unseen holdout data, `splink_v1` achieves Cluster Precision = 90.17%, Cluster Recall = 53.10% (>3x gain over best baseline `exact_or_phone` at 17.15%), B-cubed F1 = 0.9319, Doppelganger False-Merge Rate = 1.12%, Deduplicated Reach Error = +12.77% (down from +24.77%), and expected operational cost 1,114.0 (down from 1,397.0).
+  - Diagnostic charts exported to `results/holdout/splink_v1/charts/` (`match_weights.html`, `m_u_parameters.html`).
+  - Error analysis report persisted to `results/holdout/splink_v1/error_analysis.md`, attributing false merges and blocking failures across 161 unblocked true pairs (11.31%).
+
+

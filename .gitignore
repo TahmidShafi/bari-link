@@ -29,6 +29,7 @@ results/**
 !results/**/
 !results/**/*.md
 !results/**/selected_thresholds.json
+!results/**/model.json
 
 # OS-specific
 .DS_Store
