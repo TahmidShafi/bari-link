@@ -605,6 +605,8 @@ def export_registries(
     config_path: str | Path,
     run_name: str,
     base_data_dir: str | Path = "data/generated",
+    seed_offset: int = 0,
+    role: Optional[str] = None,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
     """Load clean population, generate corrupted registries, and export to disk."""
     config_path = Path(config_path)
@@ -623,10 +625,15 @@ def export_registries(
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
+    if role is None:
+        role = "holdout" if seed_offset != 0 else "dev"
+
+    effective_seed = int(config.get("seed", 42)) + seed_offset
+
     persons_df = pd.read_parquet(persons_parquet)
     households_df = pd.read_parquet(households_parquet)
 
-    orchestrator = RegistryOrchestrator(config)
+    orchestrator = RegistryOrchestrator(config, seed=effective_seed)
     registry_tables, truth_tables = orchestrator.process(persons_df, households_df)
 
     # Output paths
@@ -634,6 +641,17 @@ def export_registries(
     truth_dir = base_dir / "truth"
     reg_dir.mkdir(parents=True, exist_ok=True)
     truth_dir.mkdir(parents=True, exist_ok=True)
+
+    # Update manifest.json if present
+    manifest_path = base_dir / "manifest.json"
+    if manifest_path.exists():
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest_data = json.load(f)
+        manifest_data["role"] = role
+        manifest_data["seed_offset"] = seed_offset
+        manifest_data["registry_records"] = len(registry_tables["records"])
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest_data, f, indent=2)
 
     # Write registry outputs (MODEL VISIBLE ONLY)
     records_pq = reg_dir / "records.parquet"

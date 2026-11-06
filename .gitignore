@@ -24,6 +24,12 @@ htmlcov/
 # bari-link data artifacts
 data/generated/
 
+# Evaluation results
+results/**
+!results/**/
+!results/**/*.md
+!results/**/selected_thresholds.json
+
 # OS-specific
 .DS_Store
 Thumbs.db

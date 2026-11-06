@@ -1,14 +1,19 @@
 """Command line interface for bari-link."""
 
 import argparse
+import json
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence
 
 import pandas as pd
+import yaml
 
+from barilink.baselines.exact import run_exact_baseline
+from barilink.baselines.phone import run_exact_or_phone_baseline, run_phone_baseline
 from barilink.corrupt.registry import export_registries
 from barilink.corrupt.transliteration import get_rule_counts
+from barilink.evaluate.report import generate_evaluation_report
 from barilink.generate.population import generate_population
 
 
@@ -38,14 +43,24 @@ def _print_name_shares(df: pd.DataFrame, sex: str, label: str) -> None:
         print(f"  {rank:2d}. {name:<16} : {count:5,d} ({share:5.2f}%)")
 
 
-def run_generate(config_path: str, run_name: str, base_output_dir: str = "data/generated") -> int:
+def run_generate(
+    config_path: str,
+    run_name: str,
+    base_output_dir: str = "data/generated",
+    seed_offset: int = 0,
+    role: Optional[str] = None,
+) -> int:
     """Run clean population generation and print summary statistics."""
     output_dir = Path(base_output_dir) / run_name
     print("Generating synthetic population...")
     print(f"Config: {config_path}")
     print(f"Output directory: {output_dir.resolve()}")
+    if seed_offset != 0:
+        print(f"Seed offset: {seed_offset}")
 
-    persons_df, households_df, _ = generate_population(config_path, output_dir)
+    persons_df, households_df, _ = generate_population(
+        config_path, output_dir, seed_offset=seed_offset, role=role
+    )
 
     n_households = len(households_df)
     n_persons = len(persons_df)
@@ -326,7 +341,7 @@ def _print_corruption_summary(
     emit("    - records.parquet, rosters.parquet")
     emit("    - club_formation.csv, upg_enrolment.csv")
     emit("    - microfinance_group.csv, livelihood_support.csv")
-    emit("  Evaluation Files (data/generated/<run>/truth/):")
+    emit("  Evaluation Ground-Truth Files:")
     emit("    - record_truth.parquet, true_pairs.parquet")
     emit("    - corruption_log.parquet, doppelganger_pairs.parquet")
     emit("    - doppelganger_person_pairs.parquet, audit_stats.parquet")
@@ -339,26 +354,166 @@ def _print_corruption_summary(
     print(f"Summary persisted to: {summary_path.resolve()}")
 
 
-def run_corrupt(config_path: str, run_name: str, base_output_dir: str = "data/generated") -> int:
+def run_corrupt(
+    config_path: str,
+    run_name: str,
+    base_output_dir: str = "data/generated",
+    seed_offset: int = 0,
+    role: Optional[str] = None,
+) -> int:
     """Run registry sampling and corruption on clean population."""
     print("Running record corruption and registry generation...")
     print(f"Config: {config_path}")
     print(f"Run: {run_name}")
+    if seed_offset != 0:
+        print(f"Seed offset: {seed_offset}")
 
     base_dir = Path(base_output_dir) / run_name
-    registry_tables, truth_tables = export_registries(config_path, run_name, base_output_dir)
+    registry_tables, truth_tables = export_registries(
+        config_path, run_name, base_output_dir, seed_offset=seed_offset, role=role
+    )
     _print_corruption_summary(registry_tables, truth_tables, run_name, base_dir)
     return 0
 
 
-def run_build(config_path: str, run_name: str, base_output_dir: str = "data/generated") -> int:
+def run_build(
+    config_path: str,
+    run_name: str,
+    base_output_dir: str = "data/generated",
+    seed_offset: int = 0,
+    role: Optional[str] = None,
+) -> int:
     """Run full pipeline end-to-end: generate clean population then corrupt."""
     print("=" * 75)
     print("BARI-LINK BUILD: FULL GENERATE + CORRUPT PIPELINE")
     print("=" * 75)
-    run_generate(config_path, run_name, base_output_dir)
+    run_generate(
+        config_path, run_name, base_output_dir, seed_offset=seed_offset, role=role
+    )
     print("\n")
-    run_corrupt(config_path, run_name, base_output_dir)
+    run_corrupt(
+        config_path, run_name, base_output_dir, seed_offset=seed_offset, role=role
+    )
+    return 0
+
+
+def run_baseline(
+    method: str,
+    run_name: str,
+    base_data_dir: str = "data/generated",
+    base_results_dir: str = "results",
+) -> int:
+    """Run baseline linkage method and write predictions."""
+    reg_path = Path(base_data_dir) / run_name / "registry" / "records.parquet"
+    if not reg_path.exists():
+        print(
+            f"Error: Registry records not found at {reg_path.resolve()}. "
+            "Run 'build' or 'corrupt' first."
+        )
+        return 1
+
+    records_df = pd.read_parquet(reg_path)
+    print(
+        f"Running baseline method '{method}' on run '{run_name}' "
+        f"({len(records_df):,} records)..."
+    )
+
+    if method == "exact":
+        res = run_exact_baseline(records_df)
+    elif method == "phone":
+        res = run_phone_baseline(records_df)
+    elif method == "exact_or_phone":
+        res = run_exact_or_phone_baseline(records_df)
+    else:
+        print(f"Unknown baseline method: {method}")
+        return 1
+
+    out_dir = Path(base_results_dir) / run_name / method
+    out_dir.mkdir(parents=True, exist_ok=True)
+    preds_path = out_dir / "predictions.parquet"
+    meta_path = out_dir / "metadata.json"
+
+    res.predictions_df.to_parquet(preds_path, engine="pyarrow", index=False)
+    meta = {
+        "method": method,
+        "run_name": run_name,
+        "candidate_pair_count": res.candidate_pair_count,
+        "matched_pairs": len(res.predictions_df),
+        "metadata": res.metadata,
+    }
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2)
+
+    print(f"Baseline '{method}' finished:")
+    print(f"  Candidate pairs evaluated: {res.candidate_pair_count:,}")
+    print(f"  Positive match pairs (p=1.0): {len(res.predictions_df):,}")
+    print(f"  Saved predictions: {preds_path.resolve()}")
+    return 0
+
+
+def run_evaluate(
+    method: str,
+    run_name: str,
+    mode: str,
+    config_path: str = "configs/default.yaml",
+    base_data_dir: str = "data/generated",
+    base_results_dir: str = "results",
+) -> int:
+    """Run evaluation harness and generate metrics and reports."""
+    preds_path = Path(base_results_dir) / run_name / method / "predictions.parquet"
+    meta_path = Path(base_results_dir) / run_name / method / "metadata.json"
+
+    if not preds_path.exists() or not meta_path.exists():
+        print(f"Predictions not found for method '{method}' in run '{run_name}'.")
+        print("Running baseline first...")
+        ret = run_baseline(method, run_name, base_data_dir, base_results_dir)
+        if ret != 0:
+            return ret
+
+    preds_df = pd.read_parquet(preds_path)
+    with open(meta_path, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+    candidate_pair_count = meta.get("candidate_pair_count", len(preds_df))
+
+    cfg_p = Path(config_path)
+    config = {}
+    if cfg_p.exists():
+        with open(cfg_p, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    print(f"Evaluating method '{method}' on run '{run_name}' (mode: {mode})...")
+    metrics = generate_evaluation_report(
+        method_name=method,
+        run_name=run_name,
+        mode=mode,
+        predictions_df=preds_df,
+        candidate_pair_count=candidate_pair_count,
+        base_data_dir=base_data_dir,
+        base_results_dir=base_results_dir,
+        config=config,
+    )
+
+    out_dir = Path(base_results_dir) / run_name / method
+    print("\n" + "=" * 70)
+    print(f"EVALUATION COMPLETE: {method} ({run_name})")
+    print("=" * 70)
+    h = metrics["headline_metrics_at_t_cost"]
+    print(f"Selected t_cost:                 {metrics['operational_thresholds']['t_cost']:.2f}")
+    t_p99_val = metrics["operational_thresholds"]["t_p99"]
+    if t_p99_val is not None:
+        print(f"Selected t_p99:                  {t_p99_val:.2f}")
+    else:
+        print("Selected t_p99:                  N/A")
+    print(f"Cluster Precision:               {h['cluster_precision']:.4f}")
+    print(f"Cluster Recall:                  {h['cluster_recall']:.4f}")
+    print(f"Cluster F1:                      {h['cluster_f1']:.4f}")
+    print(f"B-cubed F1:                      {h['bcubed_f1']:.4f}")
+    print(f"Doppelganger False-Merge Rate:   {h['doppelganger_false_merge_rate'] * 100.0:.2f}%")
+    print(f"False-Merge Clusters:            {h['false_merge_clusters']}")
+    reach_str = f"{h['dedup_reach']:,} (Error: {h['reach_error_pct']:+.2f}%)"
+    print(f"Deduplicated Reach:              {reach_str}")
+    print(f"Report written to: {out_dir / 'report.md'}")
+    print("=" * 70)
     return 0
 
 
@@ -393,6 +548,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="data/generated",
         help="Base directory for generated outputs",
     )
+    gen_parser.add_argument(
+        "--seed-offset",
+        type=int,
+        default=0,
+        help="Integer offset to add to random seed",
+    )
+    gen_parser.add_argument(
+        "--role",
+        type=str,
+        choices=["dev", "holdout"],
+        default=None,
+        help="Dataset role (dev or holdout)",
+    )
 
     # 2. corrupt
     corr_parser = subparsers.add_parser("corrupt", help="Sample and corrupt enrolment registries")
@@ -416,6 +584,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=str,
         default="data/generated",
         help="Base directory for generated outputs",
+    )
+    corr_parser.add_argument(
+        "--seed-offset",
+        type=int,
+        default=0,
+        help="Integer offset to add to random seed",
+    )
+    corr_parser.add_argument(
+        "--role",
+        type=str,
+        choices=["dev", "holdout"],
+        default=None,
+        help="Dataset role (dev or holdout)",
     )
 
     # 3. build (generate + corrupt)
@@ -441,6 +622,94 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="data/generated",
         help="Base directory for generated outputs",
     )
+    build_parser.add_argument(
+        "--seed-offset",
+        type=int,
+        default=0,
+        help="Integer offset to add to random seed",
+    )
+    build_parser.add_argument(
+        "--role",
+        type=str,
+        choices=["dev", "holdout"],
+        default=None,
+        help="Dataset role (dev or holdout)",
+    )
+
+    # 4. baseline
+    base_parser = subparsers.add_parser("baseline", help="Run deterministic baseline linkage")
+    base_parser.add_argument(
+        "--method",
+        "-m",
+        type=str,
+        required=True,
+        choices=["exact", "phone", "exact_or_phone"],
+        help="Baseline deduplication method",
+    )
+    base_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="demo",
+        help="Run identifier name",
+    )
+    base_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory holding generated runs",
+    )
+    base_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for evaluation results",
+    )
+
+    # 5. evaluate
+    eval_parser = subparsers.add_parser("evaluate", help="Evaluate linkage predictions")
+    eval_parser.add_argument(
+        "--method",
+        type=str,
+        required=True,
+        help="Linkage method name to evaluate",
+    )
+    eval_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="demo",
+        help="Run identifier name",
+    )
+    eval_parser.add_argument(
+        "--mode",
+        "-m",
+        type=str,
+        required=True,
+        choices=["select", "report"],
+        help="Evaluation mode: select (for dev runs) or report (for holdout runs)",
+    )
+    eval_parser.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        default="configs/default.yaml",
+        help="Path to configuration YAML file",
+    )
+    eval_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory holding generated runs",
+    )
+    eval_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for evaluation results",
+    )
 
     args = parser.parse_args(argv)
 
@@ -449,18 +718,40 @@ def main(argv: Sequence[str] | None = None) -> int:
             config_path=args.config,
             run_name=args.run_name,
             base_output_dir=args.output_dir,
+            seed_offset=args.seed_offset,
+            role=args.role,
         )
     elif args.command == "corrupt":
         return run_corrupt(
             config_path=args.config,
             run_name=args.run_name,
             base_output_dir=args.output_dir,
+            seed_offset=args.seed_offset,
+            role=args.role,
         )
     elif args.command == "build":
         return run_build(
             config_path=args.config,
             run_name=args.run_name,
             base_output_dir=args.output_dir,
+            seed_offset=args.seed_offset,
+            role=args.role,
+        )
+    elif args.command == "baseline":
+        return run_baseline(
+            method=args.method,
+            run_name=args.run_name,
+            base_data_dir=args.data_dir,
+            base_results_dir=args.results_dir,
+        )
+    elif args.command == "evaluate":
+        return run_evaluate(
+            method=args.method,
+            run_name=args.run_name,
+            mode=args.mode,
+            config_path=args.config,
+            base_data_dir=args.data_dir,
+            base_results_dir=args.results_dir,
         )
 
     return 1

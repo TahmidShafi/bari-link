@@ -888,12 +888,16 @@ class PopulationGenerator:
 def generate_population(
     config_path: str | Path,
     output_dir: str | Path,
+    seed_offset: int = 0,
+    role: Optional[str] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """Run population generation from config and write parquet, csv, and manifest files.
 
     Args:
         config_path: Path to configuration YAML.
         output_dir: Directory where outputs will be stored.
+        seed_offset: Integer offset to add to config seed.
+        role: Dataset role ("dev" or "holdout"). Defaults to "holdout" if seed_offset != 0.
 
     Returns:
         Tuple of (persons_df, households_df, manifest_dict).
@@ -905,7 +909,14 @@ def generate_population(
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
-    gen = PopulationGenerator(config)
+    if role is None:
+        role = "holdout" if seed_offset != 0 else "dev"
+
+    effective_seed = int(config.get("seed", 42)) + seed_offset
+    config_gen = dict(config)
+    config_gen["seed"] = effective_seed
+
+    gen = PopulationGenerator(config_gen)
     persons_df, households_df = gen.generate()
 
     # Write Parquet files
@@ -922,14 +933,16 @@ def generate_population(
 
     # Write manifest.json
     manifest: dict[str, Any] = {
-        "seed": config.get("seed", 42),
+        "role": role,
+        "seed": effective_seed,
+        "seed_offset": seed_offset,
         "package_version": __version__,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "row_counts": {
             "persons": len(persons_df),
             "households": len(households_df),
         },
-        "config": config,
+        "config": config_gen,
     }
 
     manifest_path = output_dir / "manifest.json"

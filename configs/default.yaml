@@ -148,3 +148,13 @@ missingness:
     union: 0.02
     upazila: 0.03
     district: 0.02
+
+# ==============================================================================
+# Phase 3: Evaluation Harness & Cost Configuration
+# All default rates below are assumed, not empirically calibrated.
+# ==============================================================================
+evaluation:
+  cost_false_merge: 5.0        # Assumed: false merge denies assistance to a real person
+  cost_missed_duplicate: 1.0   # Assumed: missed duplicate yields redundant payment
+  review_threshold_low: 0.5    # Assumed: lower bound for clerical review window
+

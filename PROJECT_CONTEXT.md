@@ -131,3 +131,34 @@ This section records all architectural, demographic, and technical design decisi
   - Complete CLI summary output (including Enrolment Base Audit, Doppelganger Audit with 3 side-by-side examples, Post-Fix Name Frequency Shares, Corruption Frequency Table, and 5 multi-record clusters) is persisted to `data/generated/<run>/summary.txt`.
 - **Decision 3.6: Test Output Isolation**:
   - All test suites write transient outputs strictly to pytest's `tmp_path`, preserving `data/generated/demo` for explicit CLI runs.
+
+### Log Entry 004: 2026-11-06 — Phase 3 Evaluation Harness & Non-ML Baselines
+- **Decision 4.1: Two-Level Pairwise Evaluation Framework**:
+  - Formulated two distinct pairwise evaluation levels:
+    - **Cluster-Level (Headline)**: Every pair of records $(r_i, r_j)$ co-occurring within the same predicted connected-component cluster counts as a predicted entity match. All primary metrics ($TP, FP, FN, P, R, F_1$), asymmetric cost, $t_{\text{cost}}$, and $t_{\text{p99}}$ operate on cluster-level pairs.
+    - **Edge-Level (Diagnostic)**: Only scored candidate edges with $p \ge t$ are counted, reported as `edge_precision`, `edge_recall`, and `edge_f1` to evaluate pairwise classifier discrimination prior to graph closure.
+  - The recall and false negative denominator is strictly fixed to ALL ground-truth pairs in `truth/true_pairs.parquet` (including pairs omitted by candidate blocking).
+- **Decision 4.2: Asymmetric Cost Model & Monotonic Operational Thresholds**:
+  - Cost function: $\text{expected\_cost}(t) = c_{\text{fm}} \cdot FP_{\text{cluster}}(t) + c_{\text{md}} \cdot FN_{\text{cluster}}(t)$ with weights $c_{\text{fm}} = 5.0$ and $c_{\text{md}} = 1.0$. These parameters are explicitly **assumed, not empirically calibrated**, reflecting the core humanitarian premise (Hard Rule 4) that false merges (denial of aid to distinct individuals) cause 5x greater harm than missed duplicates (issuing redundant aid).
+  - $t_{\text{cost}}$ selects $\operatorname{argmin}_t \text{expected\_cost}(t)$ (ties broken towards higher thresholds).
+  - $t_{\text{p99}}$ enforces a monotonic suffix constraint: the lowest threshold $t$ where cluster precision $\ge 0.99$ at $t$ and at every threshold above $t$. If precision never reaches 0.99, $t_{\text{p99}} = \text{null}$ with a recorded explanation in `metrics.json` and `report.md`.
+- **Decision 4.3: Incremental Disjoint Set Union (DSU) Sweep**:
+  - Candidate pairs are sorted once by probability descending.
+  - As decision threshold decreases from $0.99$ to $0.01$ (in 0.01 decrements), components are joined incrementally via `UnionFind` with path compression.
+  - Each component root maintains component size, a `Counter` of `person_id -> record count`, and sum of squared counts. When merging root $A$ and root $B$, new cluster pairs ($|A| \cdot |B|$) and new true positive matches ($\sum_p A[p] \cdot B[p]$) are accumulated in $O(1)$ and smaller counters are merged into larger counters in $O(\min(|A|, |B|))$.
+  - Computes exact B-cubed $F_1$, false-merge clusters, minority false-merged records, doppelganger false-merge rate, and deduplicated reach across all 99 thresholds in $< 0.5$ seconds without re-clustering.
+- **Decision 4.4: Development vs. Holdout Protocol**:
+  - Separation between exploration and testing:
+    - Development run (`demo`, seed 42): used for threshold selection (`evaluate --mode select`), generating `results/<method>/selected_thresholds.json`.
+    - Holdout run (`holdout`, seed 1042 via `--seed-offset 1000`): used for frozen reporting (`evaluate --mode report`). `report` mode strictly requires `selected_thresholds.json` and prohibits re-tuning.
+  - `manifest.json` tracks `"role": "dev" | "holdout"`. `select` mode raises a descriptive error if invoked on a holdout run.
+  - `report` mode logs the dev source run name and the cryptographic SHA-256 hash of `selected_thresholds.json` directly into `metrics.json` and `report.md`.
+- **Decision 4.5: Non-ML Baseline Deduplication Performance**:
+  - Benchmarked three non-ML baselines over a standardized blocking filter (same cleaned village OR same normalized 11-digit mobile phone):
+    - `exact`: Exact match on normalized `full_name`, `guardian_name`, and `village`. On holdout: Precision = 97.69%, Recall = 8.65%, B-cubed F1 = 0.8756, Doppelganger FM Rate = 3.37%, Reach Error = +28.67%.
+    - `phone`: Match on identical 11-digit mobile phone. On holdout: Precision = 81.55%, Recall = 9.33%, B-cubed F1 = 0.8748, Doppelganger FM Rate = 0.00%, Reach Error = +27.68%.
+    - `exact_or_phone`: Union baseline. On holdout: Precision = 87.50%, Recall = 17.15%, B-cubed F1 = 0.8865, Doppelganger FM Rate = 3.37%, Reach Error = +24.77%.
+  - Persisted comparison results to `results/holdout/baseline_comparison.md`. The high reach errors (+24.77% to +28.67%) confirm that non-ML heuristics miss $> 82\%$ of duplicate beneficiaries, necessitating Phase 4 probabilistic record linkage.
+- **Decision 4.6: Truth Directory Security Scan**:
+  - Implemented an AST-based static analysis test verifying that only `barilink.evaluate`, `barilink.generate`, and `barilink.corrupt` ever reference the `truth/` directory as a path component, ignoring comments and docstrings.
+
