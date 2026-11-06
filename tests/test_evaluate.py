@@ -251,6 +251,7 @@ def test_incremental_sweep_equals_from_scratch():
         record_ids=record_ids,
         record_truth_df=record_truth_df,
         true_pairs_df=true_pairs_df,
+        grid="probability",
     )
 
     # Test at 5 distinct thresholds

@@ -1,8 +1,14 @@
 {
   "method": "no_link",
   "dev_run": "demo",
-  "t_cost": 0.99,
-  "t_p99": 0.01,
+  "grid": "weight",
+  "t_cost": 25.0,
+  "t_cost_weight": 25.0,
+  "t_cost_prob": 0.9999999701976785,
+  "t_cost_on_boundary": true,
+  "t_p99": -5.0,
+  "t_p99_weight": -5.0,
+  "t_p99_prob": 0.030303030303030304,
   "min_cost": 1424.0,
   "t_p99_explanation": null
 }

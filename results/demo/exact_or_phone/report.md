@@ -2,8 +2,11 @@
 
 - **Dataset Role**: `dev`
 - **Evaluation Mode**: `select`
-- **Selected $t_{\text{cost}}$**: `0.99`
-- **Selected $t_{p99}$**: `N/A`
+- **Threshold Grid**: `weight`
+- **Selected $t_{\text{cost}}$**: `Weight = 25.00 (p = 1.000000)`
+- **Selected $t_{p99}$**: `none`
+
+> **Warning on $t_{\text{cost}}$**: Selected threshold lies on the grid boundary! The true optimum may lie outside the current grid range.
 
 > **Note on $t_{p99}$**: No threshold achieved monotonic cluster precision >= 0.99.
 

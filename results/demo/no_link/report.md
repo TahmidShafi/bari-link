@@ -2,8 +2,11 @@
 
 - **Dataset Role**: `dev`
 - **Evaluation Mode**: `select`
-- **Selected $t_{\text{cost}}$**: `0.99`
-- **Selected $t_{p99}$**: `0.01`
+- **Threshold Grid**: `weight`
+- **Selected $t_{\text{cost}}$**: `Weight = 25.00 (p = 1.000000)`
+- **Selected $t_{p99}$**: `Weight = -5.00 (p = 0.030303)`
+
+> **Warning on $t_{\text{cost}}$**: Selected threshold lies on the grid boundary! The true optimum may lie outside the current grid range.
 
 ## Headline Metrics at Operational Threshold ($t_{\text{cost}}$)
 

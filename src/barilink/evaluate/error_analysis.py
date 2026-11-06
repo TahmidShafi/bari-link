@@ -45,19 +45,45 @@ def generate_error_analysis(
         raise FileNotFoundError(f"Predictions not found: {preds_path}")
 
     # Determine t_cost
-    if t_cost is None:
+    t_cost_prob: Optional[float] = None
+    t_cost_weight: Optional[float] = None
+
+    if t_cost is not None:
+        if t_cost > 1.0:
+            from barilink.evaluate.costs import weight_to_prob
+
+            t_cost_weight = t_cost
+            t_cost_prob = weight_to_prob(t_cost)
+        else:
+            t_cost_prob = t_cost
+    else:
         sel_path = Path(base_results_dir) / method / "selected_thresholds.json"
         metrics_path = results_dir / "metrics.json"
         if sel_path.exists():
             with open(sel_path, "r", encoding="utf-8") as f:
                 sel = json.load(f)
-                t_cost = float(sel.get("t_cost", 0.5))
+                if sel.get("grid") == "weight" or "t_cost_prob" in sel:
+                    t_cost_prob = float(sel.get("t_cost_prob", 0.5))
+                    t_cost_weight = (
+                        float(sel["t_cost_weight"]) if "t_cost_weight" in sel else None
+                    )
+                else:
+                    t_cost_prob = float(sel.get("t_cost", 0.5))
         elif metrics_path.exists():
             with open(metrics_path, "r", encoding="utf-8") as f:
                 m = json.load(f)
-                t_cost = float(m.get("operational_thresholds", {}).get("t_cost", 0.5))
+                op = m.get("operational_thresholds", {})
+                if op.get("grid") == "weight" or "t_cost_prob" in op:
+                    t_cost_prob = float(op.get("t_cost_prob", 0.5))
+                    t_cost_weight = (
+                        float(op["t_cost_weight"]) if "t_cost_weight" in op else None
+                    )
+                else:
+                    t_cost_prob = float(op.get("t_cost", 0.5))
         else:
-            t_cost = 0.5
+            t_cost_prob = 0.5
+
+    thresh_prob = t_cost_prob if t_cost_prob is not None else 0.5
 
     # Load data
     truth_df = pd.read_parquet(truth_path)
@@ -106,9 +132,9 @@ def generate_error_analysis(
         p_r = truth_map.get(r_r)
         is_same_person = (p_l == p_r) and (p_l is not None)
 
-        if p >= t_cost and not is_same_person:
+        if p >= thresh_prob and not is_same_person:
             false_merges.append((r_l, r_r, p, p_l, p_r))
-        elif p < t_cost and is_same_person:
+        elif p < thresh_prob and is_same_person:
             candidate_false_negatives.append((r_l, r_r, p, p_l, p_r))
 
     # Sort
@@ -126,10 +152,15 @@ def generate_error_analysis(
     )
 
     # Build Markdown Report
+    if t_cost_weight is not None:
+        thresh_desc = f"`{t_cost_weight:.2f}` (weight) / `{thresh_prob:.6f}` (probability)"
+    else:
+        thresh_desc = f"`{thresh_prob:.4f}`"
+
     lines = [
         f"# Linkage Error Analysis: {method} ({run_name})",
         "",
-        f"**Decision Threshold ($t_{{cost}}$):** `{t_cost:.4f}`  ",
+        f"**Decision Threshold ($t_{{cost}}$):** {thresh_desc}  ",
         f"**Total Ground-Truth True Pairs:** `{total_true_pairs:,}`  ",
         f"**Total Scored Candidate Pairs:** `{len(scored_pairs_set):,}`  ",
         f"**Scored True Pairs:** `{len(true_pairs_set & scored_pairs_set):,}`  ",

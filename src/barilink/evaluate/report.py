@@ -1,5 +1,7 @@
 """Evaluation orchestrator: threshold sweep, Dev/Holdout protocol, and artifact persistence."""
 
+from __future__ import annotations
+
 import hashlib
 import json
 from pathlib import Path
@@ -13,7 +15,9 @@ from barilink.evaluate.contracts import validate_predictions
 from barilink.evaluate.costs import (
     compute_clerical_review_load,
     compute_expected_cost,
+    prob_to_weight,
     select_thresholds,
+    weight_to_prob,
 )
 from barilink.evaluate.pairwise import (
     compute_pairwise_metrics_from_counts,
@@ -32,8 +36,9 @@ def run_threshold_sweep(
     cost_false_merge: float = 5.0,
     cost_missed_duplicate: float = 1.0,
     review_threshold_low: float = 0.5,
+    grid: str = "weight",
 ) -> tuple[pd.DataFrame, dict[float, UnionFind]]:
-    """Run incremental Union-Find threshold sweep from 0.01 to 0.99.
+    """Run incremental Union-Find threshold sweep in match-weight or probability space.
 
     Args:
         predictions_df: Validated predictions DataFrame.
@@ -44,9 +49,7 @@ def run_threshold_sweep(
         cost_false_merge: Penalty c_fm.
         cost_missed_duplicate: Penalty c_md.
         review_threshold_low: Lower bound for clerical review load.
-
-    Returns:
-        Tuple of (sweep_df, snapshot_ufs).
+        grid: 'weight' (default, -5.0 to +25.0 in steps of 0.25) or 'probability' (0.01 to 0.99).
     """
     total_records = len(record_ids)
     record_person_map = dict(
@@ -71,14 +74,57 @@ def run_threshold_sweep(
         for _, r in doppelganger_person_pairs_df.iterrows():
             doppel_pairs.append((str(r["person_id_1"]), str(r["person_id_2"])))
 
-    # Sort scored predictions by probability descending
+    # Ensure match_weight and match_probability exist
     if not predictions_df.empty:
-        sorted_preds = predictions_df.sort_values("match_probability", ascending=False).copy()
+        preds = predictions_df.copy()
+        if "match_weight" not in preds.columns:
+            probs = preds["match_probability"].astype(float).values
+            weights = np.where(
+                probs >= 1.0,
+                float("inf"),
+                np.where(
+                    probs <= 0.0,
+                    float("-inf"),
+                    np.log2(
+                        np.clip(probs, 1e-15, 1.0 - 1e-15)
+                        / (1.0 - np.clip(probs, 1e-15, 1.0 - 1e-15))
+                    ),
+                ),
+            )
+            preds["match_weight"] = weights
+        elif preds["match_weight"].isna().any():
+            probs = preds["match_probability"].astype(float).values
+            weights = np.where(
+                probs >= 1.0,
+                float("inf"),
+                np.where(
+                    probs <= 0.0,
+                    float("-inf"),
+                    np.log2(
+                        np.clip(probs, 1e-15, 1.0 - 1e-15)
+                        / (1.0 - np.clip(probs, 1e-15, 1.0 - 1e-15))
+                    ),
+                ),
+            )
+            preds["match_weight"] = preds["match_weight"].fillna(
+                pd.Series(weights, index=preds.index)
+            )
     else:
-        sorted_preds = pd.DataFrame(columns=["record_id_l", "record_id_r", "match_probability"])
+        preds = pd.DataFrame(
+            columns=["record_id_l", "record_id_r", "match_probability", "match_weight"]
+        )
 
-    # Thresholds: 0.99 down to 0.01 in steps of 0.01
-    thresholds = [round(t * 0.01, 2) for t in range(99, 0, -1)]
+    # Grid thresholds and sorting
+    if grid == "weight":
+        # Weights from +25.0 down to -5.0 in steps of 0.25 (121 thresholds)
+        thresholds = [round(w * 0.25, 2) for w in range(100, -21, -1)]
+        score_col = "match_weight"
+    else:
+        # Probabilities from 0.99 down to 0.01 in steps of 0.01 (99 thresholds)
+        thresholds = [round(t * 0.01, 2) for t in range(99, 0, -1)]
+        score_col = "match_probability"
+
+    sorted_preds = preds.sort_values(score_col, ascending=False).reset_index(drop=True)
 
     uf = UnionFind(
         record_ids=record_ids,
@@ -97,8 +143,8 @@ def run_threshold_sweep(
     snapshot_ufs: dict[float, UnionFind] = {}
 
     for t in thresholds:
-        # Union all edges where match_probability >= t
-        while pred_idx < num_preds and sorted_preds.iloc[pred_idx]["match_probability"] >= t:
+        # Union all edges where score >= t
+        while pred_idx < num_preds and sorted_preds.iloc[pred_idx][score_col] >= t:
             row = sorted_preds.iloc[pred_idx]
             u = str(row["record_id_l"])
             v = str(row["record_id_r"])
@@ -133,12 +179,19 @@ def run_threshold_sweep(
             cost_missed_duplicate=cost_missed_duplicate,
         )
 
-        # Clerical review pairs with review_threshold_low <= p < 1.0 (or t_p99)
+        if grid == "weight":
+            w_val = t
+            p_val = weight_to_prob(w_val)
+        else:
+            p_val = t
+            w_val = prob_to_weight(p_val)
+
+        # Clerical review pairs with review_threshold_low <= p < p_val
         rev_count = compute_clerical_review_load(
             predictions_df=predictions_df,
             total_records=total_records,
             t_low=review_threshold_low,
-            t_high=1.0,
+            t_high=p_val,
         )
 
         reach_err_pct = (
@@ -150,6 +203,8 @@ def run_threshold_sweep(
         rows.append(
             {
                 "threshold": t,
+                "threshold_weight": w_val,
+                "threshold_probability": p_val,
                 "tp": pw.tp,
                 "fp": pw.fp,
                 "fn": pw.fn,
@@ -176,7 +231,8 @@ def run_threshold_sweep(
             }
         )
 
-    sweep_df = pd.DataFrame(rows).sort_values("threshold").reset_index(drop=True)
+    sort_col = "threshold_weight" if grid == "weight" else "threshold_probability"
+    sweep_df = pd.DataFrame(rows).sort_values(sort_col).reset_index(drop=True)
     return sweep_df, snapshot_ufs
 
 
@@ -189,19 +245,9 @@ def generate_evaluation_report(
     base_data_dir: str | Path = "data/generated",
     base_results_dir: str | Path = "results",
     config: Optional[dict[str, Any]] = None,
+    grid: str = "weight",
 ) -> dict[str, Any]:
-    """Execute complete evaluation, persist metrics, and format human-readable report.
-
-    Args:
-        method_name: Name of the linkage method (e.g. exact, phone, exact_or_phone).
-        run_name: Run folder name (e.g. demo, holdout).
-        mode: Either 'select' (dev run) or 'report' (holdout run).
-        predictions_df: Unvalidated or validated predictions DataFrame.
-        candidate_pair_count: Number of candidate pairs compared.
-        base_data_dir: Base directory holding generated runs.
-        base_results_dir: Base directory holding results.
-        config: Optional configuration dict.
-    """
+    """Execute complete evaluation, persist metrics, and format human-readable report."""
     config = config or {}
     eval_cfg = config.get("evaluation", {})
     cost_fm = float(eval_cfg.get("cost_false_merge", 5.0))
@@ -277,6 +323,7 @@ def generate_evaluation_report(
         cost_false_merge=cost_fm,
         cost_missed_duplicate=cost_md,
         review_threshold_low=review_low,
+        grid=grid,
     )
 
     results_base = Path(base_results_dir)
@@ -289,16 +336,27 @@ def generate_evaluation_report(
 
     if mode == "select":
         selection = select_thresholds(
-            sweep_df, cost_false_merge=cost_fm, cost_missed_duplicate=cost_md
+            sweep_df, cost_false_merge=cost_fm, cost_missed_duplicate=cost_md, grid=grid
         )
         t_cost = selection.t_cost
+        t_cost_weight = selection.t_cost_weight
+        t_cost_prob = selection.t_cost_prob
+        t_cost_on_boundary = selection.t_cost_on_boundary
         t_p99 = selection.t_p99
+        t_p99_weight = selection.t_p99_weight
+        t_p99_prob = selection.t_p99_prob
 
         sel_dict = {
             "method": method_name,
             "dev_run": run_name,
+            "grid": grid,
             "t_cost": t_cost,
+            "t_cost_weight": t_cost_weight,
+            "t_cost_prob": t_cost_prob,
+            "t_cost_on_boundary": t_cost_on_boundary,
             "t_p99": t_p99,
+            "t_p99_weight": t_p99_weight,
+            "t_p99_prob": t_p99_prob,
             "min_cost": selection.min_cost,
             "t_p99_explanation": selection.t_p99_explanation,
         }
@@ -320,16 +378,33 @@ def generate_evaluation_report(
 
         threshold_source_run = sel_dict.get("dev_run", "unknown")
         t_cost = float(sel_dict["t_cost"])
+        t_cost_weight = float(sel_dict.get("t_cost_weight", prob_to_weight(t_cost)))
+        t_cost_prob = float(sel_dict.get("t_cost_prob", weight_to_prob(t_cost)))
+        t_cost_on_boundary = bool(sel_dict.get("t_cost_on_boundary", False))
         t_p99 = float(sel_dict["t_p99"]) if sel_dict.get("t_p99") is not None else None
+        t_p99_weight = (
+            float(sel_dict["t_p99_weight"]) if sel_dict.get("t_p99_weight") is not None else None
+        )
+        t_p99_prob = (
+            float(sel_dict["t_p99_prob"]) if sel_dict.get("t_p99_prob") is not None else None
+        )
 
     # Retrieve metrics at operational threshold t_cost
-    t_row = sweep_df[np.isclose(sweep_df["threshold"], t_cost)].iloc[0]
+    if grid == "weight":
+        t_matches = sweep_df[np.isclose(sweep_df["threshold_weight"], t_cost_weight, atol=1e-4)]
+    else:
+        t_matches = sweep_df[np.isclose(sweep_df["threshold_probability"], t_cost_prob, atol=1e-4)]
+    t_row = t_matches.iloc[0] if not t_matches.empty else sweep_df.iloc[-1]
 
     # Build operational clusters at t_cost
     uf_cost = UnionFind(record_ids)
-    above_cost = clean_preds_df[clean_preds_df["match_probability"] >= t_cost]
-    for _, r in above_cost.iterrows():
-        uf_cost.union(str(r["record_id_l"]), str(r["record_id_r"]))
+    if not clean_preds_df.empty:
+        if grid == "weight" and "match_weight" in clean_preds_df.columns:
+            above_cost = clean_preds_df[clean_preds_df["match_weight"] >= t_cost_weight]
+        else:
+            above_cost = clean_preds_df[clean_preds_df["match_probability"] >= t_cost_prob]
+        for _, r in above_cost.iterrows():
+            uf_cost.union(str(r["record_id_l"]), str(r["record_id_r"]))
 
     cost_clusters_df = pd.DataFrame(
         [{"record_id": rid, "cluster_id": uf_cost.find(rid)} for rid in record_ids]
@@ -345,7 +420,7 @@ def generate_evaluation_report(
         true_pairs_df=true_pairs_df,
         corruption_log_df=corr_log_df,
         predictions_df=clean_preds_df,
-        threshold=t_cost,
+        threshold=t_cost_prob,
     )
 
     # Construct final metrics dictionary
@@ -358,8 +433,14 @@ def generate_evaluation_report(
         "thresholds_source_run": threshold_source_run,
         "thresholds_sha256": threshold_sha256,
         "operational_thresholds": {
+            "grid": grid,
             "t_cost": t_cost,
+            "t_cost_weight": t_cost_weight,
+            "t_cost_prob": t_cost_prob,
+            "t_cost_on_boundary": t_cost_on_boundary,
             "t_p99": t_p99,
+            "t_p99_weight": t_p99_weight,
+            "t_p99_prob": t_p99_prob,
         },
         "blocking": {
             "candidate_pairs": blocking_metrics.candidate_pairs,
@@ -397,17 +478,12 @@ def generate_evaluation_report(
     }
 
     # Write output files
-    # 1. metrics.json
     with open(target_out_dir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
-    # 2. threshold_table.parquet
     sweep_df.to_parquet(target_out_dir / "threshold_table.parquet", engine="pyarrow", index=False)
-
-    # 3. strata.parquet
     strata_df.to_parquet(target_out_dir / "strata.parquet", engine="pyarrow", index=False)
 
-    # 4. report.md
     sel_for_report = sel_dict if mode == "report" else None
     report_md = _build_report_markdown(metrics, reach_summary, sel_for_report)
     with open(target_out_dir / "report.md", "w", encoding="utf-8") as f:
@@ -426,14 +502,36 @@ def _build_report_markdown(
     blk = metrics["blocking"]
     op = metrics["operational_thresholds"]
 
-    t_p99_str = f"{op['t_p99']:.2f}" if op["t_p99"] is not None else "N/A"
+    grid = op.get("grid", "weight")
+    if grid == "weight":
+        t_cost_display = f"Weight = {op['t_cost_weight']:.2f} (p = {op['t_cost_prob']:.6f})"
+        t_p99_str = (
+            f"Weight = {op['t_p99_weight']:.2f} (p = {op['t_p99_prob']:.6f})"
+            if op.get("t_p99_weight") is not None
+            else "none"
+        )
+    else:
+        t_cost_display = f"Prob = {op['t_cost_prob']:.4f} (weight = {op['t_cost_weight']:.2f})"
+        t_p99_str = (
+            f"Prob = {op['t_p99_prob']:.4f}"
+            if op.get("t_p99_prob") is not None
+            else "none"
+        )
+
     t_p99_note = ""
     if sel_dict and sel_dict.get("t_p99_explanation"):
         t_p99_note = f"\n> **Note on $t_{{p99}}$**: {sel_dict['t_p99_explanation']}\n"
-    elif op["t_p99"] is None:
+    elif op.get("t_p99") is None:
         t_p99_note = (
             "\n> **Note on $t_{p99}$**: "
             "No threshold achieved monotonic cluster precision >= 0.99.\n"
+        )
+
+    boundary_note = ""
+    if op.get("t_cost_on_boundary"):
+        boundary_note = (
+            "\n> **Warning on $t_{\\text{cost}}$**: Selected threshold lies on the grid boundary! "
+            "The true optimum may lie outside the current grid range.\n"
         )
 
     sha_note = ""
@@ -466,9 +564,10 @@ def _build_report_markdown(
 
 - **Dataset Role**: `{metrics['run_role']}`
 - **Evaluation Mode**: `{metrics['mode']}`
-{sha_note}- **Selected $t_{{\\text{{cost}}}}$**: `{op['t_cost']:.2f}`
+- **Threshold Grid**: `{grid}`
+{sha_note}- **Selected $t_{{\\text{{cost}}}}$**: `{t_cost_display}`
 - **Selected $t_{{p99}}$**: `{t_p99_str}`
-{t_p99_note}
+{boundary_note}{t_p99_note}
 ## Headline Metrics at Operational Threshold ($t_{{\\text{{cost}}}}$)
 
 | Metric | Cluster-Level (Headline) | Edge-Level (Diagnostic) | B-cubed |

@@ -472,6 +472,7 @@ def run_evaluate(
     config_path: str = "configs/default.yaml",
     base_data_dir: str = "data/generated",
     base_results_dir: str = "results",
+    grid: str = "weight",
 ) -> int:
     """Run evaluation harness and generate metrics and reports."""
     preds_path = Path(base_results_dir) / run_name / method / "predictions.parquet"
@@ -495,7 +496,7 @@ def run_evaluate(
         with open(cfg_p, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
-    print(f"Evaluating method '{method}' on run '{run_name}' (mode: {mode})...")
+    print(f"Evaluating method '{method}' on run '{run_name}' (mode: {mode}, grid: {grid})...")
     metrics = generate_evaluation_report(
         method_name=method,
         run_name=run_name,
@@ -505,6 +506,7 @@ def run_evaluate(
         base_data_dir=base_data_dir,
         base_results_dir=base_results_dir,
         config=config,
+        grid=grid,
     )
 
     out_dir = Path(base_results_dir) / run_name / method
@@ -512,10 +514,25 @@ def run_evaluate(
     print(f"EVALUATION COMPLETE: {method} ({run_name})")
     print("=" * 70)
     h = metrics["headline_metrics_at_t_cost"]
-    print(f"Selected t_cost:                 {metrics['operational_thresholds']['t_cost']:.2f}")
-    t_p99_val = metrics["operational_thresholds"]["t_p99"]
+    op = metrics["operational_thresholds"]
+    t_cost_w_str = f"{op.get('t_cost_weight', op['t_cost']):.2f}"
+    t_cost_p_str = f"{op.get('t_cost_prob', op['t_cost']):.6f}"
+    if op.get("grid") == "weight":
+        print(f"Selected t_cost (weight / prob): {t_cost_w_str} / {t_cost_p_str}")
+    else:
+        print(f"Selected t_cost:                 {op['t_cost']:.2f}")
+
+    if op.get("t_cost_on_boundary"):
+        print("  WARNING: t_cost lies on the grid boundary!")
+
+    t_p99_val = op.get("t_p99")
     if t_p99_val is not None:
-        print(f"Selected t_p99:                  {t_p99_val:.2f}")
+        if op.get("grid") == "weight":
+            w_str = f"{op.get('t_p99_weight', t_p99_val):.2f}"
+            p_str = f"{op.get('t_p99_prob', t_p99_val):.6f}"
+            print(f"Selected t_p99 (weight / prob):  {w_str} / {p_str}")
+        else:
+            print(f"Selected t_p99:                  {t_p99_val:.2f}")
     else:
         print("Selected t_p99:                  N/A")
     print(f"Cluster Precision:               {h['cluster_precision']:.4f}")
@@ -805,6 +822,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="results",
         help="Base directory for evaluation results",
     )
+    eval_parser.add_argument(
+        "--grid",
+        "-g",
+        type=str,
+        choices=["weight", "probability"],
+        default="weight",
+        help="Threshold sweep grid: weight (default, match-weight space) or probability",
+    )
 
     # 6. link
     link_parser = subparsers.add_parser("link", help="Splink probabilistic linkage commands")
@@ -895,6 +920,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             config_path=args.config,
             base_data_dir=args.data_dir,
             base_results_dir=args.results_dir,
+            grid=args.grid,
         )
     elif args.command == "link":
         return run_link(

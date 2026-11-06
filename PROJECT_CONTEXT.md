@@ -200,4 +200,32 @@ This section records all architectural, demographic, and technical design decisi
   - Diagnostic charts exported to `results/holdout/splink_v1/charts/` (`match_weights.html`, `m_u_parameters.html`).
   - Error analysis report persisted to `results/holdout/splink_v1/error_analysis.md`, attributing false merges and blocking failures across 161 unblocked true pairs (11.31%).
 
+### Log Entry 006: 2026-11-06 — Phase 4b Threshold Resolution & Statistical Uncertainty
+- **Decision 6.1: Match-Weight Threshold Grid Sweep**:
+  - Replaced the truncated probability grid ([0.01, 0.99] in steps of 0.01) with a match-weight space sweep: weights from -5.0 to +25.0 in steps of 0.25 (121 evaluation points).
+  - Stored equivalent match probabilities $p = 2^w / (1 + 2^w)$ in `threshold_table.parquet` (`threshold_weight` and `threshold_probability`).
+  - For deterministic non-ML baselines outputting $p = 1.0$, assigned match-weight $+\infty$, placing their operational cutoff on the upper boundary ($t_{\text{cost}} = 25.00$) and logging an explicit boundary warning.
+  - On `demo`, the match-weight sweep resolved an interior optimum at $w = 9.00$ ($p \approx 0.998051$), reducing false-merge clusters from 58 down to 19, eliminating doppelganger false merges (0.0%), and locating the high-precision operational threshold $t_{\text{p99}} = 15.50$ ($p \approx 0.999978$).
+- **Decision 6.2: Multi-Seed Holdout Protocol & Statistical Uncertainty**:
+  - Instantiated 5 independent holdout populations (`holdout_0` through `holdout_4`) with seed offsets 1000, 1001, 1002, 1003, and 1004.
+  - Frozen `splink_v1` model scored all 5 holdouts without re-training or threshold re-tuning.
+  - Evaluated all 5 methods (`no_link`, `exact`, `phone`, `exact_or_phone`, `splink_v1`) in `report` mode across all 5 seeds, reporting sample mean $\pm$ standard deviation ($N=5$) for headline metrics:
+    - `splink_v1`: Cluster Precision = $0.9404 \pm 0.0081$, Cluster Recall = $0.4741 \pm 0.0122$, Cluster F1 = $0.6303 \pm 0.0105$, Reach Error = $+14.85\% \pm 0.69\%$, Review Pairs per 10k = $2031.1$.
+    - `exact_or_phone`: Cluster Precision = $0.8557 \pm 0.0419$, Cluster Recall = $0.1795 \pm 0.0212$, Cluster F1 = $0.2964 \pm 0.0302$, Reach Error = $+23.70\% \pm 0.99\%$.
+- **Decision 6.3: Pooled Wilson 95% Confidence Interval for Doppelgangers**:
+  - Pooled doppelganger false-merge counts across the 5 holdout seeds (370 total injected cross-household doppelganger pairs).
+  - Derived Wilson score 95% confidence intervals:
+    - `no_link`: $0.00\%$ ($0/370$) [Wilson 95% CI: $0.00\%$, $1.03\%$]
+    - `exact`: $4.86\%$ ($18/370$) [Wilson 95% CI: $3.10\%$, $7.56\%$]
+    - `phone`: $0.27\%$ ($1/370$) [Wilson 95% CI: $0.05\%$, $1.51\%$]
+    - `exact_or_phone`: $5.14\%$ ($19/370$) [Wilson 95% CI: $3.31\%$, $7.88\%$]
+    - `splink_v1`: $1.89\%$ ($7/370$) [Wilson 95% CI: $0.92\%$, $3.85\%$]
+  - Confirmed that multi-feature probabilistic evidence cuts doppelganger false merges by >60% relative to standard deterministic matching (`exact` / `exact_or_phone`).
+- **Decision 6.4: Blocking Diagnostics & Recall Ceiling**:
+  - Analyzed marginal and cumulative candidate pair generation across the 5 blocking rules on `holdout_0`, persisted to `results/holdout_0/splink_v1/blocking.md`.
+  - Pruned search space from 11.5M pairs down to 45,507 comparisons (99.60% reduction ratio) while preserving 88.36% pair completeness (1,298 / 1,469 true pairs).
+- **Decision 6.5: Exclusion of B-cubed from Headline Comparison**:
+  - B-cubed precision and recall are recorded exclusively in `metrics.json` and excluded from the headline comparison table because datasets dominated by singleton clusters artificially inflate B-cubed metrics (e.g. `no_link` scores B-cubed F1 $\approx 0.86$ despite zero recall on actual matching pairs). Cluster-level pairwise metrics ($TP, FP, FN, P, R, F_1$) provide an honest, uninflated headline assessment.
+
+
 

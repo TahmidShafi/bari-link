@@ -344,3 +344,81 @@ def test_diagnostics_and_error_analysis():
         assert mu_path.exists()
         assert w_path.stat().st_size > 0
         assert mu_path.stat().st_size > 0
+
+
+def test_weight_grid_resolves_interior_optimum_above_p99():
+    """Verify that on scores concentrated above p = 0.99, weight grid finds interior optimum."""
+    from barilink.evaluate.costs import select_thresholds, weight_to_prob
+    from barilink.evaluate.report import run_threshold_sweep
+
+    # 10 true pairs (w=12.0, p~0.99975) and 5 false pairs (w=7.0, p~0.99225)
+    record_truth = []
+    true_pairs = []
+    for i in range(10):
+        r1, r2 = f"t_{i}_a", f"t_{i}_b"
+        p_id = f"P_{i}"
+        record_truth.extend([
+            {"record_id": r1, "person_id": p_id},
+            {"record_id": r2, "person_id": p_id},
+        ])
+        true_pairs.append({"record_id_1": r1, "record_id_2": r2})
+
+    for j in range(5):
+        rf1, rf2 = f"f_{j}_a", f"f_{j}_b"
+        record_truth.extend([
+            {"record_id": rf1, "person_id": f"FP1_{j}"},
+            {"record_id": rf2, "person_id": f"FP2_{j}"},
+        ])
+
+    record_truth_df = pd.DataFrame(record_truth)
+    true_pairs_df = pd.DataFrame(true_pairs)
+    record_ids = record_truth_df["record_id"].tolist()
+
+    preds = []
+    for r in true_pairs:
+        w = 12.0
+        p = weight_to_prob(w)
+        preds.append({
+            "record_id_l": r["record_id_1"],
+            "record_id_r": r["record_id_2"],
+            "match_probability": p,
+            "match_weight": w,
+        })
+    for j in range(5):
+        w = 7.0
+        p = weight_to_prob(w)
+        preds.append({
+            "record_id_l": f"f_{j}_a",
+            "record_id_r": f"f_{j}_b",
+            "match_probability": p,
+            "match_weight": w,
+        })
+
+    preds_df = pd.DataFrame(preds)
+
+    # 1. Probability grid (capped at 0.99)
+    sweep_prob, _ = run_threshold_sweep(
+        predictions_df=preds_df,
+        record_ids=record_ids,
+        record_truth_df=record_truth_df,
+        true_pairs_df=true_pairs_df,
+        grid="probability",
+    )
+    sel_prob = select_thresholds(sweep_prob, grid="probability")
+    # Cannot separate scores above 0.99; boundary hits 0.99
+    assert sel_prob.t_cost_on_boundary is True
+    assert sel_prob.t_cost == 0.99
+
+    # 2. Match weight grid (-5.0 to +25.0 in steps of 0.25)
+    sweep_weight, _ = run_threshold_sweep(
+        predictions_df=preds_df,
+        record_ids=record_ids,
+        record_truth_df=record_truth_df,
+        true_pairs_df=true_pairs_df,
+        grid="weight",
+    )
+    sel_weight = select_thresholds(sweep_weight, grid="weight")
+    # Resolves interior threshold separating w=7.0 from w=12.0
+    assert sel_weight.t_cost_on_boundary is False
+    assert 7.0 < sel_weight.t_cost_weight <= 12.0
+    assert sel_weight.min_cost < sel_prob.min_cost
