@@ -111,3 +111,23 @@ This section records all architectural, demographic, and technical design decisi
   - Model-visible outputs in `data/generated/<run>/registry/` contain zero ground-truth identifiers or canonical names.
   - Every record is assigned an opaque 10-character hex `record_id` redrawn on collision, with Spearman rank correlation with `person_id` verified to satisfy $|\rho| < 0.05$.
   - All evaluation keys, pairwise ground-truth matches, doppelgangers, and corruption logs are segregated in `data/generated/<run>/truth/`.
+
+### Log Entry 003: 2026-11-06 — Phase 2 Audit Alignments & Hard Negative Refinements
+- **Decision 3.1: Household Given-Name Uniqueness & Father-Son Differentiation**:
+  - Enforced nominal uniqueness within each household ("bari"): no two co-resident members may share a `given_name`.
+  - Enforced that a son's `given_name` must differ from his father's `given_name` (both when the father is resident and when the father is absent or deceased, as in female-headed households).
+  - Rejection resampling deterministically draws names with a maximum of 200 attempts before raising a descriptive `RuntimeError`. Rejection resampling approximately preserves the Zipf-Mandelbrot rank distribution across households.
+  - Added clean column `father_given_name` to `persons.parquet` (evaluation truth only), populated from resident father records or sampled absent father names. Used directly (never via string splitting) for kinship rules, and added to the registry leakage-guard blacklist.
+- **Decision 3.2: Eligibility Evaluated at Enrolment Date**:
+  - Enrolment eligibility is evaluated at each beneficiary's sampled enrolment date (`enrolment year - birth_year`), rather than using `age_at_reference_date`. The eligible pool for audit equals the population eligible at their drawn date.
+- **Decision 3.3: Enrolment Base Sizing & Integrated Conditional Overlap**:
+  - `target_share` strictly represents the fraction of the defined eligible pool for each module.
+  - Conditional cross-module overlaps (`UPG -> microfinance`, `UPG -> livelihood`) are a priority subset of the target rather than added on top: UPG-conditional candidates are enrolled first, and general eligible candidates top up to `round(target_share * eligible_pool)`. Realised shares are verified within $\pm 2$ percentage points of `target_share`.
+  - Microfinance pool: eligible pool = women aged 18–60 at enrolment date (`target_count_female = round(target_share * pool)`). Male borrowers are a separate quota: `round(target_count_female * male_share / (1 - male_share))` where `male_share = 0.08`, drawn from men aged 18–60. Realised share test applies to the female pool; male quota is reported separately.
+- **Decision 3.4: Cross-Household Doppelgangers (Hard Negatives)**:
+  - Doppelgangers are strictly defined as distinct individuals living in *different* households (`person_id_1 != person_id_2` AND `household_id_1 != household_id_2`) who share canonical `(given_name, guardian_name, village)`. Co-residents sharing a name/guardian are excluded as family members.
+  - Person pairs and record pairs are reported separately (one person pair produces $K_1 \times K_2$ record pairs). If natural person pairs $< 50$, injection creates cousin households in the same village and marks them `is_injected = True`.
+- **Decision 3.5: Persistent Summary Reporting**:
+  - Complete CLI summary output (including Enrolment Base Audit, Doppelganger Audit with 3 side-by-side examples, Post-Fix Name Frequency Shares, Corruption Frequency Table, and 5 multi-record clusters) is persisted to `data/generated/<run>/summary.txt`.
+- **Decision 3.6: Test Output Isolation**:
+  - All test suites write transient outputs strictly to pytest's `tmp_path`, preserving `data/generated/demo` for explicit CLI runs.

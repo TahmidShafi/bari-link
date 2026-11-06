@@ -87,12 +87,20 @@ def _print_corruption_summary(
     run_name: str,
     base_dir: Path,
 ) -> None:
-    """Print the required Phase 2 summary metrics."""
+    """Print and persist the required Phase 2 summary metrics."""
     records_df = registry_tables["records"]
     truth_df = truth_tables["record_truth"]
     true_pairs_df = truth_tables["true_pairs"]
     doppel_df = truth_tables["doppelganger_pairs"]
+    doppel_person_df = truth_tables.get("doppelganger_person_pairs", pd.DataFrame())
+    audit_df = truth_tables.get("audit_stats", pd.DataFrame())
     corr_log_df = truth_tables["corruption_log"]
+
+    summary_lines: list[str] = []
+
+    def emit(s: str = "") -> None:
+        print(s)
+        summary_lines.append(s)
 
     total_records = len(records_df)
     total_unique_persons = truth_df["person_id"].nunique()
@@ -102,77 +110,172 @@ def _print_corruption_summary(
         else 0.0
     )
 
-    print("\n" + "=" * 75)
-    print("BARI-LINK REGISTRY ENROLMENT & CORRUPTION SUMMARY")
-    print("=" * 75)
+    emit("\n" + "=" * 78)
+    emit("BARI-LINK REGISTRY ENROLMENT & CORRUPTION SUMMARY")
+    emit("=" * 78)
 
-    # 1. Reach per module and overall
-    print("\n--- Module Enrolment & Registry Reach ---")
-    print(f"{'Module Name':<22} {'Records':>9} {'Unique Persons':>16} {'Inflation %':>13}")
-    print("-" * 64)
+    # 1. Enrolment Base Audit
+    emit("\n--- Enrolment Base Audit (Target vs Realised Share of Eligible Pool) ---")
+    emit(
+        f"{'Module Name':<20} {'Eligible Pool':>14} {'Enrolled (Uniq)':>16} "
+        f"{'Target %':>10} {'Realised %':>12} {'Overlap (UPG)':>14} {'Male Quota':>12}"
+    )
+    emit("-" * 102)
     modules = ["club_formation", "upg_enrolment", "microfinance_group", "livelihood_support"]
+    if not audit_df.empty:
+        audit_map = audit_df.set_index("module").to_dict(orient="index")
+        for m in modules:
+            row = audit_map.get(m, {})
+            pool = int(row.get("eligible_pool_size", 0))
+            enrolled = int(row.get("enrolled_unique", 0))
+            t_share = float(row.get("target_share", 0.0)) * 100.0
+            r_share = float(row.get("realised_share", 0.0)) * 100.0
+            cond = int(row.get("conditional_overlap_count", 0))
+            m_quota = row.get("male_quota", 0)
+            m_str = f"{int(m_quota):,d}" if m_quota > 0 else "-"
+            emit(
+                f"{m:<20} {pool:>14,d} {enrolled:>16,d} {t_share:>9.1f}% "
+                f"{r_share:>11.1f}% {cond:>14,d} {m_str:>12}"
+            )
+    emit("-" * 102)
+
+    # 2. Module Enrolment & Registry Reach
+    emit("\n--- Module Enrolment & Registry Reach ---")
+    emit(f"{'Module Name':<22} {'Records':>9} {'Unique Persons':>16} {'Inflation %':>13}")
+    emit("-" * 64)
     for m in modules:
         m_rec = len(records_df[records_df["source_module"] == m])
         m_per = truth_df[truth_df["source_module"] == m]["person_id"].nunique()
         m_inf = ((m_rec - m_per) / m_per) * 100.0 if m_per > 0 else 0.0
-        print(f"{m:<22} {m_rec:>9,d} {m_per:>16,d} {m_inf:>12.2f}%")
-    print("-" * 64)
-    print(
+        emit(f"{m:<22} {m_rec:>9,d} {m_per:>16,d} {m_inf:>12.2f}%")
+    emit("-" * 64)
+    emit(
         f"{'OVERALL TOTAL':<22} {total_records:>9,d} "
         f"{total_unique_persons:>16,d} {total_inflation:>12.2f}%"
     )
 
-    # 2. Persons with > 1 record and true pairs
+    # 3. Persons with > 1 record and true pairs
     person_counts = truth_df["person_id"].value_counts()
     multi_record_persons = int((person_counts > 1).sum())
     total_true_pairs = len(true_pairs_df)
     within_pairs = int((true_pairs_df["is_same_module"]).sum()) if total_true_pairs > 0 else 0
     cross_pairs = int((~true_pairs_df["is_same_module"]).sum()) if total_true_pairs > 0 else 0
 
-    print("\n--- True Duplicate Linkage Ground Truth ---")
-    print(f"Persons with >1 record:          {multi_record_persons:,d}")
-    print(f"Total True Matching Pairs:       {total_true_pairs:,d}")
-    print(f"  - Within-module true pairs:    {within_pairs:,d}")
-    print(f"  - Cross-module true pairs:     {cross_pairs:,d}")
+    emit("\n--- True Duplicate Linkage Ground Truth ---")
+    emit(f"Persons with >1 record:          {multi_record_persons:,d}")
+    emit(f"Total True Matching Pairs:       {total_true_pairs:,d}")
+    emit(f"  - Within-module true pairs:    {within_pairs:,d}")
+    emit(f"  - Cross-module true pairs:     {cross_pairs:,d}")
 
-    # 3. Doppelgangers
-    n_doppel = len(doppel_df)
-    n_injected = int(doppel_df["is_injected"].sum()) if n_doppel > 0 else 0
-    n_natural = n_doppel - n_injected
-    print("\n--- Hard Negatives (Doppelganger Pairs) ---")
-    print(
-        f"Total Doppelganger Pairs:        {n_doppel:,d} "
-        f"({n_natural:,d} natural, {n_injected:,d} injected)"
+    # 4. Doppelgangers Audit (distinct households)
+    n_person_pairs = len(doppel_person_df) if not doppel_person_df.empty else 0
+    n_inj_person = (
+        int(doppel_person_df["is_injected"].sum()) if n_person_pairs > 0 else 0
     )
+    n_nat_person = n_person_pairs - n_inj_person
+    n_record_pairs = len(doppel_df)
 
-    # 4. Transliteration Leakage Guard Ratios
+    emit("\n--- Hard Negatives (Doppelganger Audit across Distinct Households) ---")
+    emit(
+        f"Person pairs: {n_person_pairs:,d} total "
+        f"({n_nat_person:,d} natural, {n_inj_person:,d} injected; min_target: 50)"
+    )
+    emit(f"Record pairs: {n_record_pairs:,d} total pairs across registries")
+
+    if not doppel_person_df.empty:
+        emit("\nSide-by-Side Doppelganger Examples (up to 3):")
+        sample_pairs = doppel_person_df.head(3)
+        for ex_idx, (_, row) in enumerate(sample_pairs.iterrows(), start=1):
+            p1_id = row["person_id_1"]
+            p2_id = row["person_id_2"]
+            hh1_id = row.get("household_id_1", "-")
+            hh2_id = row.get("household_id_2", "-")
+            inj_tag = " [INJECTED]" if row.get("is_injected", False) else " [NATURAL]"
+            emit(
+                f"\nExample {ex_idx}{inj_tag}: "
+                f"Person {p1_id} (HH: {hh1_id}) vs Person {p2_id} (HH: {hh2_id})"
+            )
+            emit(
+                f"  Shared: Village='{row['canonical_village']}' | "
+                f"Given='{row['canonical_given_name']}' | "
+                f"Guardian='{row['canonical_guardian_name']}'"
+            )
+            # Display person 1 records
+            p1_rec_ids = truth_df[truth_df["person_id"] == p1_id]["record_id"]
+            p1_recs = records_df[records_df["record_id"].isin(p1_rec_ids)]
+            for _, r in p1_recs.iterrows():
+                r_meta = f"[{r['record_id']} | {r['source_module']:<18} | {r['enrolment_date']}]"
+                hdr = f"    [{p1_id}] {r_meta}: "
+                body = (
+                    f"Name: '{r['full_name_raw']}' | Guardian: '{r['guardian_name_raw']}' "
+                    f"({r['guardian_type_raw']}) | Age: {r['age_raw']} | "
+                    f"Phone: '{r['phone_raw']}' | Village: '{r['village_raw']}'"
+                )
+                emit(hdr + body)
+            # Display person 2 records
+            p2_rec_ids = truth_df[truth_df["person_id"] == p2_id]["record_id"]
+            p2_recs = records_df[records_df["record_id"].isin(p2_rec_ids)]
+            for _, r in p2_recs.iterrows():
+                r_meta = f"[{r['record_id']} | {r['source_module']:<18} | {r['enrolment_date']}]"
+                hdr = f"    [{p2_id}] {r_meta}: "
+                body = (
+                    f"Name: '{r['full_name_raw']}' | Guardian: '{r['guardian_name_raw']}' "
+                    f"({r['guardian_type_raw']}) | Age: {r['age_raw']} | "
+                    f"Phone: '{r['phone_raw']}' | Village: '{r['village_raw']}'"
+                )
+                emit(hdr + body)
+
+    # 5. Post-Fix Name Frequency Shares
+    persons_pq = base_dir / "persons.parquet"
+    if persons_pq.exists():
+        p_df = pd.read_parquet(persons_pq)
+        f_names = p_df[p_df["sex"] == "F"]["given_name"].value_counts()
+        m_names = p_df[p_df["sex"] == "M"]["given_name"].value_counts()
+        f_total = len(p_df[p_df["sex"] == "F"])
+        m_total = len(p_df[p_df["sex"] == "M"])
+
+        f_top1 = (f_names.iloc[0] / f_total * 100.0) if f_total > 0 else 0.0
+        f_top10 = (f_names.head(10).sum() / f_total * 100.0) if f_total > 0 else 0.0
+        m_top1 = (m_names.iloc[0] / m_total * 100.0) if m_total > 0 else 0.0
+        m_top10 = (m_names.head(10).sum() / m_total * 100.0) if m_total > 0 else 0.0
+
+        emit("\n--- Post-Fix Name Frequency Shares (Zipf-Mandelbrot Preservation) ---")
+        emit(
+            f"Female Given Names: Top-1 share = {f_top1:.2f}% (target < 12.0%), "
+            f"Top-10 share = {f_top10:.2f}% (target > 30.0%)"
+        )
+        emit(
+            f"Male Given Names:   Top-1 share = {m_top1:.2f}% (target < 12.0%), "
+            f"Top-10 share = {m_top10:.2f}% (target > 30.0%)"
+        )
+
+    # 6. Transliteration Leakage Guard Ratios
     n_shared, n_gen, rule_ratio = get_rule_counts()
     trans_events = corr_log_df[corr_log_df["corruption_type"].str.startswith("transliteration")]
     n_trans = len(trans_events)
     n_gen_events = int((trans_events["is_generator_only"]).sum()) if n_trans > 0 else 0
     event_ratio = (n_gen_events / n_trans) if n_trans > 0 else 0.0
 
-    print("\n--- Normalisation Leakage Guard (Transliteration Rules) ---")
-    print(
+    emit("\n--- Normalisation Leakage Guard (Transliteration Rules) ---")
+    emit(
         f"Rule count ratio (generator-only): {n_gen}/{n_shared + n_gen} "
         f"({rule_ratio:.1%}, target >= 40.0%)"
     )
-    print(
+    emit(
         f"Event share ratio (generator-only): {n_gen_events:,d}/{n_trans:,d} "
         f"({event_ratio:.1%}, target >= 30.0%)"
     )
 
-    # 5. Corruption Frequency Table
-    print("\n--- Corruption Frequency (% of Records per Module) ---")
-    # Merge source_module onto corruption_log via record_id
+    # 7. Corruption Frequency Table
+    emit("\n--- Corruption Frequency (% of Records per Module) ---")
     rec_mod_map = records_df.set_index("record_id")["source_module"].to_dict()
     corr_with_mod = corr_log_df.copy()
     corr_with_mod["source_module"] = corr_with_mod["record_id"].map(rec_mod_map)
 
     types = sorted(corr_with_mod["corruption_type"].unique())
     header = f"{'Corruption Type':<32}" + "".join(f"{m[:10]:>11}" for m in modules)
-    print(header)
-    print("-" * len(header))
+    emit(header)
+    emit("-" * len(header))
     for c_type in types:
         row_str = f"{c_type:<32}"
         for m in modules:
@@ -185,14 +288,13 @@ def _print_corruption_summary(
             )
             pct = (c_count / m_total * 100.0) if m_total > 0 else 0.0
             row_str += f"{pct:>10.1f}%"
-        print(row_str)
+        emit(row_str)
 
-    # 6. Five Example Clusters (Persons with >= 3 records)
-    print("\n--- Example Clusters (5 Random Persons with >= 3 Records) ---")
+    # 8. Five Example Clusters (Persons with >= 3 records)
+    emit("\n--- Example Clusters (5 Random Persons with >= 3 Records) ---")
     persons_3plus = person_counts[person_counts >= 3].index.tolist()
     if len(persons_3plus) > 0:
         sample_size = min(5, len(persons_3plus))
-        # Deterministic sample from candidates
         sample_persons = sorted(persons_3plus)[:sample_size]
         for idx, p_id in enumerate(sample_persons, start=1):
             p_truth = truth_df[truth_df["person_id"] == p_id].iloc[0]
@@ -201,14 +303,14 @@ def _print_corruption_summary(
                     truth_df[truth_df["person_id"] == p_id]["record_id"]
                 )
             ]
-            print(f"\nCluster {idx}: Person {p_id}")
-            print(
+            emit(f"\nCluster {idx}: Person {p_id}")
+            emit(
                 f"  Clean: {p_truth['clean_full_name']} | "
                 f"Guardian: {p_truth['clean_guardian_name']} ({p_truth['clean_guardian_type']}) | "
                 f"Phone: {p_truth['clean_phone']} | Village: {p_truth['clean_village']}"
             )
             for _, r in p_recs.iterrows():
-                print(
+                emit(
                     f"    [{r['record_id']} | {r['source_module']:<18} | {r['enrolment_date']}]: "
                     f"Name: '{r['full_name_raw']}' | "
                     f"Guardian: '{r['guardian_name_raw']}' ({r['guardian_type_raw']}) | "
@@ -216,18 +318,25 @@ def _print_corruption_summary(
                     f"Village: '{r['village_raw']}'"
                 )
     else:
-        print("No persons with >= 3 records found in current run.")
+        emit("No persons with >= 3 records found in current run.")
 
-    print("\n" + "=" * 75)
-    print(f"Registry data exported to: {base_dir.resolve()}")
-    print("  Model-Visible Files (data/generated/<run>/registry/):")
-    print("    - records.parquet, rosters.parquet")
-    print("    - club_formation.csv, upg_enrolment.csv")
-    print("    - microfinance_group.csv, livelihood_support.csv")
-    print("  Evaluation Files (data/generated/<run>/truth/):")
-    print("    - record_truth.parquet, true_pairs.parquet")
-    print("    - corruption_log.parquet, doppelganger_pairs.parquet")
-    print("=" * 75)
+    emit("\n" + "=" * 78)
+    emit(f"Registry data exported to: {base_dir.resolve()}")
+    emit("  Model-Visible Files (data/generated/<run>/registry/):")
+    emit("    - records.parquet, rosters.parquet")
+    emit("    - club_formation.csv, upg_enrolment.csv")
+    emit("    - microfinance_group.csv, livelihood_support.csv")
+    emit("  Evaluation Files (data/generated/<run>/truth/):")
+    emit("    - record_truth.parquet, true_pairs.parquet")
+    emit("    - corruption_log.parquet, doppelganger_pairs.parquet")
+    emit("    - doppelganger_person_pairs.parquet, audit_stats.parquet")
+    emit("=" * 78)
+
+    # Persist summary to disk
+    summary_path = base_dir / "summary.txt"
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(summary_lines) + "\n")
+    print(f"Summary persisted to: {summary_path.resolve()}")
 
 
 def run_corrupt(config_path: str, run_name: str, base_output_dir: str = "data/generated") -> int:

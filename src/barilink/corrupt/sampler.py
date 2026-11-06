@@ -105,6 +105,15 @@ class EnrolmentSampler:
         )
 
         self.skipped_reregistrations = 0
+        self.natural_doppelganger_person_pairs = 0
+        self.injected_doppelganger_person_pairs = 0
+        self.audit_stats: dict[str, Any] = {}
+
+        # Draw a potential enrolment date for every person in the population
+        # to evaluate eligibility at enrolment date (enrolment year - birth_year)
+        self.person_enrol_dates: dict[str, date] = {}
+        for p_id in self.persons_df["person_id"]:
+            self.person_enrol_dates[p_id] = self._sample_date()
 
     def _sample_date(self) -> date:
         """Sample a uniform enrolment date within the configured window."""
@@ -117,39 +126,30 @@ class EnrolmentSampler:
 
     def sample_all_modules(self) -> list[EnrolmentCandidate]:
         """Sample candidates across all four enrolment modules and handle doppelgangers."""
-        # 1. First, find or inject doppelgangers to ensure min_pairs target
-        self._ensure_doppelgangers()
-
-        # Rebuild lookups in case households were injected
-        self.person_dict = self.persons_df.set_index("person_id").to_dict(orient="index")
-        self.hh_dict = self.households_df.set_index("household_id").to_dict(
-            orient="index"
-        )
-        self.hh_members = (
-            self.persons_df.groupby("household_id")["person_id"].apply(list).to_dict()
-        )
-
         candidates: list[EnrolmentCandidate] = []
 
-        # 2. UPG Enrolment (Household level)
+        # 1. UPG Enrolment (Household level)
         upg_candidates = self._sample_upg()
         candidates.extend(upg_candidates)
 
-        # 3. Microfinance Group (mostly women 18-60, with elevated UPG overlap)
+        # 2. Microfinance Group (female target share, male quota, elevated UPG overlap)
         upg_person_ids = {c.person_id for c in upg_candidates}
         mfg_candidates = self._sample_microfinance(upg_person_ids)
         candidates.extend(mfg_candidates)
 
-        # 4. Livelihood Support (adults 18-60, both sexes, with elevated UPG overlap)
+        # 3. Livelihood Support (adults 18-60, both sexes, with elevated UPG overlap)
         livelihood_candidates = self._sample_livelihood(upg_person_ids)
         candidates.extend(livelihood_candidates)
 
-        # 5. Club Formation (adolescent/young women 10-24)
+        # 4. Club Formation (adolescent/young women 10-24)
         club_candidates = self._sample_club()
         candidates.extend(club_candidates)
 
-        # 6. Add within-module re-registration duplicates (~3%)
+        # 5. Add within-module re-registration duplicates (~3%)
         candidates = self._add_reregistration_duplicates(candidates)
+
+        # 6. Check and inject doppelgangers if natural pairs < min_pairs
+        candidates = self._audit_and_inject_doppelgangers(candidates)
 
         return candidates
 
@@ -166,7 +166,7 @@ class EnrolmentSampler:
         """Create an EnrolmentCandidate object from person truth."""
         p = self.person_dict[person_id]
         hh_id = p["household_id"]
-        hh = self.hh_dict[hh_id]
+        hh = self.hh_dict.get(hh_id, {"household_phone": None})
 
         age = self._age_at_date(p["birth_year"], enrol_date)
         full_name = f"{p['given_name']} {p['surname_or_title']}"
@@ -213,32 +213,33 @@ class EnrolmentSampler:
         target_share = float(cfg.get("target_share", 0.18))
 
         all_hh_ids = list(self.hh_dict.keys())
-        n_upg = int(len(all_hh_ids) * target_share)
-        selected_hh = self.rng.choice(all_hh_ids, size=n_upg, replace=False)
+        target_count = round(len(all_hh_ids) * target_share)
+        selected_hh = self.rng.choice(all_hh_ids, size=target_count, replace=False)
 
         candidates: list[EnrolmentCandidate] = []
         for hh_id in selected_hh:
             member_ids = self.hh_members[hh_id]
-            enrol_date = self._sample_date()
+            head_id = self.hh_dict[hh_id]["head_person_id"]
 
-            # Prefer adult female 18-60
+            # Prefer adult female 18-60 at her drawn enrolment date
             eligible_females = [
                 m_id
                 for m_id in member_ids
                 if self.person_dict[m_id]["sex"] == "F"
                 and 18
-                <= self._age_at_date(self.person_dict[m_id]["birth_year"], enrol_date)
+                <= self._age_at_date(
+                    self.person_dict[m_id]["birth_year"],
+                    self.person_enrol_dates[m_id],
+                )
                 <= 60
             ]
             if eligible_females:
                 primary_id = eligible_females[0]
             else:
-                # Fallback to household head or adult member
-                primary_id = self.hh_dict[hh_id]["head_person_id"]
+                primary_id = head_id
 
-            cand = self._create_candidate(
-                primary_id, "upg_enrolment", enrol_date
-            )
+            enrol_date = self.person_enrol_dates[primary_id]
+            cand = self._create_candidate(primary_id, "upg_enrolment", enrol_date)
 
             # Build full household roster of other members
             roster: list[RosterMemberRaw] = []
@@ -251,7 +252,7 @@ class EnrolmentSampler:
                 rel = mp["role_in_household"]
                 roster.append(
                     RosterMemberRaw(
-                        record_id="",  # Bound later in registry
+                        record_id="",
                         member_person_id=m_id,
                         member_name_raw=m_full_name,
                         relation_raw=rel,
@@ -261,6 +262,13 @@ class EnrolmentSampler:
             cand.roster_members = roster
             candidates.append(cand)
 
+        self.audit_stats["upg_enrolment"] = {
+            "eligible_pool_size": len(all_hh_ids),
+            "enrolled_unique": len(candidates),
+            "target_share": target_share,
+            "realised_share": len(candidates) / len(all_hh_ids),
+            "conditional_overlap_count": 0,
+        }
         return candidates
 
     # --------------------------------------------------------------------------
@@ -269,72 +277,121 @@ class EnrolmentSampler:
     def _sample_microfinance(
         self, upg_person_ids: set[str]
     ) -> list[EnrolmentCandidate]:
-        """Sample microfinance borrowers with group_id and elevated UPG overlap."""
+        """Sample microfinance borrowers with group_id, female target share and male quota."""
         cfg = self.module_cfgs.get("microfinance_group", {})
         target_share = float(cfg.get("target_share", 0.30))
-        female_share = float(cfg.get("female_share", 0.92))
+        male_share = float(cfg.get("male_share", 0.08))
         upg_to_mfg = float(self.cross_cfg.get("upg_to_microfinance", 0.55))
 
-        candidates: list[EnrolmentCandidate] = []
-        enrolled_persons: set[str] = set()
-
-        # Group ID generators per union
-        group_counters: dict[str, int] = {}
-
-        # 1. Overlap with UPG participants
-        for p_id in upg_person_ids:
-            p = self.person_dict[p_id]
-            enrol_date = self._sample_date()
-            age = self._age_at_date(p["birth_year"], enrol_date)
-            if 18 <= age <= 60 and self.rng.random() < upg_to_mfg:
-                u_name = p["union"].replace(" ", "")
-                g_idx = group_counters.setdefault(u_name, 1)
-                group_id = f"MFG_{u_name}_{g_idx:03d}"
-                if self.rng.random() < 0.20:
-                    group_counters[u_name] += 1
-
-                cand = self._create_candidate(
-                    p_id, "microfinance_group", enrol_date, group_id=group_id
-                )
-                candidates.append(cand)
-                enrolled_persons.add(p_id)
-
-        # 2. General population sampling
-        target_total = int(len(self.persons_df) * target_share)
         all_pids = list(self.persons_df["person_id"])
-        self.rng.shuffle(all_pids)
 
-        for p_id in all_pids:
-            if len(candidates) >= target_total:
-                break
-            if p_id in enrolled_persons:
-                continue
+        # Eligible pool = women aged 18-60 at enrolment date
+        female_eligible = [
+            p_id
+            for p_id in all_pids
+            if self.person_dict[p_id]["sex"] == "F"
+            and 18
+            <= self._age_at_date(
+                self.person_dict[p_id]["birth_year"],
+                self.person_enrol_dates[p_id],
+            )
+            <= 60
+        ]
+        target_count_female = round(target_share * len(female_eligible))
 
-            p = self.person_dict[p_id]
-            enrol_date = self._sample_date()
-            age = self._age_at_date(p["birth_year"], enrol_date)
-            if not (18 <= age <= 60):
-                continue
+        # Male quota = round(target_count_female * male_share / (1 - male_share))
+        target_count_male = round(target_count_female * male_share / (1.0 - male_share))
+        male_eligible = [
+            p_id
+            for p_id in all_pids
+            if self.person_dict[p_id]["sex"] == "M"
+            and 18
+            <= self._age_at_date(
+                self.person_dict[p_id]["birth_year"],
+                self.person_enrol_dates[p_id],
+            )
+            <= 60
+        ]
 
-            # Respect female share
-            is_female = p["sex"] == "F"
-            if is_female and self.rng.random() > female_share:
-                continue
-            if not is_female and self.rng.random() < female_share:
-                continue
+        candidates: list[EnrolmentCandidate] = []
+        enrolled_female: set[str] = set()
+        enrolled_male: set[str] = set()
+        group_counters: dict[str, int] = {}
+        n_mfg_conditional = 0
 
+        def get_group_id(p: dict[str, Any]) -> str:
             u_name = p["union"].replace(" ", "")
             g_idx = group_counters.setdefault(u_name, 1)
-            group_id = f"MFG_{u_name}_{g_idx:03d}"
+            gid = f"MFG_{u_name}_{g_idx:03d}"
             if self.rng.random() < 0.20:
                 group_counters[u_name] += 1
+            return gid
 
+        # 1. Enrol UPG-conditional candidates who are in eligible pools
+        upg_shuffled = sorted(list(upg_person_ids))
+        self.rng.shuffle(upg_shuffled)
+        for p_id in upg_shuffled:
+            p = self.person_dict[p_id]
+            is_f = p["sex"] == "F"
+            if is_f and p_id in female_eligible and len(enrolled_female) < target_count_female:
+                if self.rng.random() < upg_to_mfg:
+                    enrol_date = self.person_enrol_dates[p_id]
+                    cand = self._create_candidate(
+                        p_id, "microfinance_group", enrol_date, group_id=get_group_id(p)
+                    )
+                    candidates.append(cand)
+                    enrolled_female.add(p_id)
+                    n_mfg_conditional += 1
+            elif not is_f and p_id in male_eligible and len(enrolled_male) < target_count_male:
+                if self.rng.random() < upg_to_mfg:
+                    enrol_date = self.person_enrol_dates[p_id]
+                    cand = self._create_candidate(
+                        p_id, "microfinance_group", enrol_date, group_id=get_group_id(p)
+                    )
+                    candidates.append(cand)
+                    enrolled_male.add(p_id)
+                    n_mfg_conditional += 1
+
+        # 2. Top up females
+        needed_female = target_count_female - len(enrolled_female)
+        remaining_female = [p_id for p_id in female_eligible if p_id not in enrolled_female]
+        selected_remaining_female = self.rng.choice(
+            remaining_female, size=needed_female, replace=False
+        )
+        for p_id in selected_remaining_female:
+            p = self.person_dict[p_id]
+            enrol_date = self.person_enrol_dates[p_id]
             cand = self._create_candidate(
-                p_id, "microfinance_group", enrol_date, group_id=group_id
+                p_id, "microfinance_group", enrol_date, group_id=get_group_id(p)
             )
             candidates.append(cand)
-            enrolled_persons.add(p_id)
+            enrolled_female.add(p_id)
 
+        # 3. Top up males
+        needed_male = target_count_male - len(enrolled_male)
+        remaining_male = [p_id for p_id in male_eligible if p_id not in enrolled_male]
+        selected_remaining_male = self.rng.choice(
+            remaining_male, size=needed_male, replace=False
+        )
+        for p_id in selected_remaining_male:
+            p = self.person_dict[p_id]
+            enrol_date = self.person_enrol_dates[p_id]
+            cand = self._create_candidate(
+                p_id, "microfinance_group", enrol_date, group_id=get_group_id(p)
+            )
+            candidates.append(cand)
+            enrolled_male.add(p_id)
+
+        self.audit_stats["microfinance_group"] = {
+            "eligible_pool_size": len(female_eligible),
+            "enrolled_unique": len(enrolled_female) + len(enrolled_male),
+            "enrolled_female": len(enrolled_female),
+            "target_count_female": target_count_female,
+            "male_quota": target_count_male,
+            "target_share": target_share,
+            "realised_share": len(enrolled_female) / len(female_eligible),
+            "conditional_overlap_count": n_mfg_conditional,
+        }
         return candidates
 
     # --------------------------------------------------------------------------
@@ -348,44 +405,54 @@ class EnrolmentSampler:
         target_share = float(cfg.get("target_share", 0.22))
         upg_to_live = float(self.cross_cfg.get("upg_to_livelihood", 0.45))
 
+        all_pids = list(self.persons_df["person_id"])
+        adult_eligible = [
+            p_id
+            for p_id in all_pids
+            if 18
+            <= self._age_at_date(
+                self.person_dict[p_id]["birth_year"],
+                self.person_enrol_dates[p_id],
+            )
+            <= 60
+        ]
+        target_count = round(target_share * len(adult_eligible))
+
         candidates: list[EnrolmentCandidate] = []
         enrolled_persons: set[str] = set()
+        n_live_conditional = 0
 
-        # 1. Overlap with UPG participants
-        for p_id in upg_person_ids:
-            p = self.person_dict[p_id]
-            enrol_date = self._sample_date()
-            age = self._age_at_date(p["birth_year"], enrol_date)
-            if 18 <= age <= 60 and self.rng.random() < upg_to_live:
-                cand = self._create_candidate(
-                    p_id, "livelihood_support", enrol_date
-                )
-                self._attach_short_roster(cand, enrol_date)
-                candidates.append(cand)
-                enrolled_persons.add(p_id)
+        # 1. Enrol UPG-conditional candidates who are in eligible pool
+        upg_shuffled = sorted(list(upg_person_ids))
+        self.rng.shuffle(upg_shuffled)
+        for p_id in upg_shuffled:
+            if p_id in adult_eligible and len(enrolled_persons) < target_count:
+                if self.rng.random() < upg_to_live:
+                    enrol_date = self.person_enrol_dates[p_id]
+                    cand = self._create_candidate(p_id, "livelihood_support", enrol_date)
+                    self._attach_short_roster(cand, enrol_date)
+                    candidates.append(cand)
+                    enrolled_persons.add(p_id)
+                    n_live_conditional += 1
 
-        # 2. General population
-        target_total = int(len(self.persons_df) * target_share)
-        all_pids = list(self.persons_df["person_id"])
-        self.rng.shuffle(all_pids)
-
-        for p_id in all_pids:
-            if len(candidates) >= target_total:
-                break
-            if p_id in enrolled_persons:
-                continue
-
-            p = self.person_dict[p_id]
-            enrol_date = self._sample_date()
-            age = self._age_at_date(p["birth_year"], enrol_date)
-            if not (18 <= age <= 60):
-                continue
-
+        # 2. Top up from remaining eligible pool
+        needed = target_count - len(enrolled_persons)
+        remaining = [p_id for p_id in adult_eligible if p_id not in enrolled_persons]
+        selected_remaining = self.rng.choice(remaining, size=needed, replace=False)
+        for p_id in selected_remaining:
+            enrol_date = self.person_enrol_dates[p_id]
             cand = self._create_candidate(p_id, "livelihood_support", enrol_date)
             self._attach_short_roster(cand, enrol_date)
             candidates.append(cand)
             enrolled_persons.add(p_id)
 
+        self.audit_stats["livelihood_support"] = {
+            "eligible_pool_size": len(adult_eligible),
+            "enrolled_unique": len(candidates),
+            "target_share": target_share,
+            "realised_share": len(candidates) / len(adult_eligible),
+            "conditional_overlap_count": n_live_conditional,
+        }
         return candidates
 
     def _attach_short_roster(
@@ -427,28 +494,38 @@ class EnrolmentSampler:
     # Club Formation
     # --------------------------------------------------------------------------
     def _sample_club(self) -> list[EnrolmentCandidate]:
-        """Sample adolescent/young women (females aged 10-24)."""
+        """Sample adolescent/young women (females aged 10-24 at enrolment date)."""
         cfg = self.module_cfgs.get("club_formation", {})
         target_share = float(cfg.get("target_share", 0.25))
 
-        candidates: list[EnrolmentCandidate] = []
         all_pids = list(self.persons_df["person_id"])
-        self.rng.shuffle(all_pids)
+        club_eligible = [
+            p_id
+            for p_id in all_pids
+            if self.person_dict[p_id]["sex"] == "F"
+            and 10
+            <= self._age_at_date(
+                self.person_dict[p_id]["birth_year"],
+                self.person_enrol_dates[p_id],
+            )
+            <= 24
+        ]
+        target_count = round(target_share * len(club_eligible))
 
-        for p_id in all_pids:
-            p = self.person_dict[p_id]
-            if p["sex"] != "F":
-                continue
+        selected = self.rng.choice(club_eligible, size=target_count, replace=False)
+        candidates: list[EnrolmentCandidate] = []
+        for p_id in selected:
+            enrol_date = self.person_enrol_dates[p_id]
+            cand = self._create_candidate(p_id, "club_formation", enrol_date)
+            candidates.append(cand)
 
-            enrol_date = self._sample_date()
-            age = self._age_at_date(p["birth_year"], enrol_date)
-            if not (10 <= age <= 24):
-                continue
-
-            if self.rng.random() < target_share:
-                cand = self._create_candidate(p_id, "club_formation", enrol_date)
-                candidates.append(cand)
-
+        self.audit_stats["club_formation"] = {
+            "eligible_pool_size": len(club_eligible),
+            "enrolled_unique": len(candidates),
+            "target_share": target_share,
+            "realised_share": len(candidates) / len(club_eligible),
+            "conditional_overlap_count": 0,
+        }
         return candidates
 
     # --------------------------------------------------------------------------
@@ -481,7 +558,6 @@ class EnrolmentSampler:
                     is_injected=cand.is_injected,
                 )
                 if cand.roster_members:
-                    # Duplicate roster members with updated ages
                     dup_roster: list[RosterMemberRaw] = []
                     for rm in cand.roster_members:
                         m_birth = self.person_dict[rm.member_person_id]["birth_year"]
@@ -504,108 +580,121 @@ class EnrolmentSampler:
     # --------------------------------------------------------------------------
     # Doppelgangers (Hard Negatives)
     # --------------------------------------------------------------------------
-    def _ensure_doppelgangers(self) -> None:
-        """Ensure clean population has sufficient doppelganger pairs."""
-        # Find existing natural pairs
-        grouped = self.persons_df.groupby(
+    def _audit_and_inject_doppelgangers(
+        self, candidates: list[EnrolmentCandidate]
+    ) -> list[EnrolmentCandidate]:
+        """Audit natural enrolled doppelgangers across distinct households and inject if needed."""
+        enrolled_pids = {c.person_id for c in candidates}
+        enrolled_persons_df = self.persons_df[
+            self.persons_df["person_id"].isin(enrolled_pids)
+        ]
+
+        grouped = enrolled_persons_df.groupby(
             ["village", "given_name", "guardian_name"]
         )
-        natural_pairs: list[tuple[str, str]] = []
+        natural_pairs: set[tuple[str, str]] = set()
         for _, g in grouped:
             if len(g["household_id"].unique()) > 1:
-                pids = list(g["person_id"])
-                for i in range(len(pids)):
-                    for j in range(i + 1, len(pids)):
-                        hh_i = g.loc[g["person_id"] == pids[i], "household_id"].iloc[0]
-                        hh_j = g.loc[g["person_id"] == pids[j], "household_id"].iloc[0]
-                        if hh_i != hh_j:
-                            natural_pairs.append((pids[i], pids[j]))
+                p_list = g.to_dict(orient="records")
+                for i in range(len(p_list)):
+                    for j in range(i + 1, len(p_list)):
+                        p1 = p_list[i]
+                        p2 = p_list[j]
+                        if p1["household_id"] != p2["household_id"]:
+                            pair = tuple(sorted([p1["person_id"], p2["person_id"]]))
+                            natural_pairs.add(pair)
+
+        self.natural_doppelganger_person_pairs = len(natural_pairs)
+        self.injected_doppelganger_person_pairs = 0
 
         if len(natural_pairs) >= self.min_doppelganger_pairs:
-            return
+            return candidates
 
-        needed_pairs = self.min_doppelganger_pairs - len(natural_pairs)
-        # Inject additional cousin households sharing grandfather's name pattern
-        injected_persons: list[dict[str, Any]] = []
-        injected_households: list[dict[str, Any]] = []
-
+        needed = self.min_doppelganger_pairs - len(natural_pairs)
         hh_nums = self.households_df["household_id"].str.extract(r"(\d+)")[0].astype(int)
         max_hh_num = int(hh_nums.max())
         p_nums = self.persons_df["person_id"].str.extract(r"(\d+)")[0].astype(int)
         max_p_num = int(p_nums.max())
 
-        # Select random existing households to create cousins for
-        sample_hhs = self.households_df.sample(
-            n=min(needed_pairs, len(self.households_df)),
-            random_state=int(self.rng.integers(1, 1000000)),
-        )
+        chosen_candidates = [c for c in candidates if not c.is_re_registration][:needed]
+        new_candidates: list[EnrolmentCandidate] = []
 
-        for _, base_hh in sample_hhs.iterrows():
+        for base_cand in chosen_candidates:
             max_hh_num += 1
-            new_hh_id = f"HH_{max_hh_num:06d}"
-            village = base_hh["village"]
-            union = base_hh["union"]
-            upazila = base_hh["upazila"]
-            district = base_hh["district"]
-
-            # Base household head
-            base_head_id = base_hh["head_person_id"]
-            base_head = self.persons_df[self.persons_df["person_id"] == base_head_id].iloc[0]
-
-            # Generate cousin head sharing grandfather's surname and living in same village
             max_p_num += 1
+            new_hh_id = f"HH_{max_hh_num:06d}"
             cousin_id = f"P_{max_p_num:07d}"
 
-            cousin_age = int(base_head["age_at_reference_date"])
-            cousin_birth = int(base_head["birth_year"])
-            cousin_given = base_head["given_name"]  # Identical given name
-            cousin_surname = base_head["surname_or_title"]
-            cousin_father_name = base_head["father_name"]  # Identical grandfather/guardian name
+            cousin_cand = EnrolmentCandidate(
+                person_id=cousin_id,
+                household_id=new_hh_id,
+                source_module=base_cand.source_module,
+                enrolment_date=base_cand.enrolment_date,
+                is_re_registration=False,
+                is_doppelganger=True,
+                is_injected=True,
+                clean_full_name=base_cand.clean_full_name,
+                clean_given_name=base_cand.clean_given_name,
+                clean_surname_or_title=base_cand.clean_surname_or_title,
+                clean_sex=base_cand.clean_sex,
+                clean_religion_group=base_cand.clean_religion_group,
+                clean_birth_year=base_cand.clean_birth_year,
+                clean_age_at_enrolment=base_cand.clean_age_at_enrolment,
+                clean_marital_status=base_cand.clean_marital_status,
+                clean_role_in_household="head",
+                clean_father_id=None,
+                clean_mother_id=None,
+                clean_spouse_id=None,
+                clean_father_name=base_cand.clean_father_name,
+                clean_spouse_name=base_cand.clean_spouse_name,
+                clean_guardian_type=base_cand.clean_guardian_type,
+                clean_guardian_name=base_cand.clean_guardian_name,
+                clean_phone=base_cand.clean_phone,
+                clean_household_phone=base_cand.clean_household_phone,
+                clean_village=base_cand.clean_village,
+                clean_union=base_cand.clean_union,
+                clean_upazila=base_cand.clean_upazila,
+                clean_district=base_cand.clean_district,
+                group_id=base_cand.group_id,
+            )
+            new_candidates.append(cousin_cand)
+            self.injected_doppelganger_person_pairs += 1
 
-            cousin_person = {
+            # Update dictionaries so injected person is recognized if looked up
+            self.person_dict[cousin_id] = {
                 "person_id": cousin_id,
                 "household_id": new_hh_id,
-                "given_name": cousin_given,
-                "surname_or_title": cousin_surname,
-                "sex": base_head["sex"],
-                "religion_group": base_head["religion_group"],
-                "birth_year": cousin_birth,
-                "age_at_reference_date": cousin_age,
-                "marital_status": base_head["marital_status"],
+                "given_name": base_cand.clean_given_name,
+                "surname_or_title": base_cand.clean_surname_or_title,
+                "sex": base_cand.clean_sex,
+                "religion_group": base_cand.clean_religion_group,
+                "birth_year": base_cand.clean_birth_year,
+                "age_at_reference_date": base_cand.clean_age_at_enrolment,
+                "marital_status": base_cand.clean_marital_status,
                 "role_in_household": "head",
                 "father_id": None,
                 "mother_id": None,
                 "spouse_id": None,
-                "father_name": cousin_father_name,
-                "spouse_name": base_head["spouse_name"],
-                "guardian_type": base_head["guardian_type"],
-                "guardian_name": base_head["guardian_name"],
-                "phone": base_head["phone"],
-                "village": village,
-                "union": union,
-                "upazila": upazila,
-                "district": district,
+                "father_name": base_cand.clean_father_name,
+                "spouse_name": base_cand.clean_spouse_name,
+                "guardian_type": base_cand.clean_guardian_type,
+                "guardian_name": base_cand.clean_guardian_name,
+                "phone": base_cand.clean_phone,
+                "village": base_cand.clean_village,
+                "union": base_cand.clean_union,
+                "upazila": base_cand.clean_upazila,
+                "district": base_cand.clean_district,
                 "is_injected": True,
             }
-            injected_persons.append(cousin_person)
+            self.hh_dict[new_hh_id] = {
+                "household_id": new_hh_id,
+                "village": base_cand.clean_village,
+                "union": base_cand.clean_union,
+                "upazila": base_cand.clean_upazila,
+                "district": base_cand.clean_district,
+                "head_person_id": cousin_id,
+                "n_members": 1,
+                "household_phone": base_cand.clean_household_phone,
+            }
 
-            injected_households.append(
-                {
-                    "household_id": new_hh_id,
-                    "village": village,
-                    "union": union,
-                    "upazila": upazila,
-                    "district": district,
-                    "head_person_id": cousin_id,
-                    "n_members": 1,
-                    "household_phone": base_hh["household_phone"],
-                }
-            )
-
-        if injected_persons:
-            new_p_df = pd.DataFrame(injected_persons)
-            new_h_df = pd.DataFrame(injected_households)
-            if "is_injected" not in self.persons_df.columns:
-                self.persons_df["is_injected"] = False
-            self.persons_df = pd.concat([self.persons_df, new_p_df], ignore_index=True)
-            self.households_df = pd.concat([self.households_df, new_h_df], ignore_index=True)
+        return candidates + new_candidates

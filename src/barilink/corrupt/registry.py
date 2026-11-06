@@ -17,6 +17,20 @@ import yaml
 from barilink.corrupt.corruption import FieldCorruptor
 from barilink.corrupt.sampler import EnrolmentSampler
 
+FORBIDDEN_REGISTRY_COLUMNS: set[str] = {
+    "person_id",
+    "household_id",
+    "given_name",
+    "surname_or_title",
+    "father_id",
+    "father_given_name",
+    "clean_full_name",
+    "clean_given_name",
+    "clean_surname_or_title",
+    "clean_sex",
+    "clean_marital_status",
+}
+
 
 class RegistryOrchestrator:
     """Orchestrates sampling, corrupting, and exporting administrative registries."""
@@ -452,7 +466,7 @@ class RegistryOrchestrator:
             )
         )
 
-        # Build doppelganger pairs table
+        # Build doppelganger pairs table (cross-household pairs ONLY)
         doppel_rows: list[dict[str, Any]] = []
         name_loc_cols = ["clean_village", "clean_given_name", "clean_guardian_name"]
         name_loc_grouped = truth_df.groupby(name_loc_cols)
@@ -464,7 +478,10 @@ class RegistryOrchestrator:
                     for j in range(i + 1, len(g_list)):
                         r1 = g_list[i]
                         r2 = g_list[j]
-                        if r1["person_id"] != r2["person_id"]:
+                        if (
+                            r1["person_id"] != r2["person_id"]
+                            and r1["household_id"] != r2["household_id"]
+                        ):
                             r1_id, r2_id = sorted([r1["record_id"], r2["record_id"]])
                             is_inj = bool(
                                 r1.get("is_injected", False) or r2.get("is_injected", False)
@@ -475,6 +492,8 @@ class RegistryOrchestrator:
                                     "record_id_2": r2_id,
                                     "person_id_1": r1["person_id"],
                                     "person_id_2": r2["person_id"],
+                                    "household_id_1": r1["household_id"],
+                                    "household_id_2": r2["household_id"],
                                     "canonical_given_name": r1["clean_given_name"],
                                     "canonical_guardian_name": r1["clean_guardian_name"],
                                     "canonical_village": r1["clean_village"],
@@ -486,14 +505,56 @@ class RegistryOrchestrator:
             "record_id_2",
             "person_id_1",
             "person_id_2",
+            "household_id_1",
+            "household_id_2",
             "canonical_given_name",
             "canonical_guardian_name",
             "canonical_village",
             "is_injected",
         ]
-        doppel_df = pd.DataFrame(doppel_rows) if doppel_rows else pd.DataFrame(columns=doppel_cols)
+        doppel_df = (
+            pd.DataFrame(doppel_rows) if doppel_rows else pd.DataFrame(columns=doppel_cols)
+        )
         if not doppel_df.empty:
-            doppel_df = doppel_df.drop_duplicates(subset=["record_id_1", "record_id_2"])
+            doppel_df = doppel_df.drop_duplicates(
+                subset=["record_id_1", "record_id_2"]
+            ).reset_index(drop=True)
+
+        # Person-level doppelgangers
+        person_pair_cols = [
+            "person_id_1",
+            "person_id_2",
+            "household_id_1",
+            "household_id_2",
+            "canonical_given_name",
+            "canonical_guardian_name",
+            "canonical_village",
+            "is_injected",
+        ]
+        if not doppel_df.empty:
+            doppel_person_df = (
+                doppel_df[person_pair_cols]
+                .drop_duplicates(subset=["person_id_1", "person_id_2"])
+                .reset_index(drop=True)
+            )
+        else:
+            doppel_person_df = pd.DataFrame(columns=person_pair_cols)
+
+        # Build audit stats DataFrame
+        audit_rows: list[dict[str, Any]] = []
+        for mod_name, stats in sampler.audit_stats.items():
+            audit_rows.append(
+                {
+                    "module": mod_name,
+                    "eligible_pool_size": stats["eligible_pool_size"],
+                    "enrolled_unique": stats["enrolled_unique"],
+                    "target_share": stats["target_share"],
+                    "realised_share": stats["realised_share"],
+                    "conditional_overlap_count": stats.get("conditional_overlap_count", 0),
+                    "male_quota": stats.get("male_quota", 0),
+                }
+            )
+        audit_df = pd.DataFrame(audit_rows)
 
         # Build corruption log DataFrame
         corr_log_df = pd.DataFrame(
@@ -520,11 +581,21 @@ class RegistryOrchestrator:
             "livelihood_support": livelihood_df,
         }
 
+        # Verify zero ground-truth leakage into model-visible registry files
+        for tbl_name, tbl_df in registry_tables.items():
+            leaked = set(tbl_df.columns) & FORBIDDEN_REGISTRY_COLUMNS
+            if leaked:
+                raise ValueError(
+                    f"CRITICAL: Ground-truth leakage in registry '{tbl_name}': {leaked}"
+                )
+
         truth_tables = {
             "record_truth": truth_df,
             "true_pairs": true_pairs_df,
             "corruption_log": corr_log_df,
             "doppelganger_pairs": doppel_df,
+            "doppelganger_person_pairs": doppel_person_df,
+            "audit_stats": audit_df,
         }
 
         return registry_tables, truth_tables
@@ -579,10 +650,14 @@ def export_registries(
     tpairs_pq = truth_dir / "true_pairs.parquet"
     clog_pq = truth_dir / "corruption_log.parquet"
     dpairs_pq = truth_dir / "doppelganger_pairs.parquet"
+    dppairs_pq = truth_dir / "doppelganger_person_pairs.parquet"
+    astats_pq = truth_dir / "audit_stats.parquet"
 
     truth_tables["record_truth"].to_parquet(rtruth_pq, engine="pyarrow", index=False)
     truth_tables["true_pairs"].to_parquet(tpairs_pq, engine="pyarrow", index=False)
     truth_tables["corruption_log"].to_parquet(clog_pq, engine="pyarrow", index=False)
     truth_tables["doppelganger_pairs"].to_parquet(dpairs_pq, engine="pyarrow", index=False)
+    truth_tables["doppelganger_person_pairs"].to_parquet(dppairs_pq, engine="pyarrow", index=False)
+    truth_tables["audit_stats"].to_parquet(astats_pq, engine="pyarrow", index=False)
 
     return registry_tables, truth_tables

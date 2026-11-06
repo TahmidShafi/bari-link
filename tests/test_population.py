@@ -309,3 +309,35 @@ def test_head_elderly_father_linkage(small_config: Path, tmp_path: Path) -> None
             f"Head {head_id} father_name ({head['father_name']}) must equal {expected_name}"
         )
 
+
+def test_household_given_name_uniqueness(small_config: Path, tmp_path: Path) -> None:
+    """No two members of the same household may share a given_name."""
+    out_dir = tmp_path / "hh_name_uniqueness"
+    persons_df, _, _ = generate_population(small_config, out_dir)
+
+    for hh_id, g in persons_df.groupby("household_id"):
+        n_members = len(g)
+        n_unique_given = g["given_name"].nunique()
+        assert n_members == n_unique_given, (
+            f"Household {hh_id} has duplicate given names: "
+            f"{g['given_name'].tolist()}"
+        )
+
+
+def test_father_son_given_name_distinct(small_config: Path, tmp_path: Path) -> None:
+    """A son's given_name must differ from his father's given_name (using father_given_name)."""
+    out_dir = tmp_path / "father_son_distinct"
+    persons_df, _, _ = generate_population(small_config, out_dir)
+
+    assert "father_given_name" in persons_df.columns
+    assert persons_df["father_given_name"].notna().all()
+
+    # Filter to sons / males
+    males_df = persons_df[persons_df["sex"] == "M"]
+    for _, row in males_df.iterrows():
+        assert row["given_name"] != row["father_given_name"], (
+            f"Son {row['person_id']} in HH {row['household_id']} shares given_name "
+            f"'{row['given_name']}' with father_given_name '{row['father_given_name']}'"
+        )
+
+

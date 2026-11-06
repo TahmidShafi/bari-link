@@ -56,6 +56,7 @@ class Person:
     mother_id: Optional[str]
     spouse_id: Optional[str]
     father_name: str
+    father_given_name: str
     spouse_name: Optional[str]
     guardian_type: str  # "father" or "husband"
     guardian_name: str
@@ -196,10 +197,34 @@ class PopulationGenerator:
                 surname = str(self.rng.choice(SURNAMES_MUSLIM_MALE))
         return given, surname
 
-    def _sample_full_name(self, sex: str, religion: str) -> str:
-        """Generate a canonical full name for an absent or deceased relative."""
+    def _sample_distinct_given_name(
+        self,
+        sex: str,
+        religion: str,
+        used_given_names: set[str],
+        forbidden_names: Optional[set[str]] = None,
+        hh_id: str = "",
+    ) -> tuple[str, str]:
+        """Sample given_name and surname, ensuring given_name is not already in used or forbidden.
+
+        Safeguarded by max 200 attempts, raising RuntimeError on exhaustion.
+        """
+        forbidden = used_given_names | (forbidden_names or set())
+        for _ in range(1, 201):
+            given, surname = self._sample_person_name(sex, religion)
+            if given not in forbidden:
+                used_given_names.add(given)
+                return given, surname
+        pool_name = f"{religion}_{'female' if sex == 'F' else 'male'}_given_names"
+        raise RuntimeError(
+            f"Exceeded 200 attempts sampling distinct given name for household {hh_id} "
+            f"from pool '{pool_name}'. Forbidden names: {forbidden}"
+        )
+
+    def _sample_full_name(self, sex: str, religion: str) -> tuple[str, str]:
+        """Generate a canonical given name and full name for an absent or deceased relative."""
         given, surname = self._sample_person_name(sex, religion)
-        return f"{given} {surname}"
+        return given, f"{given} {surname}"
 
     def _next_person_id(self) -> str:
         self._person_counter += 1
@@ -294,6 +319,7 @@ class PopulationGenerator:
             "mother_id",
             "spouse_id",
             "father_name",
+            "father_given_name",
             "spouse_name",
             "guardian_type",
             "guardian_name",
@@ -346,21 +372,10 @@ class PopulationGenerator:
     ) -> list[Person]:
         """Generate a male-headed household with spouse, children, and optional extended family."""
         persons: list[Person] = []
+        used_given_names: set[str] = set()
 
-        # 1. Head (Male)
         head_age = int(self.rng.integers(28, 66))
         head_birth_year = self.reference_year - head_age
-        head_given, head_surname = self._sample_person_name("M", religion)
-        head_id = self._next_person_id()
-
-        # 2. Spouse (Female)
-        spouse_age = max(18, head_age - int(self.rng.integers(1, 8)))
-        spouse_birth_year = self.reference_year - spouse_age
-        spouse_given, spouse_surname = self._sample_person_name("F", religion)
-        spouse_id = self._next_person_id()
-
-        head_full_name = f"{head_given} {head_surname}"
-        spouse_full_name = f"{spouse_given} {spouse_surname}"
 
         # Check if an elderly father of the head lives in the household
         # Only feasible if hh_size >= 3 and head_age <= 55 (so father is ~70-85)
@@ -371,14 +386,15 @@ class PopulationGenerator:
         extra_count = hh_size - 2
 
         if extra_count >= 3 and self.rng.random() < 0.20 and head_age <= 55:
-            # Generate elderly father
             has_elderly_father = True
             ef_age = head_age + int(self.rng.integers(18, 30))
             ef_birth_year = self.reference_year - ef_age
-            ef_given, ef_surname = self._sample_person_name("M", religion)
+            ef_f_given, ef_father_name = self._sample_full_name("M", religion)
+            ef_given, ef_surname = self._sample_distinct_given_name(
+                "M", religion, used_given_names, forbidden_names={ef_f_given}, hh_id=hh_id
+            )
             ef_id = self._next_person_id()
-            ef_father_name = self._sample_full_name("M", religion)
-            ef_spouse_name = self._sample_full_name("F", religion)
+            _, ef_spouse_name = self._sample_full_name("F", religion)
 
             elderly_father_person = Person(
                 person_id=ef_id,
@@ -395,6 +411,7 @@ class PopulationGenerator:
                 mother_id=None,
                 spouse_id=None,
                 father_name=ef_father_name,
+                father_given_name=ef_f_given,
                 spouse_name=ef_spouse_name,
                 guardian_type="father",
                 guardian_name=ef_father_name,
@@ -416,10 +433,12 @@ class PopulationGenerator:
         ):
             em_age = head_age + int(self.rng.integers(18, 28))
             em_birth_year = self.reference_year - em_age
-            em_given, em_surname = self._sample_person_name("F", religion)
+            em_given, em_surname = self._sample_distinct_given_name(
+                "F", religion, used_given_names, hh_id=hh_id
+            )
             em_id = self._next_person_id()
-            em_father_name = self._sample_full_name("M", religion)
-            em_spouse_name = self._sample_full_name("M", religion)
+            em_f_given, em_father_name = self._sample_full_name("M", religion)
+            _, em_spouse_name = self._sample_full_name("M", religion)
 
             elderly_mother_person = Person(
                 person_id=em_id,
@@ -436,6 +455,7 @@ class PopulationGenerator:
                 mother_id=None,
                 spouse_id=None,
                 father_name=em_father_name,
+                father_given_name=em_f_given,
                 spouse_name=em_spouse_name,
                 guardian_type="husband",
                 guardian_name=em_spouse_name,
@@ -451,14 +471,33 @@ class PopulationGenerator:
         if elderly_father_person is not None:
             head_father_id = elderly_father_person.person_id
             head_father_name = elderly_father_person.full_name
+            head_father_given = elderly_father_person.given_name
         else:
             head_father_id = None
-            head_father_name = self._sample_full_name("M", religion)
+            head_father_given, head_father_name = self._sample_full_name("M", religion)
 
         if elderly_mother_person is not None:
             head_mother_id = elderly_mother_person.person_id
         else:
             head_mother_id = None
+
+        # 1. Head (Male)
+        head_given, head_surname = self._sample_distinct_given_name(
+            "M", religion, used_given_names, forbidden_names={head_father_given}, hh_id=hh_id
+        )
+        head_id = self._next_person_id()
+
+        # 2. Spouse (Female)
+        spouse_age = max(18, head_age - int(self.rng.integers(1, 8)))
+        spouse_birth_year = self.reference_year - spouse_age
+        spouse_given, spouse_surname = self._sample_distinct_given_name(
+            "F", religion, used_given_names, hh_id=hh_id
+        )
+        spouse_id = self._next_person_id()
+        spouse_f_given, spouse_father_name = self._sample_full_name("M", religion)
+
+        head_full_name = f"{head_given} {head_surname}"
+        spouse_full_name = f"{spouse_given} {spouse_surname}"
 
         # Build Head person record
         head_person = Person(
@@ -476,6 +515,7 @@ class PopulationGenerator:
             mother_id=head_mother_id,
             spouse_id=spouse_id,
             father_name=head_father_name,
+            father_given_name=head_father_given,
             spouse_name=spouse_full_name,
             guardian_type="father",
             guardian_name=head_father_name,
@@ -485,9 +525,6 @@ class PopulationGenerator:
             upazila=upazila,
             district=district,
         )
-
-        # Spouse father name (natal bari)
-        spouse_father_name = self._sample_full_name("M", religion)
 
         # Build Spouse person record
         spouse_person = Person(
@@ -505,6 +542,7 @@ class PopulationGenerator:
             mother_id=None,
             spouse_id=head_id,
             father_name=spouse_father_name,
+            father_given_name=spouse_f_given,
             spouse_name=head_full_name,
             guardian_type="husband",
             guardian_name=head_full_name,
@@ -543,18 +581,22 @@ class PopulationGenerator:
             # Eldest child is adult married son
             son_age = child_ages[0]
             son_birth_year = self.reference_year - son_age
-            son_given, son_surname = self._sample_person_name("M", religion)
+            son_given, son_surname = self._sample_distinct_given_name(
+                "M", religion, used_given_names, forbidden_names={head_given}, hh_id=hh_id
+            )
             son_id = self._next_person_id()
 
             # Daughter-in-law
             dil_age = max(18, son_age - int(self.rng.integers(1, 6)))
             dil_birth_year = self.reference_year - dil_age
-            dil_given, dil_surname = self._sample_person_name("F", religion)
+            dil_given, dil_surname = self._sample_distinct_given_name(
+                "F", religion, used_given_names, hh_id=hh_id
+            )
             dil_id = self._next_person_id()
+            dil_f_given, dil_father_name = self._sample_full_name("M", religion)
 
             son_full_name = f"{son_given} {son_surname}"
             dil_full_name = f"{dil_given} {dil_surname}"
-            dil_father_name = self._sample_full_name("M", religion)
 
             son_person = Person(
                 person_id=son_id,
@@ -571,6 +613,7 @@ class PopulationGenerator:
                 mother_id=spouse_id,
                 spouse_id=dil_id,
                 father_name=head_full_name,
+                father_given_name=head_given,
                 spouse_name=dil_full_name,
                 guardian_type="father",
                 guardian_name=head_full_name,
@@ -596,6 +639,7 @@ class PopulationGenerator:
                 mother_id=None,
                 spouse_id=son_id,
                 father_name=dil_father_name,
+                father_given_name=dil_f_given,
                 spouse_name=son_full_name,
                 guardian_type="husband",
                 guardian_name=son_full_name,
@@ -614,7 +658,9 @@ class PopulationGenerator:
             for c_age in child_ages[2:]:
                 c_sex = "F" if self.rng.random() < 0.50 else "M"
                 c_birth_year = self.reference_year - c_age
-                c_given, c_surname = self._sample_person_name(c_sex, religion)
+                c_given, c_surname = self._sample_distinct_given_name(
+                    c_sex, religion, used_given_names, forbidden_names={head_given}, hh_id=hh_id
+                )
                 c_id = self._next_person_id()
 
                 child_person = Person(
@@ -632,6 +678,7 @@ class PopulationGenerator:
                     mother_id=spouse_id,
                     spouse_id=None,
                     father_name=head_full_name,
+                    father_given_name=head_given,
                     spouse_name=None,
                     guardian_type="father",
                     guardian_name=head_full_name,
@@ -647,7 +694,9 @@ class PopulationGenerator:
             for c_age in child_ages:
                 c_sex = "F" if self.rng.random() < 0.50 else "M"
                 c_birth_year = self.reference_year - c_age
-                c_given, c_surname = self._sample_person_name(c_sex, religion)
+                c_given, c_surname = self._sample_distinct_given_name(
+                    c_sex, religion, used_given_names, forbidden_names={head_given}, hh_id=hh_id
+                )
                 c_id = self._next_person_id()
 
                 child_person = Person(
@@ -665,6 +714,7 @@ class PopulationGenerator:
                     mother_id=spouse_id,
                     spouse_id=None,
                     father_name=head_full_name,
+                    father_given_name=head_given,
                     spouse_name=None,
                     guardian_type="father",
                     guardian_name=head_full_name,
@@ -690,27 +740,32 @@ class PopulationGenerator:
     ) -> list[Person]:
         """Generate a female-headed household (widowed or separated) and her children."""
         persons: list[Person] = []
+        used_given_names: set[str] = set()
 
         # 1. Female Head (widowed or separated)
         head_age = int(self.rng.integers(34, 71))
         head_birth_year = self.reference_year - head_age
-        head_given, head_surname = self._sample_person_name("F", religion)
-        head_id = self._next_person_id()
 
         marital_status = "widowed" if self.rng.random() < 0.75 else "separated"
-        late_husband_name = self._sample_full_name("M", religion)
+        husband_given, late_husband_name = self._sample_full_name("M", religion)
 
         extra_count = hh_size - 1
 
-        # Check if head's elderly father or mother lives in the household
+        # Check if head's elderly father lives in the household
         elderly_father_person: Optional[Person] = None
         if extra_count >= 2 and head_age <= 55 and self.rng.random() < 0.15:
             ef_age = head_age + int(self.rng.integers(18, 30))
             ef_birth_year = self.reference_year - ef_age
-            ef_given, ef_surname = self._sample_person_name("M", religion)
+            ef_f_given, ef_father_name = self._sample_full_name("M", religion)
+            ef_given, ef_surname = self._sample_distinct_given_name(
+                "M",
+                religion,
+                used_given_names,
+                forbidden_names={husband_given, ef_f_given},
+                hh_id=hh_id,
+            )
             ef_id = self._next_person_id()
-            ef_father_name = self._sample_full_name("M", religion)
-            ef_spouse_name = self._sample_full_name("F", religion)
+            _, ef_spouse_name = self._sample_full_name("F", religion)
 
             elderly_father_person = Person(
                 person_id=ef_id,
@@ -727,6 +782,7 @@ class PopulationGenerator:
                 mother_id=None,
                 spouse_id=None,
                 father_name=ef_father_name,
+                father_given_name=ef_f_given,
                 spouse_name=ef_spouse_name,
                 guardian_type="father",
                 guardian_name=ef_father_name,
@@ -741,9 +797,15 @@ class PopulationGenerator:
         if elderly_father_person is not None:
             head_father_id = elderly_father_person.person_id
             head_father_name = elderly_father_person.full_name
+            head_father_given = elderly_father_person.given_name
         else:
             head_father_id = None
-            head_father_name = self._sample_full_name("M", religion)
+            head_father_given, head_father_name = self._sample_full_name("M", religion)
+
+        head_given, head_surname = self._sample_distinct_given_name(
+            "F", religion, used_given_names, hh_id=hh_id
+        )
+        head_id = self._next_person_id()
 
         head_person = Person(
             person_id=head_id,
@@ -760,6 +822,7 @@ class PopulationGenerator:
             mother_id=None,
             spouse_id=None,  # Late or absent husband
             father_name=head_father_name,
+            father_given_name=head_father_given,
             spouse_name=late_husband_name,
             guardian_type="husband",
             guardian_name=late_husband_name,
@@ -785,7 +848,9 @@ class PopulationGenerator:
         for c_age in child_ages:
             c_sex = "F" if self.rng.random() < 0.50 else "M"
             c_birth_year = self.reference_year - c_age
-            c_given, c_surname = self._sample_person_name(c_sex, religion)
+            c_given, c_surname = self._sample_distinct_given_name(
+                c_sex, religion, used_given_names, forbidden_names={husband_given}, hh_id=hh_id
+            )
             c_id = self._next_person_id()
 
             child_person = Person(
@@ -805,6 +870,7 @@ class PopulationGenerator:
                 # In female-headed households, children's father_name is identical
                 # to head.spouse_name
                 father_name=late_husband_name,
+                father_given_name=husband_given,
                 spouse_name=None,
                 guardian_type="father",
                 guardian_name=late_husband_name,
