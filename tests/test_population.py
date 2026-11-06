@@ -280,3 +280,32 @@ def test_manifest_structure(small_config: Path, tmp_path: Path) -> None:
     assert disk_manifest["row_counts"]["persons"] == len(persons_df)
     assert disk_manifest["row_counts"]["households"] == len(households_df)
     assert "timestamp_utc" in disk_manifest
+
+
+def test_head_elderly_father_linkage(small_config: Path, tmp_path: Path) -> None:
+    """If HH contains resident elderly father, head.father_id == elderly father person_id."""
+    out_dir = tmp_path / "elderly_father_linkage"
+    persons_df, households_df, _ = generate_population(small_config, out_dir)
+
+    # Find households with a male parent
+    is_parent = persons_df["role_in_household"] == "parent"
+    is_male = persons_df["sex"] == "M"
+    elderly_fathers = persons_df[is_parent & is_male]
+    assert len(elderly_fathers) > 0, "Expected at least 1 HH with an elderly father in 200 HHs."
+
+    person_by_id = persons_df.set_index("person_id")
+    for _, ef in elderly_fathers.iterrows():
+        hh_id = ef["household_id"]
+        hh_record = households_df[households_df["household_id"] == hh_id].iloc[0]
+        head_id = hh_record["head_person_id"]
+        head = person_by_id.loc[head_id]
+
+        assert head["father_id"] == ef["person_id"], (
+            f"Head {head_id} father_id ({head['father_id']}) must equal "
+            f"resident elderly father {ef['person_id']}"
+        )
+        expected_name = f"{ef['given_name']} {ef['surname_or_title']}"
+        assert head["father_name"] == expected_name, (
+            f"Head {head_id} father_name ({head['father_name']}) must equal {expected_name}"
+        )
+

@@ -85,3 +85,29 @@ This section records all architectural, demographic, and technical design decisi
 - **Decision 1.7: Packaging and Output Formats**:
   - Used `src/` layout with `pyproject.toml` and standard virtual environment support.
   - Dual-output persistence: Apache Parquet (Snappy-compressed) for production performance and byte-identical reproducibility checks; CSV mirrors for rapid human inspection.
+
+### Log Entry 002: 2026-11-06 — Phase 2 Enrolment Registries & Corruption Model
+- **Decision 2.1: Enrolment Module Schemas**:
+  Modeled four distinct administrative enrolment modules with heterogeneous MIS schemas:
+  - `club_formation`: adolescent/young women (female, age 10-24 at enrolment). Collects `member_name`, `age`, `guardian`, `village`.
+  - `upg_enrolment` (Ultra-Poor Graduation): household-level, primary participant (adult female 18-60) + full household roster in `rosters.parquet`. Collects `participant_name`, `age`, `guardian_name`, `guardian_type`, `phone`, full location.
+  - `microfinance_group`: microcredit borrowers (mostly female 18-60) with `group_id`. Collects `borrower_name`, `husband_or_father`, `phone`, `village`, `union`, `group_id`.
+  - `livelihood_support`: income-generation grants (adults 18-60, both sexes) + short roster (head plus up to 3 members). Collects `recipient_name`, `age`, `father_name`, `phone`, full location.
+  A single harmonised table `records.parquet` provides a common schema across all modules; uncollected fields are structurally null.
+- **Decision 2.2: Normalisation Leakage Guard (Transliteration Rule Partitioning)**:
+  To prevent target leakage into the downstream record-linkage normalisation module (Phase 3), transliteration rules are strictly split:
+  - `SHARED_RULES` (46.2% of rules): standard transliteration alternations (`sh`<->`s`, `kh`<->`k`, `ph`<->`f`, `j`<->`z`, `v`<->`b`, `ee`<->`i`, `oo`<->`u`, `e`<->`i`, `Rahman`<->`Rehman`, `Mohammad`<->`Muhammad`).
+  - `GENERATOR_ONLY_RULES` (53.8% of rules, target $\ge 40\%$): generator-private rules including `a`<->`o`, `u`<->`o`, `Uddin`<->`Uddeen`<->`Udin`, `Ali`<->`Oli`, `Mia`<->`Miah`, `Chowdhury`<->`Choudhury`, `Hossain`<->`Hussain`, compound name joining/splitting (`Abdul Karim`<->`Abdulkarim`).
+  - Tested: Generator-only rules must account for $\ge 30\%$ of all transliteration events logged in `truth/corruption_log.parquet` (empirically observed: ~51%).
+- **Decision 2.3: Corruption Rates Assumption**:
+  All corruption rates in `configs/default.yaml` (transliteration: 0.22, prefix drift: 0.35, title drift: 0.12, typos: 0.08, guardian switch: 0.18, age heaping base: 0.25, age jitter: 0.20, phone missing: 0.15, phone shared: 0.20, phone typo: 0.06, transposition: 0.05, format variants: 0.30, location village drift: 0.15, missing admin: 0.08) are explicitly **assumed, not empirically calibrated**.
+- **Decision 2.4: Guardian Switch Restriction**:
+  In accordance with rural field practices, guardian switching (recording father's name instead of husband's name) is strictly restricted to ever-married women (`marital_status in {"married", "widowed", "separated"}`). Widows whose guardian is their late husband are also subject to a "Late " prefix insertion rate. Unmarried women and men are never subjected to guardian switching.
+- **Decision 2.5: Age Heaping and No Birth Year Output**:
+  Field survey programs collect reported age at enrolment, not birth date. Recorded age is subjected to age heaping (rounding to multiples of 5 with probability increasing with age) and small random jitter ($\pm 1$–$3$ years). Corrupted birth year is strictly omitted from registry tables.
+- **Decision 2.6: Hard Negatives (Doppelgangers)**:
+  To test the linkage model's vulnerability to false merges (Hard Rule 4: precision over recall), we identify and enroll distinct individuals sharing canonical `(given_name, guardian_name, village)`. Configured with `min_pairs: 50`. If natural occurrences in the clean population are insufficient, cousin households are generated via the Phase 1 generator logic and marked with `is_injected = True` in `truth/doppelganger_pairs.parquet`.
+- **Decision 2.7: Strict Truth Segregation & Opaque Record IDs**:
+  - Model-visible outputs in `data/generated/<run>/registry/` contain zero ground-truth identifiers or canonical names.
+  - Every record is assigned an opaque 10-character hex `record_id` redrawn on collision, with Spearman rank correlation with `person_id` verified to satisfy $|\rho| < 0.05$.
+  - All evaluation keys, pairwise ground-truth matches, doppelgangers, and corruption logs are segregated in `data/generated/<run>/truth/`.

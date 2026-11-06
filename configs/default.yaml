@@ -1,4 +1,4 @@
-# bari-link population generator configuration
+# bari-link population generator and corruption configuration
 seed: 42
 reference_date: "2026-01-01"
 n_households: 3000
@@ -53,3 +53,98 @@ geography:
     - "Uttar Para"
     - "Majher Char"
 
+# ==============================================================================
+# Phase 2: Enrolment Module Configuration
+# ==============================================================================
+enrolment:
+  date_range: ["2023-01-01", "2026-06-30"]
+  re_registration_rate: 0.03
+  modules:
+    club_formation:
+      target_share: 0.25
+      age_range: [10, 24]
+      female_only: true
+      intensity: 1.0
+    upg_enrolment:
+      target_share: 0.18
+      primary_age_range: [18, 60]
+      prefer_female: true
+      intensity: 1.2
+    microfinance_group:
+      target_share: 0.30
+      age_range: [18, 60]
+      female_share: 0.92
+      intensity: 0.9
+    livelihood_support:
+      target_share: 0.22
+      age_range: [18, 60]
+      female_share: 0.50
+      intensity: 1.1
+  cross_module_conditional:
+    upg_to_microfinance: 0.55
+    upg_to_livelihood: 0.45
+
+# Hard negatives (doppelganger false-merge challenge)
+doppelganger:
+  min_pairs: 50
+
+# ==============================================================================
+# Phase 2: Record Corruption Model Configuration
+# All default rates below are assumed, not empirically calibrated.
+# ==============================================================================
+corruption:
+  rates:
+    transliteration: 0.22
+    prefix_drift: 0.35
+    female_title_drift: 0.12
+    typo_damerau_levenshtein: 0.08
+    field_swap_guardian: 0.02
+    field_title_to_front: 0.04
+    age_heaping_base: 0.25
+    age_jitter: 0.20
+    guardian_switch_ever_married: 0.18  # Ever-married women only
+    widow_late_prefix: 0.25             # Widows whose guardian is husband
+    phone_missing: 0.15
+    phone_shared_household: 0.20        # Shared HH / relative phone
+    phone_new_sim: 0.05
+    phone_digit_typo: 0.06
+    phone_adjacent_transposition: 0.05
+    phone_format_variant: 0.30
+    location_village_drift: 0.15
+    location_missing_admin: 0.08
+
+# Per-module x per-field missingness rates
+# Fields that a module does not collect are structurally null and NOT counted here.
+missingness:
+  club_formation:
+    guardian_name: 0.05
+    age: 0.04
+    phone: 0.0
+    village: 0.02
+    union: 0.0
+    upazila: 0.0
+    district: 0.0
+  upg_enrolment:
+    guardian_name: 0.04
+    age: 0.03
+    phone: 0.08
+    village: 0.01
+    union: 0.02
+    upazila: 0.03
+    district: 0.02
+  microfinance_group:
+    guardian_name: 0.05
+    age: 0.0
+    phone: 0.06
+    village: 0.01
+    union: 0.02
+    upazila: 0.0
+    district: 0.0
+  livelihood_support:
+    guardian_name: 0.04
+    age: 0.03
+    phone: 0.07
+    village: 0.01
+    union: 0.02
+    upazila: 0.03
+    district: 0.02
