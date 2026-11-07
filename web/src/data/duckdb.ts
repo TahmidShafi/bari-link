@@ -72,7 +72,13 @@ export async function runQuery<T = any>(sql: string): Promise<T[]> {
     const row: any = {};
     for (const f of fields) {
       const val = raw ? raw[f] : undefined;
-      row[f] = typeof val === 'bigint' ? Number(val) : val;
+      if (typeof val === 'bigint') {
+        row[f] = Number(val);
+      } else if (val && typeof val.toArray === 'function') {
+        row[f] = val.toArray();
+      } else {
+        row[f] = val;
+      }
     }
     rows.push(row as T);
   }

@@ -3,18 +3,21 @@
 Regenerates:
 1. web/src/tests/fixtures/pairs_sample.json (200 real pairs for waterfall testing)
 2. web/src/tests/fixtures/raw_eval_fixture.json (full holdout_5 evaluation fixture)
+3. web/src/tests/fixtures/pair_labels_100.json (100 real pairs with Splink-derived comparison labels)
 """
 
 import json
 from pathlib import Path
 
 import duckdb
+from splink import SettingsCreator
 
 
 def export_test_fixtures(
     web_data_dir: Path = Path("web/public/data"),
     output_dir: Path = Path("web/src/tests/fixtures"),
     truth_dir: Path = Path("data/generated/holdout_5/truth"),
+    model_path: Path = Path("results/models/splink_k/model.json"),
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
@@ -69,6 +72,38 @@ def export_test_fixtures(
     with open(raw_out, "w", encoding="utf-8") as f:
         json.dump(raw_fixture, f, default=str)
     print(f"Exported raw evaluation fixture ({len(thresh_df)} thresholds) to {raw_out}")
+
+    # 3. 100 real pairs with Splink-derived comparison labels
+    sc = SettingsCreator.from_path_or_dict(model_path)
+    settings_obj = sc.get_settings("duckdb")
+    comp_cvv_labels = {}
+    for comp in settings_obj.comparisons:
+        cvv_map = {}
+        for cl in comp.comparison_levels:
+            cvv_map[cl.comparison_vector_value] = cl.label_for_charts
+        comp_cvv_labels[comp.output_column_name] = cvv_map
+
+    pairs_100_df = con.read_parquet(str(pairs_path)).limit(100).df()
+    pairs_100 = []
+    for _, row in pairs_100_df.iterrows():
+        pair_dict = row.to_dict()
+        expected_labels = {}
+        for comp_name, cvv_map in comp_cvv_labels.items():
+            gamma_key = f"gamma_{comp_name}"
+            if gamma_key in pair_dict:
+                gamma_val = int(pair_dict[gamma_key])
+                expected_labels[comp_name] = cvv_map.get(gamma_val, f"Level {gamma_val}")
+        pairs_100.append(
+            {
+                "pair": {k: (str(v) if not isinstance(v, (int, float)) else v) for k, v in pair_dict.items()},
+                "expected_labels": expected_labels,
+            }
+        )
+
+    labels_100_out = output_dir / "pair_labels_100.json"
+    with open(labels_100_out, "w", encoding="utf-8") as f:
+        json.dump(pairs_100, f, default=str, indent=2)
+    print(f"Exported 100-pair labels fixture to {labels_100_out}")
 
 
 if __name__ == "__main__":

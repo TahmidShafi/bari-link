@@ -219,30 +219,47 @@ def export_web_data(
     if not model_file.exists():
         raise FileNotFoundError(f"Model file not found: {model_file}")
 
-    with open(model_file, "r", encoding="utf-8") as f:
-        model_dict = json.load(f)
+    from splink import SettingsCreator
+
+    settings_creator = SettingsCreator.from_path_or_dict(model_file)
+    settings_obj = settings_creator.get_settings("duckdb")
 
     model_summary = {
-        "prior": model_dict.get("probability_two_random_records_match"),
+        "prior": settings_creator.probability_two_random_records_match,
         "comparisons": [],
     }
-    for comp in model_dict.get("comparisons", []):
-        comp_summary = {
-            "name": comp.get("output_column_name"),
-            "levels": [],
-        }
-        for lvl in comp.get("comparison_levels", []):
-            comp_summary["levels"].append(
-                {
-                    "label": lvl.get(
-                        "label_for_charts",
-                        str(lvl.get("comparison_vector_value")),
-                    ),
-                    "m_probability": lvl.get("m_probability"),
-                    "u_probability": lvl.get("u_probability"),
-                    "bayes_factor": lvl.get("bayes_factor"),
-                }
+    for comp in settings_obj.comparisons:
+        levels_by_cvv = {}
+        levels_list = []
+        for cl in comp.comparison_levels:
+            m = None if cl.is_null_level else cl.m_probability
+            u = None if cl.is_null_level else cl.u_probability
+            bf = (
+                (m / u)
+                if (m is not None and u is not None and u > 0)
+                else (1.0 if cl.is_null_level else None)
             )
+            cvv = cl.comparison_vector_value
+            level_dict = {
+                "label": cl.label_for_charts,
+                "label_for_charts": cl.label_for_charts,
+                "m_probability": m,
+                "m": m,
+                "u_probability": u,
+                "u": u,
+                "bayes_factor": bf,
+                "bf": bf,
+                "comparison_vector_value": cvv,
+            }
+            levels_by_cvv[str(cvv)] = level_dict
+            levels_list.append(level_dict)
+
+        comp_summary = {
+            "name": comp.output_column_name,
+            "levels_by_cvv": levels_by_cvv,
+            "level_map": levels_by_cvv,
+            "levels": levels_list,
+        }
         model_summary["comparisons"].append(comp_summary)
 
     web_model_summary_path = out_path / "model_summary.json"
@@ -261,52 +278,43 @@ def export_web_data(
     )
 
     # -------------------------------------------------------------------------
-    # 8. eval/headline.json: Confirmed holdout_5..9 benchmark results
+    # 8. eval/headline.json: Consolidated empirical findings across hypotheses
     # -------------------------------------------------------------------------
-    leakage_src = Path(results_dir) / "holdout" / "leakage_comparison.json"
-    if not leakage_src.exists():
-        leakage_src = Path("results/holdout/leakage_comparison.json")
+    summary_dir = Path(results_dir) / "summary"
+    if not summary_dir.exists():
+        summary_dir = Path("results/summary")
 
-    h1_src = Path(results_dir) / "demo" / "h1_dev_outcome.json"
-    if not h1_src.exists():
-        h1_src = Path("results/demo/h1_dev_outcome.json")
+    required_summary_files = {
+        "leakage": summary_dir / "leakage_comparison.json",
+        "h1": summary_dir / "h1_dev_outcome.json",
+        "h2": summary_dir / "h2_dev_outcome.json",
+        "confirm": summary_dir / "confirm_table.json",
+        "household": summary_dir / "household_table.json",
+    }
 
-    h2_src = Path(results_dir) / "demo" / "h2_dev_outcome.json"
-    if not h2_src.exists():
-        h2_src = Path("results/demo/h2_dev_outcome.json")
+    for name, path in required_summary_files.items():
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Missing required summary file: {path}. "
+                f"Run 'python -m barilink.cli evaluate summarize' to generate it."
+            )
 
-    confirm_src = Path(results_dir) / "holdout_confirm" / "confirm_table.json"
-    if not confirm_src.exists():
-        confirm_src = Path("results/holdout_confirm/confirm_table.json")
+    with open(required_summary_files["leakage"], "r", encoding="utf-8") as f:
+        leakage_data = json.load(f)
+    with open(required_summary_files["h1"], "r", encoding="utf-8") as f:
+        h1_data = json.load(f)
+    with open(required_summary_files["h2"], "r", encoding="utf-8") as f:
+        h2_data = json.load(f)
+    with open(required_summary_files["confirm"], "r", encoding="utf-8") as f:
+        confirm_data = json.load(f)
+    with open(required_summary_files["household"], "r", encoding="utf-8") as f:
+        hh_data = json.load(f)
 
-    hh_src = Path(results_dir) / "holdout_confirm" / "household_table.json"
-    if not hh_src.exists():
-        hh_src = Path("results/holdout_confirm/household_table.json")
-
-    leakage_data = {}
-    if leakage_src.exists():
-        with open(leakage_src, "r", encoding="utf-8") as f:
-            leakage_data = json.load(f)
-
-    h1_data = {}
-    if h1_src.exists():
-        with open(h1_src, "r", encoding="utf-8") as f:
-            h1_data = json.load(f)
-
-    h2_data = {}
-    if h2_src.exists():
-        with open(h2_src, "r", encoding="utf-8") as f:
-            h2_data = json.load(f)
-
-    confirm_data = {}
-    if confirm_src.exists():
-        with open(confirm_src, "r", encoding="utf-8") as f:
-            confirm_data = json.load(f)
-
-    hh_data = {}
-    if hh_src.exists():
-        with open(hh_src, "r", encoding="utf-8") as f:
-            hh_data = json.load(f)
+    leakage_src = required_summary_files["leakage"]
+    h1_src = required_summary_files["h1"]
+    h2_src = required_summary_files["h2"]
+    confirm_src = required_summary_files["confirm"]
+    hh_src = required_summary_files["household"]
 
     h_conf = confirm_data.get("holdout_confirmation", {})
     hh_champ = hh_data.get("champion", {})

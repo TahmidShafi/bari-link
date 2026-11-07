@@ -7,6 +7,7 @@ import {
   formatNum,
   formatDelta,
   FORMAT_DECIMALS_THOUSANDTH,
+  FORMAT_DECIMALS_HUNDREDTH,
   ZERO,
 } from '../eval/formatters';
 
@@ -56,7 +57,7 @@ export const Findings: React.FC = () => {
       </div>
 
       {/* Card 1: Ground-Truth Leakage Post-Mortem */}
-      {leakage && (
+      {leakage ? (
         <div className="card">
           <div className="card-header">
             <div>
@@ -83,7 +84,7 @@ export const Findings: React.FC = () => {
           </div>
 
           <p style={{ fontSize: '0.875rem', lineHeight: '1.5', marginBottom: '1rem' }}>
-            In early prototypes, ground-truth sex and guardian relationship types were inadvertently leaked into feature definitions. Fixing the schema revealed that true administrative survey data is significantly noisier: Splink v1 cluster precision plummeted once clean unstandardized fields were used, motivating hypotheses H1–H3.
+            Leaked ground-truth fields (guardian type, sex) inflated precision; after removing them, v1 precision fell from {formatRate(leakage.methods?.splink_v1_pre_fix?.cluster_precision_mean, FORMAT_DECIMALS_HUNDREDTH)} to {formatRate(leakage.methods?.splink_v1_post_fix?.cluster_precision_mean, FORMAT_DECIMALS_HUNDREDTH)} on the synthetic holdouts.
           </p>
 
           <div className="table-container">
@@ -137,12 +138,16 @@ export const Findings: React.FC = () => {
             </table>
           </div>
         </div>
+      ) : (
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+          <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: leakage_before_after</p>
+        </div>
       )}
 
       {/* Card 2: Pre-Registered Hypotheses H1 & H2 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
         {/* H1 */}
-        {h1 && (
+        {h1 ? (
           <div className="card">
             <div className="card-header">
               <div>
@@ -190,10 +195,14 @@ export const Findings: React.FC = () => {
               </div>
             </div>
           </div>
+        ) : (
+          <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+            <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: h1</p>
+          </div>
         )}
 
         {/* H2 */}
-        {h2 && (
+        {h2 ? (
           <div className="card">
             <div className="card-header">
               <div>
@@ -241,11 +250,15 @@ export const Findings: React.FC = () => {
               </div>
             </div>
           </div>
+        ) : (
+          <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+            <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: h2</p>
+          </div>
         )}
       </div>
 
       {/* Card 3: Hypothesis H3 & 5-Seed Holdout Confirmation */}
-      {h3 && (
+      {h3 ? (
         <div className="card">
           <div className="card-header">
             <div>
@@ -315,10 +328,14 @@ export const Findings: React.FC = () => {
             </div>
           )}
         </div>
+      ) : (
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+          <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: h3</p>
+        </div>
       )}
 
       {/* Card 4: Cost-Ratio Sensitivity Analysis */}
-      {costSensitivity && (
+      {costSensitivity ? (
         <div className="card">
           <div className="card-header">
             <div>
@@ -342,7 +359,7 @@ export const Findings: React.FC = () => {
           </div>
 
           <p style={{ fontSize: '0.875rem', lineHeight: '1.5', marginBottom: '1rem' }}>
-            Pipeline K prioritizes precision by strictly enforcing kinship constraints. Because it trades a small amount of recall for a substantial reduction in false merges, <strong>Pipeline K strictly dominates when false merges cost at least twice as much as missed duplicates (cost ratio ≥ 2:1)</strong>. Under balanced 1:1 costs, the win margin narrows to 3 of 5 seeds.
+            Pipeline K prioritizes precision by strictly enforcing kinship constraints. Because it trades a small amount of recall for a substantial reduction in false merges, <strong>K is preferred when false merges cost at least 2x missed duplicates</strong>. Under balanced 1:1 costs, the win margin narrows to 3 of 5 seeds.
           </p>
 
           <div className="table-container">
@@ -385,8 +402,8 @@ export const Findings: React.FC = () => {
                         {row.seeds_won}
                       </td>
                       <td>
-                        <span className={isWon ? 'chip chip-accent' : 'chip'}>
-                          {isWon ? 'Pipeline K Wins' : 'Comparable'}
+                        <span className={row.verdict?.startsWith('K better') ? 'chip chip-accent' : 'chip'}>
+                          {row.verdict || (isWon ? 'Pipeline K Wins' : 'Comparable')}
                         </span>
                       </td>
                     </tr>
@@ -396,10 +413,14 @@ export const Findings: React.FC = () => {
             </table>
           </div>
         </div>
+      ) : (
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+          <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: cost_ratio_sensitivity</p>
+        </div>
       )}
 
       {/* Card 5: Household Inference & Limitations */}
-      {household && (
+      {household ? (
         <div className="card">
           <div className="card-header">
             <div>
@@ -516,7 +537,16 @@ export const Findings: React.FC = () => {
             </div>
           )}
         </div>
+      ) : (
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+          <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: household</p>
+        </div>
       )}
+
+      {/* Footer Note */}
+      <div className="card findings-footer" style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-subtle)', fontSize: '0.8125rem' }}>
+        <em>All results are on synthetic data; not validated on real registries.</em>
+      </div>
     </div>
   );
 };

@@ -31,6 +31,7 @@ results/**
 !results/**/selected_thresholds.json
 !results/**/model.json
 !results/publish/**
+!results/summary/**
 results/ci/**
 
 # Web build artifacts

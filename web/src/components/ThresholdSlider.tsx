@@ -44,7 +44,7 @@ export const ThresholdSlider: React.FC<ThresholdSliderProps> = ({
               className="chip chip-accent"
               style={{ marginLeft: '0.5rem', verticalAlign: 'middle' }}
             >
-              ★ Selected on dev data (t=2.0, bridge=4.0)
+              ★ selected on dev data (frozen)
             </span>
           )}
         </label>

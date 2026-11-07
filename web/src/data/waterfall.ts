@@ -25,11 +25,13 @@ export function computeWaterfall(
 
   let runningWeight = priorLog2Odds;
 
-  // Build comparison level label lookup: comp_name -> level_index -> label
-  const labelLookup = new Map<string, string[]>();
+  // Build comparison level map lookup: comp_name -> Map<cvv_string, level_info>
+  const levelLookup = new Map<string, Record<string, any>>();
   for (const comp of modelSummary.comparisons) {
-    const labels = comp.levels.map((lvl: any) => lvl.label);
-    labelLookup.set(comp.name, labels);
+    const map = comp.level_map || comp.levels_by_cvv;
+    if (map) {
+      levelLookup.set(comp.name, map);
+    }
   }
 
   // All columns starting with bf_
@@ -60,10 +62,10 @@ export function computeWaterfall(
     } else {
       const gammaKey = `gamma_${stepName}`;
       const gammaVal = pair[gammaKey];
-      const compLabels = labelLookup.get(stepName);
+      const compMap = levelLookup.get(stepName);
 
-      if (compLabels && typeof gammaVal === 'number' && gammaVal >= 0 && gammaVal < compLabels.length) {
-        label = compLabels[gammaVal];
+      if (compMap && gammaVal !== undefined && compMap[String(gammaVal)]) {
+        label = compMap[String(gammaVal)].label || compMap[String(gammaVal)].label_for_charts;
       } else if (gammaVal === -1) {
         label = 'Null / Missing field';
       }

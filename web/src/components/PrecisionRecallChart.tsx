@@ -25,14 +25,14 @@ export const PrecisionRecallChart: React.FC<PrecisionRecallChartProps> = ({
 
     for (const row of data) {
       plotPoints.push({
-        threshold: row.t_link,
+        threshold: Number(row.t_link),
         metric: 'Precision',
-        value: row.precision,
+        value: Number(row.precision),
       });
       plotPoints.push({
-        threshold: row.t_link,
+        threshold: Number(row.t_link),
         metric: 'Recall',
-        value: row.recall,
+        value: Number(row.recall),
       });
     }
 
@@ -53,7 +53,7 @@ export const PrecisionRecallChart: React.FC<PrecisionRecallChartProps> = ({
         label: 'Metric Value',
         domain: [0, 1.05],
         grid: true,
-        percent: true,
+        tickFormat: (d: number) => `${Math.round(d * 100)}%`,
       },
       color: {
         domain: ['Precision', 'Recall'],
@@ -62,6 +62,21 @@ export const PrecisionRecallChart: React.FC<PrecisionRecallChartProps> = ({
       },
       marks: [
         Plot.ruleY([0]),
+        // Dev frozen optimum (t=2.0)
+        Plot.ruleX([2.0], {
+          stroke: '#64748b',
+          strokeWidth: 1.5,
+          strokeDasharray: '2 2',
+        }),
+        Plot.text([2.0], {
+          x: 2.0,
+          y: 0.08,
+          text: () => 'selected on dev data (frozen)',
+          fill: '#475569',
+          textAnchor: 'start',
+          dx: 6,
+          fontSize: 10,
+        }),
         // Current threshold vertical line
         Plot.ruleX([currentThreshold], {
           stroke: '#dc2626',
@@ -110,6 +125,9 @@ export const PrecisionRecallChart: React.FC<PrecisionRecallChartProps> = ({
         <span className="fact-label">Trade-off Curve across Threshold Grid</span>
       </div>
       <div ref={containerRef} style={{ width: '100%', minHeight: '240px' }} />
+      <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-subtle)', fontStyle: 'italic' }}>
+        Holdout-optimal thresholds can differ from the dev-selected one; the frozen point is reported to avoid tuning on test data.
+      </p>
     </div>
   );
 };

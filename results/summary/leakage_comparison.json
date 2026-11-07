@@ -1,0 +1,58 @@
+{
+  "source": "results/summary/leakage_comparison.json",
+  "description": "Pre-fix (leaked ground-truth sex and guardian type) vs post-fix (clean survey schema) on 5-seed holdouts",
+  "methods": {
+    "splink_v1_pre_fix": {
+      "status": "Pre-Fix (Leaked)",
+      "cluster_precision_mean": 0.9404,
+      "cluster_precision_sd": 0.0081,
+      "cluster_recall_mean": 0.4741,
+      "cluster_recall_sd": 0.0122,
+      "cluster_f1_mean": 0.6303,
+      "cluster_f1_sd": 0.0105,
+      "doppelganger_fm_rate": 0.0189,
+      "reach_error_pct_mean": 14.85,
+      "reach_error_pct_sd": 0.69,
+      "threshold": "w=9.00 (p=0.9981)"
+    },
+    "splink_v1_post_fix": {
+      "status": "Post-Fix (Clean)",
+      "cluster_precision_mean": 0.6068,
+      "cluster_precision_sd": 0.0421,
+      "cluster_recall_mean": 0.7564,
+      "cluster_recall_sd": 0.0106,
+      "cluster_f1_mean": 0.6728,
+      "cluster_f1_sd": 0.0266,
+      "doppelganger_fm_rate": 0.1676,
+      "reach_error_pct_mean": -1.22,
+      "reach_error_pct_sd": 0.87,
+      "threshold": "w=9.25 (p=0.9984)"
+    },
+    "splink_v1_resolved_pre_fix": {
+      "status": "Pre-Fix (Leaked)",
+      "cluster_precision_mean": 0.9484,
+      "cluster_precision_sd": 0.0067,
+      "cluster_recall_mean": 0.474,
+      "cluster_recall_sd": 0.0123,
+      "cluster_f1_mean": 0.632,
+      "cluster_f1_sd": 0.0107,
+      "doppelganger_fm_rate": 0.0189,
+      "reach_error_pct_mean": 14.97,
+      "reach_error_pct_sd": 0.69,
+      "threshold": "t_link=9.0, t_bridge=9.0"
+    },
+    "splink_v1_resolved_post_fix": {
+      "status": "Post-Fix (Clean)",
+      "cluster_precision_mean": 0.6303,
+      "cluster_precision_sd": 0.0327,
+      "cluster_recall_mean": 0.7615,
+      "cluster_recall_sd": 0.009,
+      "cluster_f1_mean": 0.6893,
+      "cluster_f1_sd": 0.0197,
+      "doppelganger_fm_rate": 0.1622,
+      "reach_error_pct_mean": -1.32,
+      "reach_error_pct_sd": 0.8,
+      "threshold": "t_link=8.5, t_bridge=10.0"
+    }
+  }
+}

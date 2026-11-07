@@ -1,0 +1,119 @@
+{
+  "source": "results/summary/confirm_table.json",
+  "title": "H3: Kinship as Deterministic Constraint (Pipeline K)",
+  "hypothesis": "Kinship evidence should act as deterministic constraints, not as probabilistic Fellegi-Sunter evidence, because roster overlap violates conditional independence. Pipeline K removes kinship comparison from Splink Fellegi-Sunter and uses listed_as_other_member as a deterministic resolution constraint.",
+  "dev_adoption": {
+    "reference_model": "splink_v3_1_resolved",
+    "reference_dev_cost": 828.0,
+    "adoption_threshold": 811.44,
+    "candidate_model": "splink_k_resolved",
+    "candidate_dev_cost": 782.0,
+    "cost_reduction_points": 46.0,
+    "cost_reduction_pct": 5.56,
+    "selected_operating_point": {
+      "t_link": 2.0,
+      "t_bridge": 4.0
+    },
+    "outcome": "SUPPORTED"
+  },
+  "holdout_confirmation": {
+    "seeds": [
+      "holdout_5",
+      "holdout_6",
+      "holdout_7",
+      "holdout_8",
+      "holdout_9"
+    ],
+    "reference_cost_mean": 888.2,
+    "reference_cost_sd": 51.2,
+    "pipeline_k_cost_mean": 812.2,
+    "pipeline_k_cost_sd": 29.2,
+    "paired_delta_cost": -76.0,
+    "paired_delta_cost_sd": 27.3,
+    "relative_cost_reduction_pct": -8.56,
+    "direction_consistency": "5/5 seeds; one-sided sign test p = 0.031 (two-sided 0.0625)",
+    "sign_test_p_value": 0.031,
+    "reference_precision_mean": 0.9457,
+    "reference_precision_sd": 0.0127,
+    "pipeline_k_precision_mean": 0.9656,
+    "pipeline_k_precision_sd": 0.0106,
+    "reference_recall_mean": 0.5334,
+    "reference_recall_sd": 0.0202,
+    "pipeline_k_recall_mean": 0.5277,
+    "pipeline_k_recall_sd": 0.0172,
+    "reference_f1_mean": 0.6819,
+    "reference_f1_sd": 0.0174,
+    "pipeline_k_f1_mean": 0.6823,
+    "pipeline_k_f1_sd": 0.0137,
+    "doppelganger_fm_rate_pipeline_k": 0.0132,
+    "doppelganger_fm_rate_reference": 0.0158,
+    "verdict": "CONFIRMED"
+  },
+  "cost_ratio_sensitivity": [
+    {
+      "ratio": "1:1",
+      "label": "Balanced",
+      "reference_cost_mean": 713.0,
+      "reference_cost_sd": 34.7,
+      "pipeline_k_cost_mean": 704.2,
+      "pipeline_k_cost_sd": 26.6,
+      "delta_cost": -8.8,
+      "delta_cost_sd": 11.8,
+      "seeds_won": "3/5 seeds",
+      "verdict": "No clear difference (3/5 seeds)"
+    },
+    {
+      "ratio": "2:1",
+      "label": "2:1",
+      "reference_cost_mean": 756.8,
+      "reference_cost_sd": 35.7,
+      "pipeline_k_cost_mean": 731.2,
+      "pipeline_k_cost_sd": 23.1,
+      "delta_cost": -25.6,
+      "delta_cost_sd": 13.6,
+      "seeds_won": "5/5 seeds",
+      "verdict": "K better (5/5 seeds)"
+    },
+    {
+      "ratio": "5:1",
+      "label": "Pre-Registered (5:1)",
+      "reference_cost_mean": 888.2,
+      "reference_cost_sd": 51.2,
+      "pipeline_k_cost_mean": 812.2,
+      "pipeline_k_cost_sd": 29.2,
+      "delta_cost": -76.0,
+      "delta_cost_sd": 27.3,
+      "seeds_won": "5/5 seeds",
+      "verdict": "K better (5/5 seeds)"
+    },
+    {
+      "ratio": "10:1",
+      "label": "Heavy FP Penalty (10:1)",
+      "reference_cost_mean": 1107.2,
+      "reference_cost_sd": 93.0,
+      "pipeline_k_cost_mean": 947.2,
+      "pipeline_k_cost_sd": 64.5,
+      "delta_cost": -160.0,
+      "delta_cost_sd": 55.5,
+      "seeds_won": "5/5 seeds",
+      "verdict": "K better (5/5 seeds)"
+    }
+  ],
+  "cost_ratio_summary_verdict": "K is preferred when false merges cost at least 2x missed duplicates",
+  "secondary_outcomes": {
+    "doppelganger_stress_0_at_recall_50": {
+      "pipeline_k_fm": 0.621,
+      "reference_fm": 0.523,
+      "gap_pp": 9.8,
+      "theoretical_mechanism": "listed_as_other_member constraints act strictly within households and cannot prevent merges between distinct individuals in different households."
+    },
+    "same_household_false_merges_demo": {
+      "reference_clusters": 25,
+      "pipeline_k_clusters": 14,
+      "reduction_pct": 44.0,
+      "reference_pairs": 24,
+      "pipeline_k_pairs": 16,
+      "pairs_reduction_pct": 33.3
+    }
+  }
+}

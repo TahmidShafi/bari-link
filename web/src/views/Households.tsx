@@ -41,13 +41,16 @@ export const Households: React.FC = () => {
     }
   }, [params.household_id]);
 
-  // Initial load if empty
+  // Initial load if empty: default to a multi-member household (>= 3 enrolled members, with E1 or E2 edges)
   useEffect(() => {
     if (!initialHhId) {
+      const defaultHhId = 'hh_006865b83e45';
       searchHouseholds('', 12).then((results) => {
         setSearchResults(results);
-        if (results.length > 0 && !selectedHousehold) {
-          handleSelectHousehold(results[0]);
+      });
+      getHouseholdGolden(defaultHhId).then((hh) => {
+        if (hh) {
+          handleSelectHousehold(hh);
         }
       });
     }

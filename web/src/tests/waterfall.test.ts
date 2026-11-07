@@ -55,5 +55,66 @@ describe('Fellegi-Sunter Match-Weight Waterfall', () => {
       expect(s.label).toContain('Term frequency adjustment');
     }
   });
+
+  it('reproduces Splink-derived comparison level labels exactly across 100 real pairs fixture', () => {
+    const labelsFixturePath = path.resolve(__dirname, 'fixtures/pair_labels_100.json');
+    const pairs100 = JSON.parse(fs.readFileSync(labelsFixturePath, 'utf8'));
+
+    expect(pairs100).toHaveLength(100);
+
+    for (const { pair, expected_labels } of pairs100) {
+      const result = computeWaterfall(pair, modelSummary);
+
+      for (const step of result.steps) {
+        if (step.name.includes('(TF Adj)')) continue;
+        const compKey = step.name.replace(/ /g, '_');
+        if (expected_labels[compKey]) {
+          expect(step.label).toBe(expected_labels[compKey]);
+        }
+      }
+    }
+  });
+
+  it('correctly labels holdout_5 pair 4ac1788f1d vs 9c69280acb (P0 regression check)', () => {
+    // Specifically test the exact pair reported in the bug report
+    const pair = {
+      record_id_l: '4ac1788f1d',
+      record_id_r: '9c69280acb',
+      match_weight: 18.3696,
+      match_probability: 0.999997,
+      gamma_given_name: 5,
+      bf_given_name: 59.227,
+      bf_tf_adj_given_name: 2.068,
+      gamma_guardian_name: 7,
+      bf_guardian_name: 295.796,
+      bf_tf_adj_guardian_name: 0.515,
+      gamma_phone: 2,
+      bf_phone: 4313.07,
+      gamma_birth_year: -1,
+      bf_birth_year: 1.0,
+      gamma_village: 2,
+      bf_village: 3.989,
+      gamma_union_raw: 1,
+      bf_union_raw: 18.0,
+      gamma_sex_raw: -1,
+      bf_sex_raw: 1.0,
+      gamma_title_token: 1,
+      bf_title_token: 3.683,
+    };
+
+    const result = computeWaterfall(pair, modelSummary);
+
+    const stepVillage = result.steps.find((s) => s.name === 'village');
+    expect(stepVillage?.label).toBe('Exact match on village_canon');
+
+    const stepPhone = result.steps.find((s) => s.name === 'phone');
+    expect(stepPhone?.label).toBe('Exact match on phone_norm');
+
+    const stepGuardian = result.steps.find((s) => s.name === 'guardian name');
+    expect(stepGuardian?.label).toBe('Exact match on guardian_canon');
+
+    const stepBirthYear = result.steps.find((s) => s.name === 'birth year');
+    expect(stepBirthYear?.label).toBe('birth_year_est is NULL');
+  });
 });
 

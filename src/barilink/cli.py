@@ -1197,6 +1197,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     hh_conf_parser.add_argument("--output", "-o", type=str, default=None, help="Output table path")
 
+    # Subcommand: evaluate summarize
+    summarize_parser = eval_subparsers.add_parser(
+        "summarize",
+        help="Regenerate machine-readable evaluation summary JSONs from raw result files",
+    )
+    summarize_parser.add_argument(
+        "--results-dir",
+        default="results",
+        help="Base results directory (default: results)",
+    )
+    summarize_parser.add_argument(
+        "--data-dir",
+        default="data/generated",
+        help="Base data directory (default: data/generated)",
+    )
+    summarize_parser.add_argument(
+        "--output-dir",
+        default="results/summary",
+        help="Output summary directory (default: results/summary)",
+    )
+
     # Standard evaluate options on eval_parser
     eval_parser.add_argument(
         "--method",
@@ -1664,6 +1685,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 t_hh=args.threshold,
                 runs=args.runs,
                 output_table_path=out_p,
+            )
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "summarize":
+            from barilink.evaluate.summary import summarize_all
+
+            summarize_all(
+                results_dir=args.results_dir,
+                data_dir=args.data_dir,
+                output_dir=args.output_dir,
             )
             return 0
         else:

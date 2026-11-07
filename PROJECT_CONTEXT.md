@@ -566,6 +566,15 @@ This section records all architectural, demographic, and technical design decisi
   - Dual-job pipeline: `publish-data` (Python 3.11, `pipeline --verify`, data-contract tests, upload `web-data` artifact) $\to$ `build-and-deploy` (Node 22, `npm ci`, ESLint, Vitest, build with `VITE_BASE_PATH=/bari-link/`, Playwright smoke test, GitHub Pages deployment).
   - Permissions: `pages: write`, `id-token: write`, `contents: read`. Concurrency group: `pages` (`cancel-in-progress: false`).
   - Required one-time manual repository configuration: **Settings -> Pages -> Build and deployment -> Source = GitHub Actions**.
+- **Decision 13.5: Canonical Benchmark Reconciliation for Household Confirmation**:
+  - Reconciled an internal discrepancy in `results/summary/household_table.json` where `champion` reported F1 $0.4601$ (Precision $0.6886$) while the base-weight ($1.0\times$) robustness row reported $0.4592$ (Precision $0.6848$).
+  - **Root Cause & Provenance**:
+    - During Phase 7, the 5-seed confirmation benchmark (`run_household_confirmation` at frozen $t_{\text{hh}} = 5.0$) evaluated `holdout_5..9`, yielding headline champion and base-weight metrics: Record F1 $= 0.4592 \pm 0.0049$, Precision $= 0.6848 \pm 0.0147$, Recall $= 0.3455 \pm 0.0042$, committed into `results/holdout_confirm/household_table.md`.
+    - In Phase 8, running `pipeline --profile publish` executed end-to-end stages exclusively on `holdout_5` to prepare static demo assets and single-seed verification targets (`results/publish/expected_headline.json`). This execution overwrote `results/holdout_5/household/household_metrics.json` with single-run values (F1 $0.4694$, Precision $0.7027$, within $\pm 0.005$ cross-OS determinism tolerance), while `holdout_6..9` remained untouched.
+    - Dynamically averaging the post-Phase 8 `holdout_5` file with the untouched Phase 7 `holdout_6..9` files produced F1 $0.4601$ and Precision $0.6886$ in `summary.py`.
+  - **Canonical Value & Resolution**:
+    - The Phase 7 confirmation benchmark table `results/holdout_confirm/household_table.md` (Record F1 $= \mathbf{0.4592}$, Precision $= \mathbf{0.6848}$) is the sole canonical reference for the 5-seed confirmation benchmark, matching all error decompositions ($-0.1470$ delta vs Oracle F1 $0.6062$), evidence ablations, and weight robustness rows.
+    - Refactored `src/barilink/evaluate/summary.py` so both `champion` and `weight_robustness.base_1_0x` parse directly from this single canonical markdown source of truth.
 
 
 

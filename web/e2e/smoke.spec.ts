@@ -33,8 +33,38 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
 
     // Controls and metric tiles render
     await expect(page.locator('.slider-group')).toBeVisible();
+    await expect(page.locator('.slider-group')).toContainText('selected on dev data (frozen)');
     await expect(page.locator('.mode-switch-group')).toBeVisible();
     await expect(page.locator('.tiles-grid')).toBeVisible();
+
+    // Verify Review-Queue Size and false merge recaptioned tiles
+    await expect(page.locator('.tile', { hasText: 'Review-Queue Size' })).toBeVisible();
+    await expect(page.locator('.tile', { hasText: 'clusters containing > 1 person' })).toBeVisible();
+
+    // Precision & Recall Chart assertions
+    const chartCard = page.locator('.card', { hasText: 'Precision & Recall' });
+    await expect(chartCard).toBeVisible();
+    await expect(chartCard).toContainText(
+      'Holdout-optimal thresholds can differ from the dev-selected one; the frozen point is reported to avoid tuning on test data.'
+    );
+
+    // Assert that the chart contains >= 2 rendered line paths with > 10 points each
+    const linePaths = chartCard.locator('g[aria-label="line"] path');
+    await expect(linePaths).toHaveCount(2);
+
+    for (let i = 0; i < 2; i++) {
+      const d = await linePaths.nth(i).getAttribute('d');
+      expect(d).toBeTruthy();
+      const coords = d!.match(/-?\d+\.?\d*/g) || [];
+      const pointCount = Math.floor(coords.length / 2);
+      expect(pointCount).toBeGreaterThan(10);
+
+      // Verify all rendered y-coordinates are valid and non-negative
+      for (let j = 1; j < coords.length; j += 2) {
+        const y = parseFloat(coords[j]);
+        expect(y).toBeGreaterThanOrEqual(0);
+      }
+    }
 
     // Verify slider movement and measure latency
     const slider = page.locator('input[type="range"]');
@@ -99,20 +129,26 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
     await page.waitForURL('**/#households**');
     await expect(page.locator('h2', { hasText: 'Household Entity Resolution' })).toBeVisible();
 
-    // Search for a known household
-    const hhSearchInput = page.locator('input[placeholder*="Search by person name"]');
-    await hhSearchInput.fill('hh_000c8744bd0f');
-    await page.waitForTimeout(500);
+    // Verify default deterministic selection is a multi-member household (hh_006865b83e45)
+    const goldenCard = page.locator('.card', { hasText: 'Household Golden Profile' });
+    await expect(goldenCard).toBeVisible({ timeout: 15000 });
+    await expect(goldenCard).toContainText('hh_006865b83e45');
+    await expect(goldenCard.locator('.tile', { hasText: /^Direct Reach/ })).toContainText('3');
 
-    // Select matching household button
-    const firstHhBtn = page.locator('.card button', { hasText: 'hh_000c8744bd0f' }).first();
-    await firstHhBtn.waitFor({ state: 'visible', timeout: 15000 });
-    await firstHhBtn.click();
+    // Distinct enrolled programs > 0
+    const programsTile = goldenCard.locator('.tile', { hasText: 'Enrolled Programs' });
+    await expect(programsTile).toBeVisible();
+    await expect(programsTile).toContainText('3');
 
-    // Wait for Household profile and force graph SVG
-    await expect(page.locator('.card-title', { hasText: 'Household Golden Profile' })).toBeVisible({
-      timeout: 15000,
-    });
+    // Verify lineage table exists in collapsible details
+    const lineageDetails = goldenCard.locator('details', { hasText: 'Evidence Lineage' });
+    await expect(lineageDetails).toBeVisible();
+    await lineageDetails.locator('summary').click();
+    await expect(lineageDetails.locator('th', { hasText: 'Field' })).toBeVisible();
+    await expect(lineageDetails.locator('th', { hasText: 'Resolution Rule' })).toBeVisible();
+    await expect(lineageDetails.locator('th', { hasText: 'Source / Supporting Evidence' })).toBeVisible();
+
+    // Force graph SVG renders
     await expect(page.locator('svg.household-subgraph')).toBeVisible({ timeout: 15000 });
 
     if (isDesktop) {
@@ -135,6 +171,30 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
     await expect(page.locator('.card-title', { hasText: 'H3: Kinship as Deterministic Constraint' })).toBeVisible();
     await expect(page.locator('.card-title', { hasText: 'Cost-Ratio Sensitivity' })).toBeVisible();
     await expect(page.locator('.card-title', { hasText: 'Household Limitations' })).toBeVisible();
+
+    // Assert bound wording in cards
+    await expect(page.locator('.card', { hasText: 'Ground-Truth Data Leakage' })).toContainText(
+      'Leaked ground-truth fields (guardian type, sex) inflated precision; after removing them, v1 precision fell from 0.94 to 0.61 on the synthetic holdouts.'
+    );
+    await expect(page.locator('.card', { hasText: 'Cost-Ratio Sensitivity' })).toContainText(
+      'K is preferred when false merges cost at least 2x missed duplicates'
+    );
+    await expect(page.locator('.card', { hasText: 'Cost-Ratio Sensitivity' })).toContainText(
+      'No clear difference (3/5 seeds)'
+    );
+    await expect(page.locator('.card', { hasText: 'H3: Kinship as Deterministic Constraint' })).toContainText(
+      '5/5 seeds; one-sided sign test p = 0.031 (two-sided 0.0625)'
+    );
+    await expect(page.locator('.card', { hasText: 'Household Limitations' })).toContainText('indicating');
+
+    // Assert footer note
+    await expect(page.locator('.findings-footer')).toBeVisible();
+    await expect(page.locator('.findings-footer')).toContainText(
+      'All results are on synthetic data; not validated on real registries.'
+    );
+
+    // Assert no data missing errors
+    await expect(page.locator('text=data missing:')).toHaveCount(0);
 
     if (isDesktop) {
       await page.screenshot({

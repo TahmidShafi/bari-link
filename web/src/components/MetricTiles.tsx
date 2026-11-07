@@ -87,7 +87,7 @@ export const MetricTiles: React.FC<MetricTilesProps> = ({ metrics }) => {
         >
           {metrics.falseMergeClusters.toLocaleString()}
         </span>
-        <span className="tile-sub">Distinct persons merged</span>
+        <span className="tile-sub">clusters containing &gt; 1 person</span>
       </div>
 
       {/* 5. Doppelganger FM Rate */}
@@ -106,6 +106,15 @@ export const MetricTiles: React.FC<MetricTilesProps> = ({ metrics }) => {
           {metrics.expectedCost.toFixed(0)}
         </span>
         <span className="tile-sub num">5·FM + 1·MD penalty</span>
+      </div>
+
+      {/* 7. Review-Queue Size */}
+      <div className="tile">
+        <span className="tile-title">Review-Queue Size</span>
+        <span className="tile-value num">
+          {metrics.reviewQueueSize.toLocaleString()}
+        </span>
+        <span className="tile-sub">Pairs queued for review</span>
       </div>
     </div>
   );

@@ -40,15 +40,75 @@ export const HouseholdDetails: React.FC<HouseholdDetailsProps> = ({ golden }) =>
     rosterUnenrolled = golden.roster_names_unenrolled.map(String);
   }
 
-  const modulesList = Array.isArray(golden.modules)
-    ? golden.modules
-    : Array.isArray(golden.enrolled_modules)
-    ? golden.enrolled_modules
-    : [];
+  // Extract modules list and count distinct enrolled programs
+  let rawModules: any = golden.modules ?? (golden as any).enrolled_modules;
+  if (typeof rawModules === 'string') {
+    try {
+      rawModules = JSON.parse(rawModules);
+    } catch {
+      rawModules = [rawModules];
+    }
+  }
+  let modulesList: string[] = [];
+  if (Array.isArray(rawModules)) {
+    modulesList = rawModules.map(String);
+  } else if (rawModules && typeof rawModules.toArray === 'function') {
+    modulesList = Array.from(rawModules.toArray()).map(String);
+  } else if (rawModules && typeof rawModules[Symbol.iterator] === 'function') {
+    modulesList = Array.from(rawModules).map(String);
+  }
+
+  // Deduplicate distinct modules
+  const distinctModules = Array.from(new Set(modulesList.filter(Boolean)));
 
   const village = golden.village || golden.village_mode || '—';
   const union = golden.union || golden.union_mode || '—';
-  const lineage = golden.field_lineage || golden.lineage;
+
+  // Parse evidence lineage into structured table rows
+  let lineageObj: Record<string, any> | null = null;
+  const rawLineage = golden.field_lineage || (golden as any).lineage;
+  if (typeof rawLineage === 'string') {
+    try {
+      lineageObj = JSON.parse(rawLineage);
+    } catch {
+      lineageObj = null;
+    }
+  } else if (rawLineage && typeof rawLineage === 'object') {
+    lineageObj = rawLineage;
+  }
+
+  const lineageRows: Array<{ field: string; value: string; rule: string; source: string }> = [];
+  if (lineageObj) {
+    for (const [field, info] of Object.entries(lineageObj)) {
+      if (info && typeof info === 'object') {
+        const value =
+          info.value !== undefined
+            ? String(info.value)
+            : info.count !== undefined
+            ? String(info.count)
+            : '—';
+        const rule =
+          info.rule !== undefined
+            ? String(info.rule)
+            : info.formula !== undefined
+            ? `formula: ${info.formula}`
+            : '—';
+        const source =
+          info.source_unit !== undefined
+            ? String(info.source_unit)
+            : info.unit_ids !== undefined
+            ? Array.isArray(info.unit_ids)
+              ? info.unit_ids.join(', ')
+              : String(info.unit_ids)
+            : info.unenrolled_skeletons !== undefined
+            ? `roster (${info.unenrolled_skeletons.length} skeletons)`
+            : '—';
+        lineageRows.push({ field, value, rule, source });
+      } else {
+        lineageRows.push({ field, value: String(info), rule: '—', source: '—' });
+      }
+    }
+  }
 
   return (
     <div className="card">
@@ -88,10 +148,10 @@ export const HouseholdDetails: React.FC<HouseholdDetailsProps> = ({ golden }) =>
 
         <div className="tile">
           <span className="tile-title">Enrolled Programs</span>
-          <span className="tile-value" style={{ fontSize: '1.1rem' }}>
-            {modulesList.length}
+          <span className="tile-value num" style={{ fontSize: '1.1rem' }}>
+            {distinctModules.length}
           </span>
-          <span className="tile-sub">{modulesList.join(', ')}</span>
+          <span className="tile-sub">{distinctModules.length > 0 ? distinctModules.join(', ') : 'None'}</span>
         </div>
       </div>
 
@@ -134,10 +194,34 @@ export const HouseholdDetails: React.FC<HouseholdDetailsProps> = ({ golden }) =>
         </div>
       </div>
 
-      {lineage && (
-        <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-          <strong>Evidence Lineage:</strong> {lineage}
-        </div>
+      {lineageRows.length > 0 && (
+        <details style={{ marginTop: '1.25rem', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.625rem 0.875rem' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem' }}>
+            Evidence Lineage ({lineageRows.length} attributes resolved)
+          </summary>
+          <div className="table-container" style={{ marginTop: '0.5rem' }}>
+            <table className="data-table" style={{ fontSize: '0.8125rem' }}>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Value</th>
+                  <th>Resolution Rule</th>
+                  <th>Source / Supporting Evidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lineageRows.map((row) => (
+                  <tr key={row.field}>
+                    <td><strong>{row.field}</strong></td>
+                    <td className="font-mono">{row.value}</td>
+                    <td><code>{row.rule}</code></td>
+                    <td className="font-mono" style={{ fontSize: '0.75rem' }}>{row.source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
     </div>
   );

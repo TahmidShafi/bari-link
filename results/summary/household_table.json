@@ -1,0 +1,170 @@
+{
+  "source": "results/summary/household_table.json",
+  "operating_threshold": {
+    "t_hh": 5.0
+  },
+  "champion": {
+    "pipeline": "Champion Pipeline (splink_k_resolved + Household)",
+    "record_pairwise_f1_mean": 0.4592,
+    "record_pairwise_f1_sd": 0.0049,
+    "record_precision_mean": 0.6848,
+    "record_precision_sd": 0.0147,
+    "record_recall_mean": 0.3455,
+    "record_recall_sd": 0.0042,
+    "unit_bcubed_f1_mean": 0.7528,
+    "unit_bcubed_f1_sd": 0.0017,
+    "hh_reached_error_pct_mean": 59.13,
+    "hh_reached_error_pct_sd": 1.15,
+    "household_size_mae_mean": 2.07,
+    "household_size_mae_sd": 0.06
+  },
+  "oracle": {
+    "pipeline": "Oracle Persons + Household Inference",
+    "record_pairwise_f1_mean": 0.6062,
+    "record_pairwise_f1_sd": 0.0109,
+    "record_precision_mean": 0.7147,
+    "record_precision_sd": 0.021,
+    "record_recall_mean": 0.5264,
+    "record_recall_sd": 0.0066,
+    "unit_bcubed_f1_mean": 0.8102,
+    "unit_bcubed_f1_sd": 0.0042,
+    "hh_reached_error_pct_mean": 38.74,
+    "hh_reached_error_pct_sd": 0.93,
+    "household_size_mae_mean": 2.01,
+    "household_size_mae_sd": 0.08
+  },
+  "error_decomposition": {
+    "f1_delta_k_vs_oracle": -0.147,
+    "f1_delta_sd": 0.0104,
+    "precision_delta": -0.0299,
+    "precision_delta_sd": 0.0116,
+    "recall_delta": -0.181,
+    "recall_delta_sd": 0.0098,
+    "reach_error_delta": 20.39,
+    "reach_error_delta_sd": 1.19,
+    "household_size_mae_delta": 0.06,
+    "household_size_mae_delta_sd": 0.02,
+    "note": "Most household error is intrinsic to household inference (Oracle reaches F1 0.61). Inherited person-linkage error accounts for about 0.15 F1, predominantly lost recall."
+  },
+  "ablations": {
+    "drop_e1_listed_member": {
+      "evidence": "E1 (listed_member, w=0)",
+      "record_pairwise_f1_mean": 0.3149,
+      "record_pairwise_f1_sd": 0.0096,
+      "record_precision_mean": 0.9983,
+      "record_precision_sd": 0.0019,
+      "record_recall_mean": 0.1869,
+      "record_recall_sd": 0.0067,
+      "hh_reached_error_pct_mean": 80.67,
+      "household_size_mae_mean": 1.69
+    },
+    "drop_e2_husband_link": {
+      "evidence": "E2 (husband_link, w=0)",
+      "record_pairwise_f1_mean": 0.476,
+      "record_pairwise_f1_sd": 0.0077,
+      "record_precision_mean": 0.9332,
+      "record_precision_sd": 0.0152,
+      "record_recall_mean": 0.3195,
+      "record_recall_sd": 0.0066,
+      "hh_reached_error_pct_mean": 66.62,
+      "household_size_mae_mean": 1.7,
+      "key_finding": "Dropping E2 raises precision from 0.68 to 0.93 and raises F1 from 0.459 to 0.476, indicating husband-name skeleton matching causes false household merges."
+    },
+    "drop_e3_father_link": {
+      "evidence": "E3 (father_link, w=0)",
+      "record_pairwise_f1_mean": 0.4597,
+      "record_pairwise_f1_sd": 0.0069,
+      "record_precision_mean": 0.724,
+      "record_precision_sd": 0.0197,
+      "record_recall_mean": 0.3369,
+      "record_recall_sd": 0.0046,
+      "hh_reached_error_pct_mean": 61.22,
+      "household_size_mae_mean": 1.99
+    },
+    "drop_e4_roster_overlap": {
+      "evidence": "E4 (roster_overlap, w=0)",
+      "record_pairwise_f1_mean": 0.3411,
+      "record_pairwise_f1_sd": 0.0083,
+      "record_precision_mean": 0.6555,
+      "record_precision_sd": 0.0118,
+      "record_recall_mean": 0.2305,
+      "record_recall_sd": 0.0064,
+      "hh_reached_error_pct_mean": 69.57,
+      "household_size_mae_mean": 2.03
+    },
+    "drop_e5_shared_phone": {
+      "evidence": "E5 (shared_phone, w=0)",
+      "record_pairwise_f1_mean": 0.4559,
+      "record_pairwise_f1_sd": 0.004,
+      "record_precision_mean": 0.6847,
+      "record_precision_sd": 0.0146,
+      "record_recall_mean": 0.3418,
+      "record_recall_sd": 0.0042,
+      "hh_reached_error_pct_mean": 59.5,
+      "household_size_mae_mean": 2.06
+    }
+  },
+  "weight_robustness": {
+    "base_1_0x": {
+      "scale": "Base Weights (1.0x)",
+      "record_pairwise_f1_mean": 0.4592,
+      "record_pairwise_f1_sd": 0.0049,
+      "record_precision_mean": 0.6848,
+      "record_precision_sd": 0.0147,
+      "record_recall_mean": 0.3455,
+      "record_recall_sd": 0.0042,
+      "hh_reached_error_pct_mean": 59.13,
+      "household_size_mae_mean": 2.07,
+      "record_pairwise_f1": 0.4592,
+      "household_size_mae": 2.07
+    },
+    "halved_0_5x": {
+      "scale": "Halved Weights (0.5x)",
+      "record_pairwise_f1_mean": 0.3069,
+      "record_pairwise_f1_sd": 0.0086,
+      "record_precision_mean": 0.9982,
+      "record_precision_sd": 0.0019,
+      "record_recall_mean": 0.1814,
+      "record_recall_sd": 0.006,
+      "hh_reached_error_pct_mean": 81.52,
+      "household_size_mae_mean": 1.7,
+      "record_pairwise_f1": 0.3069,
+      "household_size_mae": 1.7
+    },
+    "doubled_2_0x": {
+      "scale": "Doubled Weights (2.0x)",
+      "record_pairwise_f1_mean": 0.2055,
+      "record_pairwise_f1_sd": 0.0061,
+      "record_precision_mean": 0.1435,
+      "record_precision_sd": 0.0046,
+      "record_recall_mean": 0.3619,
+      "record_recall_sd": 0.012,
+      "hh_reached_error_pct_mean": 3.04,
+      "household_size_mae_mean": 7.4,
+      "record_pairwise_f1": 0.2055,
+      "household_size_mae": 7.4
+    },
+    "base_weights_1_0x": 0.4592,
+    "halved_weights_0_5x": 0.3069,
+    "doubled_weights_2_0x": 0.2055,
+    "fragility_note": "Results are highly sensitive to the a-priori weights (F1 0.46 -> 0.31 at x0.5, 0.21 at x2). The operating point depends on the threshold sitting just above the E1 weight, so single-channel E1 links are excluded and multi-channel links are kept. This is a fragility, not a robustness result.",
+    "note": "Sensitive to a-priori weights: F1 drops to 0.31 at 0.5x and 0.21 at 2.0x, indicating fragility of edge thresholding."
+  },
+  "roster_strata": {
+    "stratum_a_with_roster": {
+      "description": "Households with >= 1 attached roster",
+      "share_pct_mean": 65.47,
+      "share_pct_sd": 0.9,
+      "indirect_reach_error_pct_mean": 13.71,
+      "indirect_reach_error_pct_sd": 1.59,
+      "household_size_mae_mean": 1.35,
+      "household_size_mae_sd": 0.09
+    },
+    "stratum_b_no_roster": {
+      "description": "Households with no roster",
+      "share_pct_mean": 34.53,
+      "share_pct_sd": 0.9,
+      "note": "Structurally zero because no roster was collected for any member of the household."
+    }
+  }
+}
