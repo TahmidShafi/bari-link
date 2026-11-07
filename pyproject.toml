@@ -39,6 +39,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "publish: tests requiring the full holdout_5 publish run",
+    "artifacts: tests that verify recorded experiment results on local generated data and results",
 ]
 filterwarnings = [
     "ignore:Automatically deduplicated selection parameter.*:UserWarning",

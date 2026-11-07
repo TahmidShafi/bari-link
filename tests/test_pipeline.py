@@ -79,21 +79,73 @@ def test_verify_pipeline_passes():
 
 
 def test_verify_pipeline_detects_mismatch(tmp_path: Path):
-    """Verify that pipeline determinism fails if metrics drift beyond tolerance."""
-    real_exp_path = Path("results/publish/expected_headline.json")
-    if not real_exp_path.exists():
-        pytest.skip("results/publish/expected_headline.json not yet generated")
+    """Verify that pipeline determinism comparator fails if metrics drift beyond tolerance."""
+    mock_run_dir = tmp_path / "mock_run"
+    p_dir = mock_run_dir / "splink_k_resolved"
+    hh_dir = mock_run_dir / "household"
+    p_dir.mkdir(parents=True, exist_ok=True)
+    hh_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(real_exp_path, "r", encoding="utf-8") as f:
-        tampered = json.load(f)
+    p_metrics = {
+        "headline_metrics_at_t_cost": {
+            "cluster_precision": 0.9650,
+            "cluster_recall": 0.5560,
+            "cluster_f1": 0.7050,
+            "expected_cost": 784.0,
+            "false_merge_clusters": 23,
+            "split_persons": 427,
+            "dedup_reach": 4136,
+            "doppelganger_false_merge_rate": 0.0125,
+        }
+    }
+    with open(p_dir / "metrics.json", "w", encoding="utf-8") as f:
+        json.dump(p_metrics, f)
 
-    # Drift precision by 0.05 (well beyond 0.005 tolerance)
+    hh_metrics = {
+        "record_pairwise_precision": 0.7000,
+        "record_pairwise_recall": 0.3520,
+        "record_pairwise_f1": 0.4680,
+        "unit_bcubed_f1": 0.7530,
+        "household_size_mae": 2.0100,
+        "households_reached_error_pct": 57.9000,
+        "n_inferred_households": 3608,
+    }
+    with open(hh_dir / "household_metrics.json", "w", encoding="utf-8") as f:
+        json.dump(hh_metrics, f)
+
+    expected = {
+        "metrics": {
+            "person_linkage": p_metrics["headline_metrics_at_t_cost"],
+            "household_inference": hh_metrics,
+        }
+    }
+    exp_file = tmp_path / "expected_mock.json"
+    with open(exp_file, "w", encoding="utf-8") as f:
+        json.dump(expected, f)
+
+    # 1. Matching metrics -> returns True
+    assert (
+        verify_pipeline(
+            run_name="mock_run",
+            results_dir=str(tmp_path),
+            expected_path=str(exp_file),
+        )
+        is True
+    )
+
+    # 2. Tampered precision (drift by 0.05, exceeding 0.005 tol) -> returns False
+    tampered = dict(expected)
     tampered["metrics"]["person_linkage"]["cluster_precision"] += 0.05
-    tampered_file = tmp_path / "tampered_headline.json"
+    tampered_file = tmp_path / "tampered_mock.json"
     with open(tampered_file, "w", encoding="utf-8") as f:
         json.dump(tampered, f)
 
     assert (
-        verify_pipeline(run_name="holdout_5", expected_path=str(tampered_file)) is False
+        verify_pipeline(
+            run_name="mock_run",
+            results_dir=str(tmp_path),
+            expected_path=str(tampered_file),
+        )
+        is False
     )
 

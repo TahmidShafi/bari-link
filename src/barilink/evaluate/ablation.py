@@ -314,6 +314,9 @@ def generate_ablation_table(
         ]
     )
 
+    if not rows:
+        raise ValueError("No evaluation rows found; refusing to write empty ablation table.")
+
     out_file = (
         Path(output_path)
         if output_path
@@ -331,6 +334,7 @@ def compute_stress_curves(
     methods: Optional[Sequence[str]] = None,
     base_data_dir: str | Path = "data/generated",
     base_results_dir: str | Path = "results",
+    output_dir: Optional[str | Path] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Compute parametric curves of doppelganger FM rates vs cluster recall on stress_0."""
     if methods is None:
@@ -507,9 +511,10 @@ def compute_stress_curves(
                 )
 
     curves_df = pd.DataFrame(curve_rows)
+    target_out_dir = Path(output_dir) if output_dir else Path(base_results_dir) / run_name
 
     # Save curves parquet
-    curves_out = Path(base_results_dir) / run_name / "stress_curves.parquet"
+    curves_out = target_out_dir / "stress_curves.parquet"
     curves_out.parent.mkdir(parents=True, exist_ok=True)
     curves_df.to_parquet(curves_out, index=False)
 
@@ -522,6 +527,8 @@ def compute_stress_curves(
         if sub_df.empty:
             continue
         df_sorted = sub_df.sort_values("cluster_recall").drop_duplicates("cluster_recall")
+        if df_sorted.empty:
+            continue
         min_r = df_sorted["cluster_recall"].min()
         max_r = df_sorted["cluster_recall"].max()
 
@@ -668,7 +675,7 @@ def compute_stress_curves(
 </body>
 </html>
 """
-    chart_out = Path(base_results_dir) / run_name / "charts" / "stress_fm_vs_recall.html"
+    chart_out = target_out_dir / "charts" / "stress_fm_vs_recall.html"
     chart_out.parent.mkdir(parents=True, exist_ok=True)
     with open(chart_out, "w", encoding="utf-8") as f:
         f.write(chart_html)
@@ -973,6 +980,9 @@ def generate_stress_table(
             "",
         ]
     )
+
+    if not rows:
+        raise ValueError("No evaluation rows found; refusing to write empty stress table.")
 
     out_file = (
         Path(output_path) if output_path else Path(base_results_dir) / run_name / "stress_table.md"

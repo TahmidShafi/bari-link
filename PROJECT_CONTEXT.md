@@ -63,10 +63,11 @@ python -m barilink.cli pipeline --profile ci
 python -m barilink.cli export web --run-name holdout_5
 
 # 5. Run test suite
-pytest -q -m "not publish"  # Fast CI test suite (mocked / small data)
-pytest -q                   # Full test suite including publication pipeline verification
+pytest -q -m "not publish and not artifacts"  # Fast CI test suite (pure unit/tmp_path, zero external data)
+pytest -q -m artifacts                       # Recorded experiment tests (requires local generated data/results)
+pytest -q -m publish                         # Full publication pipeline data contract verification
 
-# 6. Verify CI isolation in a clean temporary clone and virtual environment from scratch
+# 6. Verify CI isolation in a clean temporary clone (workflow: commit locally -> run prove_ci.py -> push)
 python scripts/prove_ci.py
 ```
 
@@ -511,7 +512,24 @@ This section records all architectural, demographic, and technical design decisi
   - Configured two GitHub Actions workflows using latest verified action versions (Node 24 runtime):
     - `.github/workflows/ci.yml`: Runs on pull requests and pushes to `main`. Uses Ubuntu 22.04, Python 3.11, pip cache, `actions/checkout@v5`, `actions/setup-python@v6`, `ruff check .`, `pytest -q -m "not publish"` (89 unit/integration tests in ~32s), and `python -m barilink.cli pipeline --profile ci` using `configs/ci.yaml` (500 households, seed offset 9000).
     - `.github/workflows/publish-data.yml`: Runs on manual dispatch and on pushes touching pipeline configurations, models, or core code. Uses `actions/checkout@v5`, `actions/setup-python@v6`, `actions/upload-artifact@v5`. Executes full publication pipeline on `holdout_5`, verifies determinism with `pipeline --verify`, runs `@pytest.mark.publish` tests, and uploads `web/public/data/` as a workflow artifact (`web-data`).
-    - Verified CI safety in an isolated clone with a fresh virtual environment from scratch (`scripts/prove_ci.py`): all 89 tests and the CI pipeline passed with zero errors.
+### Log Entry 012: 2026-11-07 — CI Test Suite Isolation, Test Classification, and Local Proof
+- **Decision 12.1: Test Suite Classification & Marker Separation (`artifacts`)**:
+  - Tests reading local, untracked experiment runs (`data/generated/`, `results/demo`, `results/holdout_*`, `results/stress_*`) were classified and segregated:
+    - Pure function-correctness tests (`test_kinship_bug_check_function_correctness`, `test_stress_curves_function_correctness`, `test_confirm_table_function_correctness`, `test_oracle_mode_built_only_in_evaluate`, `test_verify_pipeline_detects_mismatch`) were rewritten to construct isolated synthetic DataFrames/mock metrics in `tmp_path`, passing paths explicitly.
+    - Evaluator functions (`confirm.py`, `ablation.py`) were updated with custom output path / dev run parameters and guard checks raising `ValueError` on empty inputs, eliminating runtime warnings (e.g., `Mean of empty slice`).
+    - Recorded experiment verification tests (checking historical hypothesis holds across seeds 5..9) were decorated with `@pytest.mark.artifacts`.
+    - `pyproject.toml` registers both `publish` and `artifacts` markers. CI workflow executes `pytest -q -m "not publish and not artifacts"`, guaranteeing zero dependencies on untracked disk files.
+  - Added AST lint test (`test_no_hardcoded_data_generated_demo_in_src`) enforcing zero `"data/generated/demo"` literals inside `src/`.
+- **Decision 12.2: Test Mutation Guard (`tests/conftest.py`)**:
+  - Added session start/finish hooks tracking `git ls-files -m` and SHA-256 hashes of all tracked files under `results/`, `configs/`, and `src/`.
+  - Session finish fails if any tracked file was modified during the test execution, while gracefully ignoring pre-existing working tree state and skipping outside git clones.
+  - Guard behavior verified via dedicated unit test in a throwaway git repository (`test_conftest_git_mutation_guard`).
+- **Decision 12.3: CI Proof Script (`scripts/prove_ci.py`)**:
+  - Reproduces the exact remote CI runner workflow locally in a clean, isolated temporary git clone.
+  - Asserts complete absence of untracked experiment directories (`data/generated/` and `results/holdout_5/`).
+  - Creates a fresh virtualenv, installs package with dev dependencies, executes `ruff check .`, `pytest -q -m "not publish and not artifacts"`, `python -m barilink.cli pipeline --profile ci`, and validates zero tracked file mutations via `git diff --exit-code`.
+  - Supports `--worktree` flag for verifying candidate working tree changes prior to committing.
+
 
 
 

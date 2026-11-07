@@ -546,6 +546,68 @@ def test_stress_run_refused_by_select_mode(tmp_path):
         )
 
 
+def test_kinship_bug_check_function_correctness(tmp_path):
+    """Verify bug check function runs on synthetic data and identifies cuts."""
+    from barilink.evaluate.bug_check import run_kinship_bug_check
+
+    run_dir = tmp_path / "toy"
+    reg_dir = run_dir / "registry"
+    truth_dir = run_dir / "truth"
+    model_dir = run_dir / "splink_toy"
+    res_dir = run_dir / "splink_toy_resolved"
+    for d in [reg_dir, truth_dir, model_dir, res_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    pd.DataFrame({
+        "record_id": ["R1", "R2"],
+        "person_id": ["P1", "P1"],
+    }).to_parquet(truth_dir / "record_truth.parquet", index=False)
+
+    pd.DataFrame({
+        "record_id": ["R1", "R2"],
+        "full_name_raw": ["Rahim Mia", "Rahim Mia"],
+        "guardian_name_raw": ["Father Mia", "Father Mia"],
+    }).to_parquet(reg_dir / "records.parquet", index=False)
+
+    pd.DataFrame({
+        "record_id": ["R2"],
+        "member_name_raw": ["Rahim Mia"],
+        "relation_raw": ["self"],
+    }).to_parquet(reg_dir / "rosters.parquet", index=False)
+
+    pd.DataFrame({
+        "record_id": ["R1", "R2"],
+        "name_skeleton": ["RHM", "RHM"],
+        "roster_skels_v3": [[], ["RHM"]],
+    }).to_parquet(reg_dir / "features.parquet", index=False)
+
+    pd.DataFrame({
+        "record_id_l": ["R1"],
+        "record_id_r": ["R2"],
+        "match_weight": [10.0],
+        "match_probability": [0.99],
+    }).to_parquet(model_dir / "predictions.parquet", index=False)
+
+    pd.DataFrame({
+        "reason": ["listed_as_other_member"],
+        "record_id_l": ["R1"],
+        "record_id_r": ["R2"],
+        "weight": [10.0],
+        "component_id": ["comp_0"],
+    }).to_parquet(res_dir / "resolution_log.parquet", index=False)
+
+    res = run_kinship_bug_check(
+        run_name="toy",
+        method="splink_toy",
+        resolved_method="splink_toy_resolved",
+        base_data_dir=tmp_path,
+        base_results_dir=tmp_path,
+    )
+    assert res["true_pairs_listed_fired_count"] == 1
+    assert res["same_person_cuts_count"] == 1
+
+
+@pytest.mark.artifacts
 def test_kinship_bug_check_on_dev():
     """Verify bug check runs on dev and identifies cuts."""
     from barilink.evaluate.bug_check import run_kinship_bug_check
@@ -555,21 +617,59 @@ def test_kinship_bug_check_on_dev():
     assert v31_res["same_person_cuts_count"] == 3
 
 
-def test_stress_curves_and_matched_recall():
-    """Verify stress curve generation and matched-recall interpolation."""
+def test_stress_curves_function_correctness(tmp_path):
+    """Verify stress curve generation and matched-recall interpolation on synthetic data."""
     from barilink.evaluate.ablation import compute_stress_curves
 
+    run_dir = tmp_path / "toy_stress"
+    reg_dir = run_dir / "registry"
+    truth_dir = run_dir / "truth"
+    model_dir = run_dir / "splink_toy"
+    for d in [reg_dir, truth_dir, model_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    pd.DataFrame({"record_id": ["R1", "R2", "R3", "R4"]}).to_parquet(
+        reg_dir / "records.parquet", index=False
+    )
+    pd.DataFrame({
+        "record_id": ["R1", "R2", "R3", "R4"],
+        "person_id": ["P1", "P1", "P2", "P3"],
+    }).to_parquet(truth_dir / "record_truth.parquet", index=False)
+    pd.DataFrame({
+        "record_id_1": ["R1"],
+        "record_id_2": ["R2"],
+    }).to_parquet(truth_dir / "true_pairs.parquet", index=False)
+    pd.DataFrame({
+        "person_id_1": ["P2"],
+        "person_id_2": ["P3"],
+        "is_injected": [False],
+    }).to_parquet(truth_dir / "doppelganger_person_pairs.parquet", index=False)
+
+    pd.DataFrame({
+        "record_id_l": ["R1", "R2"],
+        "record_id_r": ["R2", "R3"],
+        "match_weight": [5.0, 1.0],
+    }).to_parquet(model_dir / "predictions.parquet", index=False)
+
+    out_dir = tmp_path / "stress_out"
     curves_df, matched_df = compute_stress_curves(
-        run_name="stress_0",
-        methods=["splink_v1", "splink_v3", "splink_v3_no_kinship"],
+        run_name="toy_stress",
+        methods=["splink_toy"],
+        base_data_dir=tmp_path,
+        base_results_dir=tmp_path,
+        output_dir=out_dir,
     )
     assert not curves_df.empty
     assert "pooled_fm_rate" in curves_df.columns
     assert "cluster_recall" in curves_df.columns
-
     assert not matched_df.empty
-    assert "pooled_fm@0.50" in matched_df.columns
-    # Check that curves file and chart exist
+    assert (out_dir / "stress_curves.parquet").exists()
+    assert (out_dir / "charts" / "stress_fm_vs_recall.html").exists()
+
+
+@pytest.mark.artifacts
+def test_stress_curves_and_matched_recall():
+    """Verify stress curve generation and matched-recall interpolation on recorded data."""
     assert Path("results/stress_0/stress_curves.parquet").exists()
     assert Path("results/stress_0/charts/stress_fm_vs_recall.html").exists()
 
@@ -595,14 +695,64 @@ def test_pipeline_k_model_and_resolution():
     assert sel["min_cost"] <= 811.44  # Pre-registered adoption threshold
 
 
-def test_confirm_table_generation_and_direction():
-    """Verify Hypothesis H3 confirmation table generation and 5/5 seed direction."""
+def test_confirm_table_function_correctness(tmp_path):
+    """Verify confirm table generation function on synthetic inputs."""
     from barilink.evaluate.confirm import generate_confirm_table
 
-    df = generate_confirm_table(runs="holdout_5..holdout_9")
-    assert not df.empty
-    assert "splink_k_resolved" in df["method"].values
+    demo_dir = tmp_path / "results" / "demo" / "splink_k_resolved"
+    demo_dir.mkdir(parents=True, exist_ok=True)
+    demo_ref_dir = tmp_path / "results" / "demo" / "splink_v3_1_resolved"
+    demo_ref_dir.mkdir(parents=True, exist_ok=True)
 
+    dummy_metrics = {
+        "headline_metrics_at_t_cost": {
+            "expected_cost": 800.0,
+            "cluster_precision": 0.95,
+            "cluster_recall": 0.55,
+            "cluster_f1": 0.70,
+            "reach_error_pct": 10.0,
+            "doppelganger_false_merge_rate": 0.01,
+        },
+        "operational_thresholds": {"t_link": 2.0, "t_bridge": 4.0},
+    }
+    with open(demo_dir / "metrics.json", "w", encoding="utf-8") as f:
+        json.dump(dummy_metrics, f)
+    with open(demo_ref_dir / "metrics.json", "w", encoding="utf-8") as f:
+        json.dump(dummy_metrics, f)
+
+    holdout_dir = tmp_path / "results" / "holdout_toy" / "splink_k_resolved"
+    holdout_dir.mkdir(parents=True, exist_ok=True)
+    holdout_ref_dir = tmp_path / "results" / "holdout_toy" / "splink_v3_1_resolved"
+    holdout_ref_dir.mkdir(parents=True, exist_ok=True)
+    with open(holdout_dir / "metrics.json", "w", encoding="utf-8") as f:
+        json.dump(dummy_metrics, f)
+    with open(holdout_ref_dir / "metrics.json", "w", encoding="utf-8") as f:
+        json.dump(dummy_metrics, f)
+
+    truth_p = tmp_path / "data" / "holdout_toy" / "truth"
+    truth_p.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(columns=["person_id_1", "person_id_2"]).to_parquet(
+        truth_p / "doppelganger_person_pairs.parquet", index=False
+    )
+
+    out_file = tmp_path / "confirm_output.md"
+    df = generate_confirm_table(
+        runs=["holdout_toy"],
+        methods=["splink_k_resolved", "splink_v3_1_resolved"],
+        reference_method="splink_v3_1_resolved",
+        dev_run="demo",
+        base_data_dir=tmp_path / "data",
+        base_results_dir=tmp_path / "results",
+        output_path=out_file,
+    )
+    assert not df.empty
+    assert out_file.exists()
+    assert out_file.stat().st_size > 0
+
+
+@pytest.mark.artifacts
+def test_confirm_table_generation_and_direction():
+    """Verify Hypothesis H3 confirmation table generation and 5/5 seed direction."""
     confirm_file = Path("results/holdout_confirm/confirm_table.md")
     assert confirm_file.exists()
     content = confirm_file.read_text(encoding="utf-8")
@@ -611,6 +761,7 @@ def test_confirm_table_generation_and_direction():
     assert "CONFIRMED" in content
 
 
+@pytest.mark.artifacts
 def test_stress_table_contains_requested_variants():
     """Verify stress table contains splink_v3_1_resolved, Pipeline K, and v3_no_kinship."""
     stress_file = Path("results/stress_0/stress_table.md")
@@ -620,3 +771,46 @@ def test_stress_table_contains_requested_variants():
     assert "splink_k_resolved" in content
     assert "splink_v3_no_kinship" in content
     assert "Matched-Recall Doppelganger False-Merge Comparison" in content
+
+
+def test_no_hardcoded_data_generated_demo_in_src():
+    """Security scan ensuring no hardcoded 'data/generated/demo' literal exists in src/."""
+    src_dir = Path("src")
+    assert src_dir.exists()
+    violations = []
+    for p in src_dir.rglob("*.py"):
+        content = p.read_text(encoding="utf-8")
+        if "data/generated/demo" in content:
+            violations.append(str(p))
+    assert not violations, f"Hardcoded 'data/generated/demo' found in: {violations}"
+
+
+def test_conftest_git_mutation_guard(tmp_path):
+    """Verify that the conftest mutation guard detects tracked file changes in a git repo."""
+    import subprocess
+
+    from conftest import _is_git_repo, _sha256_file
+
+    repo = tmp_path / "throwaway_repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, check=True)
+
+    assert _is_git_repo(repo) is True
+
+    src_f = repo / "tracked_file.txt"
+    src_f.write_text("initial content", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked_file.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True)
+
+    initial_hash = _sha256_file(src_f)
+
+    # Mutate the file
+    src_f.write_text("altered content", encoding="utf-8")
+    new_hash = _sha256_file(src_f)
+    assert initial_hash != new_hash
+
+    mod_out = subprocess.check_output(["git", "ls-files", "-m"], cwd=repo, text=True)
+    assert "tracked_file.txt" in mod_out
+

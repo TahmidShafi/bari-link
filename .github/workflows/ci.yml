@@ -30,7 +30,10 @@ jobs:
         run: ruff check .
 
       - name: Run test suite
-        run: pytest -q -m "not publish"
+        run: pytest -q -m "not publish and not artifacts"
 
       - name: Smoke-test reproducible pipeline
         run: python -m barilink.cli pipeline --profile ci
+
+      - name: Ensure no tracked files modified
+        run: git diff --exit-code

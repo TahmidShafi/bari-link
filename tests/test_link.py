@@ -302,6 +302,7 @@ def test_training_determinism():
         assert diff < 1e-6, f"Non-deterministic match weights: max difference was {diff}"
 
 
+@pytest.mark.artifacts
 def test_holdout_model_persistence():
     """Verify model loaded from JSON on holdout has identical m and u parameters."""
     with tempfile.TemporaryDirectory():

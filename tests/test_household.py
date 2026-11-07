@@ -487,14 +487,20 @@ def test_roster_names_unenrolled_excludes_enrolled():
     assert row["est_household_size"] == 4
 
 
-def test_oracle_mode_built_only_in_evaluate():
+def test_oracle_mode_built_only_in_evaluate(tmp_path: Path):
     """Verify that Oracle person clusters are constructed strictly within evaluate."""
-    demo_dir = Path("data/generated/demo")
-    oracle_df = build_oracle_person_clusters(demo_dir)
+    truth_dir = tmp_path / "truth"
+    truth_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({
+        "record_id": ["R1", "R2", "R3"],
+        "person_id": ["P_1001", "P_1001", "P_1002"],
+    }).to_parquet(truth_dir / "record_truth.parquet", index=False)
+
+    oracle_df = build_oracle_person_clusters(tmp_path)
 
     assert "record_id" in oracle_df.columns
     assert "cluster_id" in oracle_df.columns
-    assert len(oracle_df) > 0
+    assert len(oracle_df) == 3
     # cluster_id should match person_id format P_...
     sample_cid = oracle_df.iloc[0]["cluster_id"]
     assert sample_cid.startswith("P_"), f"Expected person_id prefix P_, got {sample_cid}"

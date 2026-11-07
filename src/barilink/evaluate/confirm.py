@@ -29,6 +29,7 @@ def generate_confirm_table(
     runs: Sequence[str] | str = "holdout_5..holdout_9",
     methods: Optional[Sequence[str]] = None,
     reference_method: str = "splink_v3_1_resolved",
+    dev_run: str = "demo",
     base_data_dir: str | Path = "data/generated",
     base_results_dir: str | Path = "results",
     output_path: Optional[str | Path] = None,
@@ -62,7 +63,7 @@ def generate_confirm_table(
         }
 
         # Dev reference cost & operational thresholds
-        dev_m_path = Path(base_results_dir) / "demo" / method / "metrics.json"
+        dev_m_path = Path(base_results_dir) / dev_run / method / "metrics.json"
         if dev_m_path.exists():
             with open(dev_m_path, "r", encoding="utf-8") as f:
                 dev_m = json.load(f)
@@ -298,9 +299,10 @@ def generate_confirm_table(
             f"{rel_c:+.2f}% | {direction_str} |"
         )
 
-    mean_d = float(np.mean(k_ref_deltas))
+    mean_d = float(np.mean(k_ref_deltas)) if k_ref_deltas else 0.0
     sd_d = float(np.std(k_ref_deltas, ddof=1)) if len(k_ref_deltas) > 1 else 0.0
-    ref_mean_cost = float(np.mean(data_by_method[reference_method]["costs"]))
+    ref_costs_list = data_by_method[reference_method]["costs"]
+    ref_mean_cost = float(np.mean(ref_costs_list)) if ref_costs_list else 0.0
     rel_pct = (mean_d / ref_mean_cost * 100.0) if ref_mean_cost > 0 else 0.0
 
     lines.extend(
@@ -502,6 +504,12 @@ def generate_confirm_table(
             "",
         ]
     )
+
+    if not rows:
+        raise ValueError(
+            "No evaluation rows found across requested runs; "
+            "refusing to write empty confirmation table."
+        )
 
     out_file = (
         Path(output_path)
