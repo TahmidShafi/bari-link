@@ -266,9 +266,9 @@ def generate_evaluation_report(
             manifest_data = json.load(f)
             role = manifest_data.get("role", "dev")
 
-    if mode == "select" and role == "holdout":
+    if mode == "select" and role in ("holdout", "stress"):
         raise ValueError(
-            f"Cannot run evaluate in 'select' mode on run '{run_name}' with role 'holdout'. "
+            f"Cannot run evaluate in 'select' mode on run '{run_name}' with role '{role}'. "
             "Threshold selection is only permitted on development runs."
         )
 
@@ -607,14 +607,16 @@ def _build_report_markdown(
 
 def generate_resolved_evaluation_report(
     run_name: str,
+    method: str = "splink_v1_resolved",
     base_data_dir: str | Path = "data/generated",
     base_results_dir: str | Path = "results",
     config: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Evaluate resolved clusters from clusters.parquet and persist metrics.json & report.md."""
+    base_model = method.replace("_resolved", "")
     run_dir = Path(base_data_dir) / run_name
     truth_dir = run_dir / "truth"
-    results_dir = Path(base_results_dir) / run_name / "splink_v1_resolved"
+    results_dir = Path(base_results_dir) / run_name / method
     clusters_path = results_dir / "clusters.parquet"
 
     if not clusters_path.exists():
@@ -628,7 +630,7 @@ def generate_resolved_evaluation_report(
     doppel_df = pd.read_parquet(doppel_path) if doppel_path.exists() else None
 
     # Load selected thresholds
-    sel_path = Path(base_results_dir) / "splink_v1_resolved" / "selected_thresholds.json"
+    sel_path = Path(base_results_dir) / method / "selected_thresholds.json"
     if sel_path.exists():
         with open(sel_path, "r", encoding="utf-8") as f:
             sel = json.load(f)
@@ -667,7 +669,7 @@ def generate_resolved_evaluation_report(
     # Compute actual review queue load per 10k records
     from barilink.resolve.review import build_review_queue
 
-    preds_path = Path(base_results_dir) / run_name / "splink_v1" / "predictions.parquet"
+    preds_path = Path(base_results_dir) / run_name / base_model / "predictions.parquet"
     res_log_path = results_dir / "resolution_log.parquet"
     records_path = run_dir / "registry" / "records.parquet"
 
@@ -688,7 +690,7 @@ def generate_resolved_evaluation_report(
         rev_load = 0.0
 
     pair_completeness = 0.8904
-    splink_metrics_path = Path(base_results_dir) / run_name / "splink_v1" / "metrics.json"
+    splink_metrics_path = Path(base_results_dir) / run_name / base_model / "metrics.json"
     if splink_metrics_path.exists():
         with open(splink_metrics_path, "r", encoding="utf-8") as f:
             sm = json.load(f)
@@ -720,7 +722,7 @@ def generate_resolved_evaluation_report(
     }
 
     metrics = {
-        "method": "splink_v1_resolved",
+        "method": method,
         "run_name": run_name,
         "run_role": role,
         "mode": "report",
@@ -738,7 +740,7 @@ def generate_resolved_evaluation_report(
     with open(results_dir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
-    report_md = f"""# Evaluation Report: splink_v1_resolved ({run_name})
+    report_md = f"""# Evaluation Report: {method} ({run_name})
 
 - **Dataset Role**: `{role}`
 - **Evaluation Mode**: `report`

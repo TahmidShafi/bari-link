@@ -232,7 +232,7 @@ def aggregate_holdout_metrics(
             reach_str = f"{s['reach_error_mean']:+.2f}% ± {s['reach_error_sd']:.2f}%"
             rev_str = f"{s['review_pairs_per_10k']:.1f}"
 
-            if method == "splink_v1_resolved":
+            if method.endswith("_resolved"):
                 t_str = (
                     f"$t_{{\\text{{link}}}}={s['t_link']:.1f}$ / "
                     f"$t_{{\\text{{bridge}}}}={s['t_bridge']:.1f}$"

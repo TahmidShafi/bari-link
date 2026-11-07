@@ -510,3 +510,38 @@ def test_truth_directory_access_security_scan():
                     violations.append((str(py_file), s))
 
     assert not violations, f"Forbidden ground-truth reference found in: {violations}"
+
+
+def test_stress_run_refused_by_select_mode(tmp_path):
+    """Verify that select mode is strictly forbidden on stress datasets."""
+    import json
+
+    from barilink.evaluate.report import generate_evaluation_report
+    from barilink.evaluate.resolve_eval import run_resolve_select
+
+    # 1. Test generate_evaluation_report refuses select mode on stress dataset
+    stress_dir = tmp_path / "stress_test_run"
+    stress_dir.mkdir(parents=True)
+    manifest_p = stress_dir / "manifest.json"
+    with open(manifest_p, "w", encoding="utf-8") as f:
+        json.dump({"role": "stress", "run_name": "stress_test_run"}, f)
+
+    with pytest.raises(
+        ValueError, match="Cannot run evaluate in 'select' mode on run.*role 'stress'"
+    ):
+        generate_evaluation_report(
+            method_name="exact",
+            run_name="stress_test_run",
+            mode="select",
+            predictions_df=pd.DataFrame(),
+            candidate_pair_count=0,
+            base_data_dir=tmp_path,
+        )
+
+    # 2. Test run_resolve_select refuses stress dataset
+    with pytest.raises(ValueError, match="Cannot run select mode on stress dataset"):
+        run_resolve_select(
+            run_name="stress_test_run",
+            base_data_dir=tmp_path,
+        )
+

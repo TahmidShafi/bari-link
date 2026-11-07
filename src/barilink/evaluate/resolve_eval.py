@@ -14,6 +14,7 @@ from barilink.resolve.graph import build_resolved_graph, select_resolve_paramete
 
 def run_resolve_select(
     run_name: str = "demo",
+    base_method: str = "splink_v1",
     config_path: str = "configs/default.yaml",
     base_data_dir: str = "data/generated",
     base_results_dir: str = "results",
@@ -33,13 +34,16 @@ def run_resolve_select(
     if manifest_p.exists():
         with open(manifest_p, "r", encoding="utf-8") as f:
             m_data = json.load(f)
-            if m_data.get("role") == "holdout":
-                raise ValueError(f"Cannot run select mode on holdout dataset '{run_name}'.")
+            role = m_data.get("role")
+            if role in ("holdout", "stress"):
+                raise ValueError(f"Cannot run select mode on {role} dataset '{run_name}'.")
 
+    resolved_method = f"{base_method}_resolved"
     records_path = run_dir / "registry" / "records.parquet"
-    splink_dir = Path(base_results_dir) / run_name / "splink_v1"
+    feat_path = run_dir / "registry" / "features.parquet"
+    splink_dir = Path(base_results_dir) / run_name / base_method
     preds_path = splink_dir / "predictions.parquet"
-    out_dir = Path(base_results_dir) / run_name / "splink_v1_resolved"
+    out_dir = Path(base_results_dir) / run_name / resolved_method
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not records_path.exists():
@@ -49,13 +53,15 @@ def run_resolve_select(
 
     records_df = pd.read_parquet(records_path)
     preds_df = pd.read_parquet(preds_path)
+    features_df = pd.read_parquet(feat_path) if feat_path.exists() else None
+    apply_listed = "v3" in base_method
 
     truth_dir = run_dir / "truth"
     record_truth_df = pd.read_parquet(truth_dir / "record_truth.parquet")
     true_pairs_df = pd.read_parquet(truth_dir / "true_pairs.parquet")
     doppel_df = pd.read_parquet(truth_dir / "doppelganger_person_pairs.parquet")
 
-    print(f"Sweeping resolve grid on dev run '{run_name}'...")
+    print(f"Sweeping resolve grid for '{resolved_method}' on dev run '{run_name}'...")
     best_params, grid_df = select_resolve_parameters(
         predictions_df=preds_df,
         records_df=records_df,
@@ -64,9 +70,13 @@ def run_resolve_select(
         doppelganger_person_pairs_df=doppel_df,
         max_birth_year_gap=max_gap,
         output_dir=out_dir,
+        features_df=features_df,
+        apply_listed_as_other_member=apply_listed,
     )
+    best_params["method"] = resolved_method
+    best_params["dev_run"] = run_name
 
-    sel_path = Path(base_results_dir) / "splink_v1_resolved" / "selected_thresholds.json"
+    sel_path = Path(base_results_dir) / resolved_method / "selected_thresholds.json"
     sel_path.parent.mkdir(parents=True, exist_ok=True)
     with open(sel_path, "w", encoding="utf-8") as f:
         json.dump(best_params, f, indent=2)
@@ -79,8 +89,12 @@ def run_resolve_select(
         t_link=t_l,
         t_bridge=t_b,
         max_birth_year_gap=max_gap,
+        features_df=features_df,
+        apply_listed_as_other_member=apply_listed,
     )
     clusters_df.to_parquet(out_dir / "clusters.parquet", index=False)
     res_log_df.to_parquet(out_dir / "resolution_log.parquet", index=False)
+
+    return best_params
 
     return best_params

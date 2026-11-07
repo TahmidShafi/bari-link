@@ -167,6 +167,25 @@ def normalise_phone_11(val: Any) -> tuple[Optional[str], Optional[str]]:
     return None, None
 
 
+def infer_guardian_type(source_module: Any, raw_type: Any) -> Optional[str]:
+    """Infer guardian relationship type from survey module schema alone without truth.
+
+    - livelihood_support: collects father_name in raw CSV, structurally implying father.
+    - upg_enrolment: collects guardian_type in raw CSV, uses raw value.
+    - microfinance_group & club_formation: do not collect guardian type, maps to None.
+    """
+    mod = str(source_module).strip().lower() if pd.notna(source_module) else ""
+    if mod == "livelihood_support":
+        return "father"
+    if mod == "upg_enrolment":
+        return (
+            str(raw_type).strip().lower()
+            if pd.notna(raw_type) and str(raw_type).strip() != ""
+            else None
+        )
+    return None
+
+
 def canonicalise_village(val: Any) -> Optional[str]:
     """Clean and canonicalise village name, removing internal spaces."""
     if val is None or pd.isna(val):
@@ -235,9 +254,16 @@ def build_features(
         "enrolment_date", pd.Series(None, index=records_df.index)
     )
 
-    # Kinship: roster_skels (Amendment 1)
+    # Guardian type (inferred from schema)
+    raw_types = records_df.get("guardian_type_raw", pd.Series(None, index=records_df.index))
+    modules = records_df.get("source_module", pd.Series(None, index=records_df.index))
+    features["guardian_type"] = [
+        infer_guardian_type(str(m), t) for m, t in zip(modules, raw_types)
+    ]
+
+    # Kinship: roster_skels, roster_canons, and v3 filtered variants
     if rosters_df is not None and not rosters_df.empty:
-        # Compute member skeleton
+        # Compute member clean, canon, skeleton
         m_names = [clean_text_basic(m) for m in rosters_df["member_name_raw"]]
         m_canons = [canonicalise_name(m) for m in m_names]
         m_skels = [compute_skeleton(c) for c in m_canons]
@@ -245,15 +271,47 @@ def build_features(
         roster_work = pd.DataFrame(
             {
                 "record_id": rosters_df["record_id"].astype(str),
+                "canon": m_canons,
                 "skel": m_skels,
             }
         ).dropna(subset=["skel"])
 
-        # Group by record_id to list of unique skeletons
-        grouped = roster_work.groupby("record_id")["skel"].apply(lambda s: sorted(set(s))).to_dict()
-        features["roster_skels"] = features["record_id"].map(grouped)
+        # Unfiltered (v1 / v2)
+        grouped_skels = (
+            roster_work.groupby("record_id")["skel"]
+            .apply(lambda s: sorted(set(s)))
+            .to_dict()
+        )
+        grouped_canons = (
+            roster_work.groupby("record_id")["canon"]
+            .apply(lambda s: sorted(set(s)))
+            .to_dict()
+        )
+        features["roster_skels"] = features["record_id"].map(grouped_skels)
+        features["roster_canons"] = features["record_id"].map(grouped_canons)
+
+        # Self-filtered (v3): remove roster entries matching record's own name_canon
+        rec_canons = dict(zip(features["record_id"], features["name_canon"]))
+        roster_work["self_canon"] = roster_work["record_id"].map(rec_canons)
+        roster_filt = roster_work[roster_work["canon"] != roster_work["self_canon"]]
+
+        filt_skels = (
+            roster_filt.groupby("record_id")["skel"]
+            .apply(lambda s: sorted(set(s)) if len(s) > 0 else None)
+            .to_dict()
+        )
+        filt_canons = (
+            roster_filt.groupby("record_id")["canon"]
+            .apply(lambda s: sorted(set(s)) if len(s) > 0 else None)
+            .to_dict()
+        )
+        features["roster_skels_v3"] = features["record_id"].map(filt_skels)
+        features["roster_canons_v3"] = features["record_id"].map(filt_canons)
     else:
         features["roster_skels"] = None
+        features["roster_canons"] = None
+        features["roster_skels_v3"] = None
+        features["roster_canons_v3"] = None
 
     return features
 

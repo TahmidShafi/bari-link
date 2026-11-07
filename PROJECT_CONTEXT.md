@@ -243,6 +243,11 @@ This section records all architectural, demographic, and technical design decisi
   - Unresolved reference baseline: $C_{\text{v1}} = 960.0$ at $w = 9.25$.
   - Adoption cost threshold: $0.98 \times 960.0 = 940.8$.
   - If `splink_v2` achieves dev expected cost $\le 940.8$, adopt v2; otherwise keep v1. If adopted, evaluate `splink_v2_resolved` against `splink_v1_resolved` separately.
+- **Outcome of Hypothesis H1**:
+  - `splink_v2` trained exactly as pre-registered on `demo`. On the match-weight grid, `splink_v2` selected optimal threshold $t_{\text{cost}} = 9.25$ ($p \approx 0.998360$, $t_{\text{p99}} = 17.25$).
+  - Dev expected operational cost: **$C_{\text{v2}} = 937.0$** (Cluster Precision = 0.9508, Cluster Recall = 0.4614, Cluster F1 = 0.6213).
+  - Relative to $C_{\text{v1}} = 960.0$, expected cost decreased by **$2.40\%$** (23.0 cost points), beating the $2\%$ pre-registered threshold ($937.0 \le 940.8$).
+  - **Verdict**: **Hypothesis H1 is SUPPORTED**. Model `splink_v2` is **ADOPTED** as the baseline for Model v3.
 
 ### Log Entry 008a: 2026-11-07 — Phase 6 Ground-Truth Leakage Audit & Metric Re-baselining
 - **Leakage Finding & Root Cause**:
@@ -277,6 +282,39 @@ This section records all architectural, demographic, and technical design decisi
   > Decision rule: adopt v3 if its dev expected cost at its own t_cost is at least 2% lower than the model adopted after H1. Secondary outcome (reported, not decisive): the number of dev false merges between same-household persons.
 - **Deterministic Resolution Constraint**:
   - In entity resolution, pairs where `listed_as_other_member` fires become a deterministic **cannot-link constraint** (applied only for v3 and its resolved variant `splink_v3_resolved`). If record A's name skeleton is listed as an other member in record B's roster (or vice versa), they are proven to be distinct co-residents of the same household and cannot be merged.
+- **Outcome of Hypothesis H2**:
+  - `splink_v3` trained on top of `splink_v2` on `demo` with self-filtered roster arrays and kinship v3 levels. On the match-weight grid, `splink_v3` selected optimal threshold $t_{\text{cost}} = 8.00$ ($p \approx 0.996109$, $t_{\text{p99}} = 20.00$).
+  - Dev expected operational cost: **$C_{\text{v3}} = 875.0$** (Cluster Precision = 0.9642, Cluster Recall = 0.4733, Cluster F1 = 0.6350).
+  - Relative to $C_{\text{adopted}} = C_{\text{v2}} = 937.0$, expected cost decreased by **$6.62\%$** (62.0 cost points), substantially exceeding the $2\%$ pre-registered threshold ($875.0 \le 918.26$).
+  - **Secondary Outcome**: False merges between same-household persons dropped from 29 (in v2) to **20** (in v3), with total false merges falling from 30 to 21.
+  - **Verdict**: **Hypothesis H2 is SUPPORTED**. Model `splink_v3` is **ADOPTED** as the primary champion model.
+
+### Log Entry 008c: 2026-11-07 — Phase 6 Model v3 Resolution, Systematic Ablations, and Doppelganger Stress Test
+- **Resolution Parameter Selection for Champion Model (`splink_v3_resolved`)**:
+  - Swept the 2D resolution grid on `demo` over $t_{\text{link}} \in [2.0, 14.0]$ (step 0.5) and $t_{\text{bridge}} \in [t_{\text{link}}, 16]$ (integer steps) with deterministic `listed_as_other_member` cannot-link cuts.
+  - Selected optimal thresholds: $t_{\text{link}} = 6.5, t_{\text{bridge}} = 8.0$ (strictly interior, not on boundary).
+  - Dev expected operational cost decreased from 875.0 (unresolved `splink_v3`) to **830.0** (min cost, Cluster Precision = 96.53%, Recall = 50.84%, F1 = 0.6661, Doppelganger FM rate = 0.0%).
+- **Multi-Seed Holdout Ablations (5 Independent Seeds: `holdout_0` .. `holdout_4`)**:
+  - Evaluated all 5 ablation variants plus `splink_v3_resolved` at frozen dev-selected thresholds:
+    1. `splink_v1` ($w=9.25, p=0.9984$): Precision = $0.6068 \pm 0.0421$, Recall = $0.7564 \pm 0.0106$, F1 = $0.6728 \pm 0.0266$, Doppelganger FM Rate = $16.76\%$ [$13.30\%, 20.90\%$].
+    2. `splink_v2` ($w=9.25, p=0.9984$): Precision = $0.9144 \pm 0.0197$, Recall = $0.4923 \pm 0.0180$, F1 = $0.6397 \pm 0.0127$, Doppelganger FM Rate = $1.35\%$ [$0.58\%, 3.12\%$].
+    3. `splink_v3` ($w=8.00, p=0.9961$): Precision = $0.9439 \pm 0.0050$, Recall = $0.5107 \pm 0.0159$, F1 = $0.6627 \pm 0.0126$, Doppelganger FM Rate = $1.89\%$ [$0.92\%, 3.85\%$].
+    4. `splink_v3_no_tf` ($w=7.75, p=0.9954$): Precision = $0.9381 \pm 0.0071$, Recall = $0.5142 \pm 0.0185$, F1 = $0.6641 \pm 0.0141$, Doppelganger FM Rate = $2.97\%$ [$1.67\%, 5.24\%$].
+    5. `splink_v3_no_kinship` ($w=1.25, p=0.7040$): Precision = $0.9424 \pm 0.0084$, Recall = $0.6164 \pm 0.0186$, F1 = $0.7452 \pm 0.0125$, Doppelganger FM Rate = $1.89\%$ [$0.92\%, 3.85\%$] (on low-density holdouts).
+    6. `splink_v3_resolved` ($t_{\text{link}}=6.5, t_{\text{bridge}}=8.0$): Precision = **$0.9500 \pm 0.0071$**, Recall = **$0.5488 \pm 0.0185$**, F1 = **$0.6956 \pm 0.0157$**, Paired $\Delta F_1$ vs v1 = **$+0.0228 \pm 0.0356$** (individual seed deltas: `[-0.0245, -0.0014, +0.0481, +0.0296, +0.0622]`).
+- **Doppelganger Stress Test on `stress_0` (`min_pairs: 400`)**:
+  - Population synthesized with `configs/stress.yaml` creating 559 total doppelganger person pairs (60 natural pairs from demographic name collision, 499 injected hard negative pairs within same village/union).
+  - Doppelgangers have near-zero roster overlap (mean 0.43 members, maximum 1 member, only 21/559 pairs with rosters on both records), whereas true co-residents exhibit overlap $\ge 2$.
+  - Stress outcomes across methods:
+    - Natural pairs: 2/60 (3.3%) merged across all kinship models, rising to 4/60 (6.7%) for `no_kinship`.
+    - Injected pairs: `splink_v3` = 302/499 (60.5%), `splink_v3_resolved` = 317/499 (63.5%), whereas `splink_v3_no_kinship` surges to **381/499 (76.4%)** [+15.9 pp].
+    - Pooled pairs: `splink_v3` = 304/559 (54.4%), `splink_v3_resolved` = 319/559 (57.1%), whereas `splink_v3_no_kinship` surges to **385/559 (68.9%)** [+14.5 pp].
+  - Proves that while kinship rosters cannot completely prevent false merges when non-kin share identical names, guardians, and locations without rosters, kinship evidence is essential for rejecting doppelgangers: removing kinship inflates false merges by over 16 percentage points.
+- **Reporting Artifacts Generated**:
+  - `results/holdout/ablation_table.md`: Systematic ablation across 5 holdout seeds with paired per-seed $\Delta F_1$.
+  - `results/stress_0/stress_table.md`: Complete natural vs injected vs pooled doppelganger breakdown with Wilson 95% CIs and generation notes.
+  - `results/holdout/baseline_comparison.md`: Multi-seed benchmark comparing baselines, `splink_v1`, `splink_v1_resolved`, `splink_v3`, and `splink_v3_resolved`.
+
 
 
 

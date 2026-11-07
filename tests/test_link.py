@@ -435,3 +435,172 @@ def test_weight_grid_resolves_interior_optimum_above_p99():
     assert sel_weight.t_cost_on_boundary is False
     assert 7.0 < sel_weight.t_cost_weight <= 12.0
     assert sel_weight.min_cost < sel_prob.min_cost
+
+
+def test_guardian_type_inference_schema_only():
+    """Verify guardian_type is inferred strictly from source_module schema without truth."""
+    import ast
+
+    from barilink.link.normalise import infer_guardian_type
+
+    # 1. AST scan of normalise.py
+    norm_path = Path("src/barilink/link/normalise.py")
+    tree = ast.parse(norm_path.read_text(encoding="utf-8"))
+
+    func_node = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "infer_guardian_type":
+            func_node = node
+            break
+
+    assert func_node is not None, "infer_guardian_type must be defined in normalise.py"
+
+    # Ensure function arguments are strictly (source_module, raw_type)
+    arg_names = [a.arg for a in func_node.args.args]
+    assert arg_names == ["source_module", "raw_type"]
+
+    # Ensure no truth references exist inside infer_guardian_type
+    for sub in ast.walk(func_node):
+        if isinstance(sub, ast.Name):
+            assert sub.id not in (
+                "truth",
+                "persons",
+                "households",
+                "record_truth",
+                "true_pairs",
+            ), f"Illegal reference to {sub.id} in infer_guardian_type"
+
+    # 2. Functional behavior
+    # Livelihood collects father_name in raw CSV -> structurally father
+    assert infer_guardian_type("livelihood_support", None) == "father"
+    assert infer_guardian_type("livelihood_support", "husband") == "father"
+
+    # UPG collects guardian_type -> passes raw type
+    assert infer_guardian_type("upg_enrolment", "Father") == "father"
+    assert infer_guardian_type("upg_enrolment", "Husband") == "husband"
+    assert infer_guardian_type("upg_enrolment", None) is None
+
+    # Microfinance and Club do not collect guardian type -> None
+    assert infer_guardian_type("microfinance_group", "father") is None
+    assert infer_guardian_type("club_formation", "father") is None
+    assert infer_guardian_type("unknown_module", "father") is None
+
+
+def test_model_v2_guardian_comparison_levels():
+    """Verify Model v2 guardian comparison levels exist and are asserted by label string."""
+    from barilink.link.model import create_splink_settings
+
+    cfg = {"linkage": {"guardian_mode": "v2"}}
+    settings = create_splink_settings(cfg)
+    s_dict = settings.create_settings_dict("duckdb")
+
+    g_comp = None
+    for c in s_dict["comparisons"]:
+        if c.get("output_column_name") == "guardian_name":
+            g_comp = c
+            break
+
+    assert g_comp is not None, "guardian_name comparison not found"
+    labels = [lvl.get("label_for_charts") for lvl in g_comp["comparison_levels"]]
+
+    # Assert by label string, never by integer index
+    assert "guardian_in_roster" in labels
+    assert "guardian_types_known_differ" in labels
+    assert "guardian_type_unknown" in labels
+    assert "Same guardian type" in labels
+
+
+def test_model_v3_kinship_comparison_levels():
+    """Verify Model v3 kinship comparison levels exist and are asserted by label string."""
+    from barilink.link.model import create_splink_settings
+
+    cfg = {"linkage": {"kinship_mode": "v3"}}
+    settings = create_splink_settings(cfg)
+    s_dict = settings.create_settings_dict("duckdb")
+
+    k_comp = None
+    for c in s_dict["comparisons"]:
+        if c.get("output_column_name") == "kinship":
+            k_comp = c
+            break
+
+    assert k_comp is not None, "kinship comparison not found"
+    labels = [lvl.get("label_for_charts") for lvl in k_comp["comparison_levels"]]
+
+    # Assert by label string, never by integer index
+    assert "listed_as_other_member" in labels
+    assert "Cross-household guardian match" in labels
+    assert "Either roster null" in labels
+    assert "Roster intersect >= 2" in labels
+    assert "Roster intersect >= 1" in labels
+    assert "All other comparisons" in labels
+
+
+def test_config_overrides_produce_distinct_models():
+    """Verify that configuration overrides produce distinct Splink models."""
+    from barilink.link.model import create_splink_settings
+
+    v1_s = create_splink_settings(
+        {
+            "linkage": {
+                "use_term_frequency": True,
+                "use_kinship": True,
+                "guardian_mode": "v1",
+                "kinship_mode": "v1",
+            }
+        }
+    ).create_settings_dict("duckdb")
+
+    v2_s = create_splink_settings(
+        {
+            "linkage": {
+                "use_term_frequency": True,
+                "use_kinship": True,
+                "guardian_mode": "v2",
+                "kinship_mode": "v1",
+            }
+        }
+    ).create_settings_dict("duckdb")
+
+    v3_s = create_splink_settings(
+        {
+            "linkage": {
+                "use_term_frequency": True,
+                "use_kinship": True,
+                "guardian_mode": "v2",
+                "kinship_mode": "v3",
+            }
+        }
+    ).create_settings_dict("duckdb")
+
+    no_tf_s = create_splink_settings(
+        {
+            "linkage": {
+                "use_term_frequency": False,
+                "use_kinship": True,
+                "guardian_mode": "v2",
+                "kinship_mode": "v3",
+            }
+        }
+    ).create_settings_dict("duckdb")
+
+    no_kin_s = create_splink_settings(
+        {
+            "linkage": {
+                "use_term_frequency": True,
+                "use_kinship": False,
+                "guardian_mode": "v2",
+                "kinship_mode": "v3",
+            }
+        }
+    ).create_settings_dict("duckdb")
+
+    # Comparisons count
+    assert len(no_kin_s["comparisons"]) == len(v3_s["comparisons"]) - 1
+
+    # Dictionaries are pairwise distinct
+    all_dicts = [v1_s, v2_s, v3_s, no_tf_s, no_kin_s]
+    for i in range(len(all_dicts)):
+        for j in range(i + 1, len(all_dicts)):
+            assert all_dicts[i] != all_dicts[j]
+

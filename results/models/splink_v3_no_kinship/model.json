@@ -1,0 +1,380 @@
+{
+    "link_type": "dedupe_only",
+    "probability_two_random_records_match": 1.587794422193671e-05,
+    "retain_matching_columns": true,
+    "retain_intermediate_calculation_columns": true,
+    "additional_columns_to_retain": [],
+    "sql_dialect": "duckdb",
+    "linker_uid": "4zi75g25",
+    "em_convergence": 0.0001,
+    "max_iterations": 25,
+    "bayes_factor_column_prefix": "bf_",
+    "term_frequency_adjustment_column_prefix": "tf_",
+    "comparison_vector_value_column_prefix": "gamma_",
+    "unique_id_column_name": "record_id",
+    "source_dataset_column_name": "source_dataset",
+    "blocking_rules_to_generate_predictions": [
+        {
+            "blocking_rule": "(l.\"given_first_skel\" = r.\"given_first_skel\") AND (l.\"village_canon\" = r.\"village_canon\")",
+            "sql_dialect": "duckdb"
+        },
+        {
+            "blocking_rule": "l.\"phone_norm\" = r.\"phone_norm\"",
+            "sql_dialect": "duckdb"
+        },
+        {
+            "blocking_rule": "(l.\"guardian_skeleton\" = r.\"guardian_skeleton\") AND (l.\"village_canon\" = r.\"village_canon\")",
+            "sql_dialect": "duckdb"
+        },
+        {
+            "blocking_rule": "(l.\"name_skeleton\" = r.\"name_skeleton\") AND (l.\"union_raw\" = r.\"union_raw\")",
+            "sql_dialect": "duckdb"
+        },
+        {
+            "blocking_rule": "(l.\"given_first_skel\" = r.\"given_first_skel\") AND (l.\"birth_year_est\" = r.\"birth_year_est\")",
+            "sql_dialect": "duckdb"
+        }
+    ],
+    "comparisons": [
+        {
+            "output_column_name": "given_name",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"name_canon_l\" IS NULL OR \"name_canon_r\" IS NULL",
+                    "label_for_charts": "name_canon is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"name_canon_l\" = \"name_canon_r\"",
+                    "label_for_charts": "Exact match on name_canon",
+                    "m_probability": 0.5313894642468466,
+                    "u_probability": 0.008972063525082404,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "tf_adjustment_column": "name_canon",
+                    "tf_adjustment_weight": 1.0
+                },
+                {
+                    "sql_condition": "\"name_skeleton_l\" = \"name_skeleton_r\"",
+                    "label_for_charts": "Exact match on name_skeleton",
+                    "m_probability": 0.036114155188084626,
+                    "u_probability": 0.0005487742967591113,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "\"name_tokens_sorted_l\" = \"name_tokens_sorted_r\"",
+                    "label_for_charts": "Exact match on name_tokens_sorted",
+                    "m_probability": 0.010318330010952932,
+                    "u_probability": 2.1297197437402337e-05,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "jaro_winkler_similarity(\"name_canon_l\", \"name_canon_r\") >= 0.92",
+                    "label_for_charts": "Jaro-Winkler distance of name_canon >= 0.92",
+                    "m_probability": 0.041273310300811675,
+                    "u_probability": 0.0012243412108199668,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "jaro_winkler_similarity(\"name_canon_l\", \"name_canon_r\") >= 0.85",
+                    "label_for_charts": "Jaro-Winkler distance of name_canon >= 0.85",
+                    "m_probability": 0.08254564351396816,
+                    "u_probability": 0.006221753353689492,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "All other comparisons",
+                    "m_probability": 0.298359096739336,
+                    "u_probability": 0.9830117704162116,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "CustomComparison"
+        },
+        {
+            "output_column_name": "guardian_name",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"guardian_canon_l\" IS NULL OR \"guardian_canon_r\" IS NULL",
+                    "label_for_charts": "guardian_canon is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"guardian_canon_l\" = \"guardian_canon_r\"",
+                    "label_for_charts": "Exact match on guardian_canon",
+                    "m_probability": 0.5301889368767586,
+                    "u_probability": 0.0017924139696959575,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "tf_adjustment_column": "guardian_canon",
+                    "tf_adjustment_weight": 1.0
+                },
+                {
+                    "sql_condition": "\"guardian_skeleton_l\" = \"guardian_skeleton_r\"",
+                    "label_for_charts": "Exact match on guardian_skeleton",
+                    "m_probability": 0.07190121900874648,
+                    "u_probability": 0.0002560591385279939,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "jaro_winkler_similarity(\"guardian_canon_l\", \"guardian_canon_r\") >= 0.92",
+                    "label_for_charts": "Jaro-Winkler distance of guardian_canon >= 0.92",
+                    "m_probability": 0.05383587359819346,
+                    "u_probability": 0.005349409394030482,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "jaro_winkler_similarity(\"guardian_canon_l\", \"guardian_canon_r\") >= 0.85",
+                    "label_for_charts": "Jaro-Winkler distance of guardian_canon >= 0.85",
+                    "m_probability": 0.03628363267064742,
+                    "u_probability": 0.014718390612649321,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "coalesce(list_contains(roster_canons_l, guardian_canon_r), false) OR coalesce(list_contains(roster_canons_r, guardian_canon_l), false)",
+                    "label_for_charts": "guardian_in_roster",
+                    "m_probability": 0.11205247043680752,
+                    "u_probability": 0.0018302661901740088,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "guardian_type_l IS NOT NULL AND guardian_type_r IS NOT NULL AND guardian_type_l != guardian_type_r",
+                    "label_for_charts": "guardian_types_known_differ",
+                    "m_probability": 0.015205766452998176,
+                    "u_probability": 0.07910613094641684,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "guardian_type_l IS NULL OR guardian_type_r IS NULL",
+                    "label_for_charts": "guardian_type_unknown",
+                    "m_probability": 0.15633117156391935,
+                    "u_probability": 0.6565367444863788,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "Same guardian type",
+                    "m_probability": 0.024200929391929055,
+                    "u_probability": 0.24041058526212664,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "CustomComparison"
+        },
+        {
+            "output_column_name": "phone",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"phone_norm_l\" IS NULL OR \"phone_norm_r\" IS NULL",
+                    "label_for_charts": "phone_norm is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"phone_norm_l\" = \"phone_norm_r\"",
+                    "label_for_charts": "Exact match on phone_norm",
+                    "m_probability": 0.601328444908427,
+                    "u_probability": 0.00013941994332579305,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "\"phone_last8_l\" = \"phone_last8_r\"",
+                    "label_for_charts": "Exact match on phone_last8",
+                    "u_probability": 3.485498583144826e-06,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "All other comparisons",
+                    "m_probability": 0.398671555091573,
+                    "u_probability": 0.999857094558091,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "CustomComparison"
+        },
+        {
+            "output_column_name": "birth_year",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"birth_year_est_l\" IS NULL OR \"birth_year_est_r\" IS NULL",
+                    "label_for_charts": "birth_year_est is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"birth_year_est_l\" = \"birth_year_est_r\"",
+                    "label_for_charts": "Exact match on birth_year_est",
+                    "m_probability": 0.4005574636875919,
+                    "u_probability": 0.02334378107573984,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ABS(\"birth_year_est_l\" - \"birth_year_est_r\") <= 2",
+                    "label_for_charts": "Absolute difference of 'birth_year_est' <= 2",
+                    "m_probability": 0.42633008138551065,
+                    "u_probability": 0.08496028599121383,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ABS(\"birth_year_est_l\" - \"birth_year_est_r\") <= 5",
+                    "label_for_charts": "Absolute difference of 'birth_year_est' <= 5",
+                    "m_probability": 0.09773425751746978,
+                    "u_probability": 0.12556675855644928,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "All other comparisons",
+                    "m_probability": 0.07537819740942767,
+                    "u_probability": 0.7661291743765971,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "CustomComparison"
+        },
+        {
+            "output_column_name": "village",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"village_canon_l\" IS NULL OR \"village_canon_r\" IS NULL",
+                    "label_for_charts": "village_canon is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"village_canon_l\" = \"village_canon_r\"",
+                    "label_for_charts": "Exact match on village_canon",
+                    "m_probability": 1.0,
+                    "u_probability": 0.2506429648767224,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "jaro_winkler_similarity(\"village_canon_l\", \"village_canon_r\") >= 0.88",
+                    "label_for_charts": "Jaro-Winkler distance of village_canon >= 0.88",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "All other comparisons",
+                    "u_probability": 0.7493570351232776,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "CustomComparison"
+        },
+        {
+            "output_column_name": "union_raw",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"union_raw_l\" IS NULL OR \"union_raw_r\" IS NULL",
+                    "label_for_charts": "union_raw is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"union_raw_l\" = \"union_raw_r\"",
+                    "label_for_charts": "Exact match on union_raw",
+                    "m_probability": 0.9999999946465806,
+                    "u_probability": 0.05555381722359755,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "All other comparisons",
+                    "m_probability": 5.353419303057568e-09,
+                    "u_probability": 0.9444461827764025,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "ExactMatch"
+        },
+        {
+            "output_column_name": "sex_raw",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"sex_raw_l\" IS NULL OR \"sex_raw_r\" IS NULL",
+                    "label_for_charts": "sex_raw is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"sex_raw_l\" = \"sex_raw_r\"",
+                    "label_for_charts": "Exact match on sex_raw",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "All other comparisons",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "ExactMatch"
+        },
+        {
+            "output_column_name": "title_token",
+            "comparison_levels": [
+                {
+                    "sql_condition": "\"title_token_l\" IS NULL OR \"title_token_r\" IS NULL",
+                    "label_for_charts": "title_token is NULL",
+                    "fix_m_probability": false,
+                    "fix_u_probability": false,
+                    "is_null_level": true
+                },
+                {
+                    "sql_condition": "\"title_token_l\" = \"title_token_r\"",
+                    "label_for_charts": "Exact match on title_token",
+                    "m_probability": 0.8704048835546528,
+                    "u_probability": 0.23631569150586337,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                },
+                {
+                    "sql_condition": "ELSE",
+                    "label_for_charts": "All other comparisons",
+                    "m_probability": 0.12959511644534716,
+                    "u_probability": 0.7636843084941366,
+                    "fix_m_probability": false,
+                    "fix_u_probability": false
+                }
+            ],
+            "comparison_description": "ExactMatch"
+        }
+    ]
+}

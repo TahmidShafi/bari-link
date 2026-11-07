@@ -1,0 +1,14 @@
+{
+  "method": "splink_v2",
+  "dev_run": "demo",
+  "grid": "weight",
+  "t_cost": 9.25,
+  "t_cost_weight": 9.25,
+  "t_cost_prob": 0.9983603171643846,
+  "t_cost_on_boundary": false,
+  "t_p99": 17.25,
+  "t_p99_weight": 17.25,
+  "t_p99_prob": 0.9999935845106468,
+  "min_cost": 937.0,
+  "t_p99_explanation": null
+}

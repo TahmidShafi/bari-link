@@ -472,12 +472,13 @@ def run_evaluate(
         with open(cfg_p, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
-    if method == "splink_v1_resolved":
+    if method.endswith("_resolved"):
         from barilink.evaluate.report import generate_resolved_evaluation_report
 
         print(f"Evaluating resolved clusters for '{method}' on run '{run_name}'...")
         metrics = generate_resolved_evaluation_report(
             run_name=run_name,
+            method=method,
             base_data_dir=base_data_dir,
             base_results_dir=base_results_dir,
             config=config,
@@ -574,6 +575,7 @@ def run_evaluate(
 def run_resolve(
     run_name: str,
     mode: str,
+    base_method: str = "splink_v1",
     config_path: str = "configs/default.yaml",
     base_data_dir: str = "data/generated",
     base_results_dir: str = "results",
@@ -588,11 +590,13 @@ def run_resolve(
     resolve_cfg = config.get("resolve", {})
     max_gap = int(resolve_cfg.get("max_birth_year_gap", 10))
 
+    resolved_method = f"{base_method}_resolved"
     run_dir = Path(base_data_dir) / run_name
     records_path = run_dir / "registry" / "records.parquet"
-    splink_dir = Path(base_results_dir) / run_name / "splink_v1"
+    feat_path = run_dir / "registry" / "features.parquet"
+    splink_dir = Path(base_results_dir) / run_name / base_method
     preds_path = splink_dir / "predictions.parquet"
-    out_dir = Path(base_results_dir) / run_name / "splink_v1_resolved"
+    out_dir = Path(base_results_dir) / run_name / resolved_method
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not records_path.exists():
@@ -604,12 +608,15 @@ def run_resolve(
 
     records_df = pd.read_parquet(records_path)
     preds_df = pd.read_parquet(preds_path)
+    features_df = pd.read_parquet(feat_path) if feat_path.exists() else None
+    apply_listed = "v3" in base_method
 
     if mode == "select":
         from barilink.evaluate.resolve_eval import run_resolve_select
 
         best_params = run_resolve_select(
             run_name=run_name,
+            base_method=base_method,
             config_path=config_path,
             base_data_dir=base_data_dir,
             base_results_dir=base_results_dir,
@@ -624,7 +631,7 @@ def run_resolve(
         return 0
 
     elif mode == "report":
-        sel_path = Path(base_results_dir) / "splink_v1_resolved" / "selected_thresholds.json"
+        sel_path = Path(base_results_dir) / resolved_method / "selected_thresholds.json"
         if not sel_path.exists():
             raise FileNotFoundError(
                 f"Selected thresholds file not found at {sel_path}. "
@@ -648,6 +655,8 @@ def run_resolve(
             t_link=t_l,
             t_bridge=t_b,
             max_birth_year_gap=max_gap,
+            features_df=features_df,
+            apply_listed_as_other_member=apply_listed,
         )
         clusters_df.to_parquet(out_dir / "clusters.parquet", index=False)
         res_log_df.to_parquet(out_dir / "resolution_log.parquet", index=False)
@@ -665,6 +674,8 @@ def run_resolve(
                 t_bridge=t_b,
                 output_path=out_dir / "resolved_by_threshold.parquet",
                 max_birth_year_gap=max_gap,
+                features_df=features_df,
+                apply_listed_as_other_member=apply_listed,
             )
             print(
                 f"Precomputed UI clusters written to: {out_dir / 'resolved_by_threshold.parquet'}"
@@ -696,7 +707,8 @@ def run_golden(
     clusters_df = pd.read_parquet(res_dir / "clusters.parquet")
     log_path = res_dir / "resolution_log.parquet"
     res_log_df = pd.read_parquet(log_path) if log_path.exists() else None
-    preds_path = Path(base_results_dir) / run_name / "splink_v1" / "predictions.parquet"
+    base_method = method.replace("_resolved", "")
+    preds_path = Path(base_results_dir) / run_name / base_method / "predictions.parquet"
     preds_df = pd.read_parquet(preds_path) if preds_path.exists() else None
 
     print(f"Building golden records for '{method}' on '{run_name}'...")
@@ -771,11 +783,26 @@ def run_link(
     model_dir = Path(base_results_dir) / "models" / model
     model_path = model_dir / "model.json"
 
+    # Resolve variant overrides from model name
+    model_cfg = dict(config)
+    link_cfg = dict(model_cfg.get("linkage", {}))
+    if "v2" in model:
+        link_cfg["guardian_mode"] = "v2"
+    elif "v3" in model:
+        link_cfg["guardian_mode"] = "v2"
+        link_cfg["kinship_mode"] = "v3"
+
+    if "no_tf" in model:
+        link_cfg["use_term_frequency"] = False
+    if "no_kinship" in model:
+        link_cfg["use_kinship"] = False
+    model_cfg["linkage"] = link_cfg
+
     if action == "train":
         print(f"Generating features for run '{run_name}'...")
         features_df = export_features(run_name, base_data_dir)
         print(f"Training Splink model '{model}' on '{run_name}' ({len(features_df):,} records)...")
-        train_splink_model(features_df, config, model_path, threads=threads)
+        train_splink_model(features_df, model_cfg, model_path, threads=threads)
         print(f"Model saved to: {model_path.resolve()}")
         return 0
 
@@ -794,7 +821,7 @@ def run_link(
 
         print(f"Scoring candidates for run '{run_name}' with model '{model}'...")
         preds_df, _, cand_count = predict_splink_model(
-            features_df, model_path, run_name, base_results_dir, threads=threads
+            features_df, model_path, run_name, base_results_dir, method=model, threads=threads
         )
         print("Prediction complete:")
         print(f"  Candidate pairs evaluated: {cand_count:,}")
@@ -870,9 +897,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     gen_parser.add_argument(
         "--role",
         type=str,
-        choices=["dev", "holdout"],
+        choices=["dev", "holdout", "stress"],
         default=None,
-        help="Dataset role (dev or holdout)",
+        help="Dataset role (dev, holdout, or stress)",
     )
 
     # 2. corrupt
@@ -907,9 +934,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     corr_parser.add_argument(
         "--role",
         type=str,
-        choices=["dev", "holdout"],
+        choices=["dev", "holdout", "stress"],
         default=None,
-        help="Dataset role (dev or holdout)",
+        help="Dataset role (dev, holdout, or stress)",
     )
 
     # 3. build (generate + corrupt)
@@ -944,9 +971,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     build_parser.add_argument(
         "--role",
         type=str,
-        choices=["dev", "holdout"],
+        choices=["dev", "holdout", "stress"],
         default=None,
-        help="Dataset role (dev or holdout)",
+        help="Dataset role (dev, holdout, or stress)",
     )
 
     # 4. baseline
@@ -1034,6 +1061,55 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
     )
     diag_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
+
+    # Subcommand: evaluate ablation
+    abl_parser = eval_subparsers.add_parser(
+        "ablation", help="Generate systematic model ablation summary table"
+    )
+    abl_parser.add_argument(
+        "--runs",
+        nargs="+",
+        default=["holdout_0..holdout_4"],
+        help="List of runs or range (default: holdout_0..holdout_4)",
+    )
+    abl_parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=None,
+        help="List of methods to compare (default: v1, v2, v3, no_tf, no_kinship, v3_resolved)",
+    )
+    abl_parser.add_argument(
+        "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
+    )
+    abl_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
+    abl_parser.add_argument(
+        "--output", "-o", type=str, default=None, help="Output markdown file path"
+    )
+
+    # Subcommand: evaluate stress
+    str_parser = eval_subparsers.add_parser(
+        "stress", help="Generate doppelganger stress test evaluation table"
+    )
+    str_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="stress_0",
+        help="Run identifier name (default: stress_0)",
+    )
+    str_parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=None,
+        help="List of methods to evaluate (default: all ablation variants + resolved)",
+    )
+    str_parser.add_argument(
+        "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
+    )
+    str_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
+    str_parser.add_argument(
+        "--output", "-o", type=str, default=None, help="Output markdown file path"
+    )
 
     # Standard evaluate options on eval_parser
     eval_parser.add_argument(
@@ -1152,6 +1228,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         required=True,
         choices=["select", "report"],
         help="Resolution mode: select (for dev runs) or report (for holdout runs)",
+    )
+    res_parser.add_argument(
+        "--base-method",
+        "--method",
+        dest="base_method",
+        type=str,
+        default="splink_v1",
+        help="Base linkage method to resolve (e.g. splink_v1, splink_v3)",
     )
     res_parser.add_argument(
         "--config",
@@ -1292,6 +1376,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "exact_or_phone",
                 "splink_v1",
                 "splink_v1_resolved",
+                "splink_v3",
+                "splink_v3_resolved",
             ]
             methods = args.methods or default_methods
             summary = aggregate_holdout_metrics(
@@ -1310,6 +1396,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 method=args.method,
                 base_data_dir=args.data_dir,
                 base_results_dir=args.results_dir,
+            )
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "ablation":
+            from barilink.evaluate.ablation import generate_ablation_table
+
+            df = generate_ablation_table(
+                runs=args.runs,
+                methods=args.methods,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+                output_path=args.output,
+            )
+            out_p = args.output or Path(args.results_dir) / "holdout" / "ablation_table.md"
+            print(f"\nAblation table generated across {len(df)} methods at: {out_p}")
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "stress":
+            from barilink.evaluate.ablation import generate_stress_table
+
+            df = generate_stress_table(
+                run_name=args.run_name,
+                methods=args.methods,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+                output_path=args.output,
+            )
+            out_p = args.output or Path(args.results_dir) / args.run_name / "stress_table.md"
+            print(
+                f"\nStress table generated across {len(df)} methods on "
+                f"'{args.run_name}' at: {out_p}"
             )
             return 0
         else:
@@ -1339,6 +1454,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_resolve(
             run_name=args.run_name,
             mode=args.mode,
+            base_method=args.base_method,
             config_path=args.config,
             base_data_dir=args.data_dir,
             base_results_dir=args.results_dir,

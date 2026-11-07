@@ -21,31 +21,27 @@ def build_resolved_graph(
     max_birth_year_gap: int = 10,
     must_link_pairs: Optional[Sequence[tuple[str, str]]] = None,
     cannot_link_pairs: Optional[Sequence[tuple[str, str]]] = None,
+    features_df: Optional[pd.DataFrame] = None,
+    apply_listed_as_other_member: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Execute 4-step graph entity resolution.
 
     Step 1: Build connected components from edges with match_weight >= t_link.
-    Step 2: Enforce cannot-link constraints (sex conflict, birth year gap, oracle splits)
-            by cutting minimum-weight edge set separating violating pairs (nx.minimum_cut).
+    Step 2: Enforce cannot-link constraints (sex conflict, birth year gap, oracle splits,
+            and listed_as_other_member) by cutting minimum-weight edge set separating
+            violating pairs (nx.minimum_cut).
     Step 3: Remove weak bridges with match_weight < t_bridge in components with >= 3 records.
     Step 4: Generate deterministic cluster IDs and resolution audit log.
-
-    Args:
-        predictions_df: Scored pairwise predictions (record_id_l, record_id_r, match_weight).
-        records_df: Model-visible registry records (record_id, sex_raw, birth_year_est).
-        t_link: Match-weight linking threshold.
-        t_bridge: Match-weight weak bridge cutting threshold (t_bridge >= t_link).
-        max_birth_year_gap: Maximum allowed birth year difference within a cluster.
-        must_link_pairs: Optional pairs forced to link (weight = 1000.0).
-        cannot_link_pairs: Optional pairs forced not to share a cluster.
-
-    Returns:
-        tuple of (clusters_df, resolution_log_df).
     """
     all_record_ids = sorted(records_df["record_id"].astype(str).unique())
 
     # Build node attribute lookups
     rec_dict = records_df.set_index("record_id").to_dict(orient="index")
+    feat_dict = (
+        features_df.set_index("record_id").to_dict(orient="index")
+        if features_df is not None and not features_df.empty
+        else {}
+    )
 
     # Step 1: Initial Connected Components
     G = nx.Graph()
@@ -140,6 +136,33 @@ def build_resolved_graph(
                                 break
                         except (ValueError, TypeError):
                             pass
+
+                    # Check listed_as_other_member constraint (for v3)
+                    if apply_listed_as_other_member and feat_dict:
+                        feat_u = feat_dict.get(u, {})
+                        feat_v = feat_dict.get(v, {})
+                        skel_u = feat_u.get("name_skeleton")
+                        skel_v = feat_v.get("name_skeleton")
+                        roster_u = feat_u.get("roster_skels_v3")
+                        if roster_u is None or (isinstance(roster_u, float) and pd.isna(roster_u)):
+                            roster_u = feat_u.get("roster_skels")
+                        roster_v = feat_v.get("roster_skels_v3")
+                        if roster_v is None or (isinstance(roster_v, float) and pd.isna(roster_v)):
+                            roster_v = feat_v.get("roster_skels")
+                        r_u_set = (
+                            set(roster_u)
+                            if isinstance(roster_u, (list, tuple, set, np.ndarray))
+                            else set()
+                        )
+                        r_v_set = (
+                            set(roster_v)
+                            if isinstance(roster_v, (list, tuple, set, np.ndarray))
+                            else set()
+                        )
+                        if (skel_u and skel_u in r_v_set) or (skel_v and skel_v in r_u_set):
+                            violating_pair = (u, v)
+                            violation_reason = "listed_as_other_member"
+                            break
 
                 if violating_pair is not None:
                     break
@@ -365,6 +388,8 @@ def select_resolve_parameters(
     cost_false_merge: float = 5.0,
     cost_missed_duplicate: float = 1.0,
     output_dir: Optional[Path] = None,
+    features_df: Optional[pd.DataFrame] = None,
+    apply_listed_as_other_member: bool = False,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     """DEV-only parameter grid search for (t_link, t_bridge).
 
@@ -397,6 +422,8 @@ def select_resolve_parameters(
                 t_link=t_l,
                 t_bridge=t_b,
                 max_birth_year_gap=max_birth_year_gap,
+                features_df=features_df,
+                apply_listed_as_other_member=apply_listed_as_other_member,
             )
 
             metrics = evaluate_resolved_clusters(
@@ -565,6 +592,8 @@ def precompute_ui_clusters(
     t_bridge: float,
     output_path: Path,
     max_birth_year_gap: int = 10,
+    features_df: Optional[pd.DataFrame] = None,
+    apply_listed_as_other_member: bool = False,
 ) -> pd.DataFrame:
     """Precompute resolved clusters on holdout_0 for every t_link at the selected t_bridge.
 
@@ -580,6 +609,8 @@ def precompute_ui_clusters(
             t_link=t_l,
             t_bridge=t_bridge,
             max_birth_year_gap=max_birth_year_gap,
+            features_df=features_df,
+            apply_listed_as_other_member=apply_listed_as_other_member,
         )
         clusters_df["t_link"] = t_l
         all_dfs.append(clusters_df[["t_link", "record_id", "cluster_id"]])

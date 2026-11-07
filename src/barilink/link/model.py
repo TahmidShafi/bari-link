@@ -22,6 +22,8 @@ def create_splink_settings(config: dict[str, Any]) -> SettingsCreator:
     link_cfg = config.get("linkage", {})
     use_tf: bool = link_cfg.get("use_term_frequency", True)
     use_kinship: bool = link_cfg.get("use_kinship", True)
+    guardian_mode: str = link_cfg.get("guardian_mode", "v1")
+    kinship_mode: str = link_cfg.get("kinship_mode", "v1")
     jw_thresholds: Sequence[float] = link_cfg.get("jw_thresholds", [0.92, 0.85])
     jw_village: float = link_cfg.get("jw_village_threshold", 0.88)
 
@@ -39,51 +41,108 @@ def create_splink_settings(config: dict[str, Any]) -> SettingsCreator:
         output_column_name="given_name",
     )
 
-    # 2. Guardian Name
-    c_guardian = cl.CustomComparison(
-        comparison_levels=[
-            cll.NullLevel("guardian_canon"),
-            cll.ExactMatchLevel("guardian_canon", term_frequency_adjustments=use_tf),
-            cll.ExactMatchLevel("guardian_skeleton"),
-            cll.JaroWinklerLevel("guardian_canon", distance_threshold=jw_thresholds[0]),
-            cll.JaroWinklerLevel("guardian_canon", distance_threshold=jw_thresholds[1]),
-            cll.ElseLevel(),
-        ],
-        output_column_name="guardian_name",
-    )
+    # 2. Guardian Name (v1 or v2)
+    if guardian_mode == "v2":
+        else_guard = cll.ElseLevel()
+        else_guard.label_for_charts = "Same guardian type"
+        c_guardian = cl.CustomComparison(
+            comparison_levels=[
+                cll.NullLevel("guardian_canon"),
+                cll.ExactMatchLevel("guardian_canon", term_frequency_adjustments=use_tf),
+                cll.ExactMatchLevel("guardian_skeleton"),
+                cll.JaroWinklerLevel("guardian_canon", distance_threshold=jw_thresholds[0]),
+                cll.JaroWinklerLevel("guardian_canon", distance_threshold=jw_thresholds[1]),
+                cll.CustomLevel(
+                    "coalesce(list_contains(roster_canons_l, guardian_canon_r), false) "
+                    "OR coalesce(list_contains(roster_canons_r, guardian_canon_l), false)",
+                    label_for_charts="guardian_in_roster",
+                ),
+                cll.CustomLevel(
+                    "guardian_type_l IS NOT NULL AND guardian_type_r IS NOT NULL "
+                    "AND guardian_type_l != guardian_type_r",
+                    label_for_charts="guardian_types_known_differ",
+                ),
+                cll.CustomLevel(
+                    "guardian_type_l IS NULL OR guardian_type_r IS NULL",
+                    label_for_charts="guardian_type_unknown",
+                ),
+                else_guard,
+            ],
+            output_column_name="guardian_name",
+        )
+    else:
+        c_guardian = cl.CustomComparison(
+            comparison_levels=[
+                cll.NullLevel("guardian_canon"),
+                cll.ExactMatchLevel("guardian_canon", term_frequency_adjustments=use_tf),
+                cll.ExactMatchLevel("guardian_skeleton"),
+                cll.JaroWinklerLevel("guardian_canon", distance_threshold=jw_thresholds[0]),
+                cll.JaroWinklerLevel("guardian_canon", distance_threshold=jw_thresholds[1]),
+                cll.ElseLevel(),
+            ],
+            output_column_name="guardian_name",
+        )
 
-    # 3. Kinship (Amendment 1)
-    # (a) both rosters null
-    # (b) roster intersect >= 2
-    # (c) cross-household evidence
-    # (d) roster intersect >= 1
-    # (e) else
-    kin_null_level = cll.CustomLevel(
-        "roster_skels_l IS NULL AND roster_skels_r IS NULL",
-        label_for_charts="Both rosters null",
-    )
-    kin_null_level.is_null_level = True
+    # 3. Kinship (v1 or v3)
+    if kinship_mode == "v3":
+        kin_null_level_v3 = cll.CustomLevel(
+            "roster_skels_v3_l IS NULL OR roster_skels_v3_r IS NULL",
+            label_for_charts="Either roster null",
+        )
+        kin_null_level_v3.is_null_level = True
 
-    c_kinship = cl.CustomComparison(
-        comparison_levels=[
-            kin_null_level,
-            cll.CustomLevel(
-                "coalesce(len(list_intersect(roster_skels_l, roster_skels_r)), 0) >= 2",
-                label_for_charts="Roster intersect >= 2",
-            ),
-            cll.CustomLevel(
-                "coalesce(list_contains(roster_skels_l, guardian_skeleton_r), false) "
-                "OR coalesce(list_contains(roster_skels_r, guardian_skeleton_l), false)",
-                label_for_charts="Cross-household guardian match",
-            ),
-            cll.CustomLevel(
-                "coalesce(len(list_intersect(roster_skels_l, roster_skels_r)), 0) >= 1",
-                label_for_charts="Roster intersect >= 1",
-            ),
-            cll.ElseLevel(),
-        ],
-        output_column_name="kinship",
-    )
+        c_kinship = cl.CustomComparison(
+            comparison_levels=[
+                cll.CustomLevel(
+                    "coalesce(list_contains(roster_skels_v3_r, name_skeleton_l), false) "
+                    "OR coalesce(list_contains(roster_skels_v3_l, name_skeleton_r), false)",
+                    label_for_charts="listed_as_other_member",
+                ),
+                cll.CustomLevel(
+                    "coalesce(list_contains(roster_skels_v3_l, guardian_skeleton_r), false) "
+                    "OR coalesce(list_contains(roster_skels_v3_r, guardian_skeleton_l), false)",
+                    label_for_charts="Cross-household guardian match",
+                ),
+                kin_null_level_v3,
+                cll.CustomLevel(
+                    "coalesce(len(list_intersect(roster_skels_v3_l, roster_skels_v3_r)), 0) >= 2",
+                    label_for_charts="Roster intersect >= 2",
+                ),
+                cll.CustomLevel(
+                    "coalesce(len(list_intersect(roster_skels_v3_l, roster_skels_v3_r)), 0) >= 1",
+                    label_for_charts="Roster intersect >= 1",
+                ),
+                cll.ElseLevel(),
+            ],
+            output_column_name="kinship",
+        )
+    else:
+        kin_null_level = cll.CustomLevel(
+            "roster_skels_l IS NULL AND roster_skels_r IS NULL",
+            label_for_charts="Both rosters null",
+        )
+        kin_null_level.is_null_level = True
+
+        c_kinship = cl.CustomComparison(
+            comparison_levels=[
+                kin_null_level,
+                cll.CustomLevel(
+                    "coalesce(len(list_intersect(roster_skels_l, roster_skels_r)), 0) >= 2",
+                    label_for_charts="Roster intersect >= 2",
+                ),
+                cll.CustomLevel(
+                    "coalesce(list_contains(roster_skels_l, guardian_skeleton_r), false) "
+                    "OR coalesce(list_contains(roster_skels_r, guardian_skeleton_l), false)",
+                    label_for_charts="Cross-household guardian match",
+                ),
+                cll.CustomLevel(
+                    "coalesce(len(list_intersect(roster_skels_l, roster_skels_r)), 0) >= 1",
+                    label_for_charts="Roster intersect >= 1",
+                ),
+                cll.ElseLevel(),
+            ],
+            output_column_name="kinship",
+        )
 
     # 4. Phone
     c_phone = cl.CustomComparison(
@@ -202,6 +261,7 @@ def predict_splink_model(
     model_settings_or_path: Any,
     run_name: str,
     base_results_dir: str = "results",
+    method: str = "splink_v1",
     threads: Optional[int] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, int]:
     """Score candidate pairs using trained Splink model and persist prediction parquets."""
@@ -264,7 +324,7 @@ def predict_splink_model(
         )
 
     # Persist outputs
-    out_dir = Path(base_results_dir) / run_name / "splink_v1"
+    out_dir = Path(base_results_dir) / run_name / method
     out_dir.mkdir(parents=True, exist_ok=True)
     preds_path = out_dir / "predictions.parquet"
     detail_path = out_dir / "pair_detail.parquet"
@@ -274,7 +334,7 @@ def predict_splink_model(
     pair_detail_df.to_parquet(detail_path, engine="pyarrow", index=False)
 
     meta = {
-        "method": "splink_v1",
+        "method": method,
         "run_name": run_name,
         "candidate_pair_count": candidate_pair_count,
         "scored_pairs": len(predictions_df),

@@ -503,3 +503,56 @@ def test_resolve_truth_access_forbidden():
                     violations.append((str(py_file), s))
 
     assert not violations, f"Forbidden ground-truth reference found in resolve: {violations}"
+
+
+def test_listed_as_other_member_cannot_link_cut():
+    """Verify that listed_as_other_member triggers cannot-link min-cut in resolution."""
+    records_df = pd.DataFrame(
+        {
+            "record_id": ["r1", "r2"],
+            "sex_raw": [None, None],
+            "birth_year_est": [1990, 1990],
+        }
+    )
+    features_df = pd.DataFrame(
+        {
+            "record_id": ["r1", "r2"],
+            "name_skeleton": ["FATEMA", "ROKEYA"],
+            "roster_skels_v3": [[], ["FATEMA"]],
+        }
+    )
+    preds_df = pd.DataFrame(
+        [
+            {"record_id_l": "r1", "record_id_r": "r2", "match_weight": 10.0},
+        ]
+    )
+
+    # 1. With apply_listed_as_other_member=True: cannot-link cut severs the edge
+    clusters_cut, log_cut = build_resolved_graph(
+        preds_df,
+        records_df,
+        t_link=5.0,
+        t_bridge=5.0,
+        features_df=features_df,
+        apply_listed_as_other_member=True,
+    )
+    c1 = clusters_cut[clusters_cut["record_id"] == "r1"]["cluster_id"].iloc[0]
+    c2 = clusters_cut[clusters_cut["record_id"] == "r2"]["cluster_id"].iloc[0]
+    assert c1 != c2, "r1 and r2 must be in distinct clusters due to listed_as_other_member"
+    assert len(log_cut) == 1
+    assert log_cut.iloc[0]["reason"] == "listed_as_other_member"
+
+    # 2. With apply_listed_as_other_member=False: kept in same cluster
+    clusters_kept, log_kept = build_resolved_graph(
+        preds_df,
+        records_df,
+        t_link=5.0,
+        t_bridge=5.0,
+        features_df=features_df,
+        apply_listed_as_other_member=False,
+    )
+    k1 = clusters_kept[clusters_kept["record_id"] == "r1"]["cluster_id"].iloc[0]
+    k2 = clusters_kept[clusters_kept["record_id"] == "r2"]["cluster_id"].iloc[0]
+    assert k1 == k2, "r1 and r2 must remain merged when apply_listed_as_other_member=False"
+    assert len(log_kept) == 0
+
