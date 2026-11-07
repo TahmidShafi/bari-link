@@ -320,16 +320,28 @@ This section records all architectural, demographic, and technical design decisi
   - On `demo`, diagnostic truth check identified 4 true candidate pairs where the v3 level `listed_as_other_member` erroneously fired, resulting in 5 resolution cannot-link constraint cuts separating records belonging to the SAME person.
   - *Root Cause*: Self-entry removal in Model v3 checked exact `name_canon` equality (`member_canon == self_canon`). When a participant was listed in their own household roster as the head with minor phonetic vowel differences (e.g. "Aminul" vs "Aminol", "Ali Hossain" vs "Ali Hussain", "Soloeman" vs "Soleman"), `name_canon` differed, leaving the entry unremoved. However, `name_skeleton` was identical (`amnlslmsk`, `alhsn`, `slmnlm`), causing the `listed_as_other_member` trigger to match the participant's own name in their other record.
   - *Fix (Model v3.1)*: In `src/barilink/link/normalise.py`, removed roster entries whose `name_skeleton` OR `name_canon` equals the record's own.
-  - *Dev Evaluation Outcome*:
+  - *Dev Evaluation Outcome & Status*:
     - Resolved cannot-link cuts separating the same person fell from 5 to 3.
-    - DEV expected operational cost decreased from 830.0 (`splink_v3_resolved`) to **828.0** (`splink_v3_1_resolved`, $t_{\text{link}}=6.5, t_{\text{bridge}}=8.0$).
+    - Model v3.1 replaced v3 as a correctness fix (dev cost 830.0 -> 828.0; this difference is not treated as evidence), the H2 verdict is unaffected.
     - Cluster F1 improved to 0.6672.
     - **Model v3.1 is adopted as the champion reference model** replacing v3 for H3.
+  - *Diagnosis of 3 Remaining Same-Person Cuts on DEV*:
+    1. `comp_f07bebb1` (Cut edge `(25064e95b8, 28c5ce7d81)`, weight 15.65, Person `P_0000517`):
+       - *Constraint Type*: Direct `listed_as_other_member` cannot-link cut.
+       - *Field Values Responsible*: Synthetic corruption `name_swap` inverted participant and father names in record `28c5ce7d81` (`full_name_raw`: "Abdur Rahman Sheikh", `guardian_name_raw`: "Ayesha Khatun") vs `25064e95b8` (`full_name_raw`: "Mst. Ayesha Khatoon", `guardian_name_raw`: "Mohd. Abdur Rahman Sheikh"). In `25064e95b8`, the roster lists head "Abdur Rahman Sheik" (`abdrhmnsk`), which matches the swapped participant skeleton of `28c5ce7d81`. The constraint correctly severed this link because from the perspective of record `25064e95b8`, Abdur Rahman is a distinct household member (father/head).
+    2. `comp_986eb189` (Cut edge `(70a9befd55, 9c79f783be)`, weight 8.63, Person `P_0011760`):
+       - *Constraint Type*: Min-cut resolution collateral cut enforcing `listed_as_other_member`.
+       - *Field Values Responsible*: Record `70a9befd55` ("Most. Parvin") had a spurious link to co-resident child `fef8003a86` ("Most. Afroza Bibi", guardian "Md. Shah Alam Aloi"). Because `fef8003a86`'s roster contained `'prbnbgm'` ("Parvin Begum"), a valid cannot-link constraint existed between `9c79f783be` ("Parvin Bigum", skeleton `prbnbgm`) and `fef8003a86`. Min-cut resolved this constraint along the 3-node path by severing the weakest edge, which happened to be between the two true Parvin records (`(70a9befd55, 9c79f783be)`, weight 8.63).
+    3. `comp_da38ef11` (Cut edge `(92d15009ec, acd36d8726)`, weight 6.72, Person `P_0003358`):
+       - *Constraint Type*: Min-cut resolution collateral cut enforcing `listed_as_other_member`.
+       - *Field Values Responsible*: Same-household sibling `2ce6ef7afa` ("Salma Bii", skeleton `slmb`) had mutual `listed_as_other_member` cannot-link constraints with `92d15009ec` ("Most. Maleka Khaton", skeleton `mlktn`). Both records had spurious links to `acd36d8726` ("Maleka Khatun", no roster); min-cut severed the weakest edge on the path connecting the conflicting pair, severing edge `(92d15009ec, acd36d8726)` (weight 6.72).
 - **Pre-Registration Hypothesis H3 & Decision Rule**:
   > H3 (formed after inspecting holdout_0..4 ablations, therefore confirmed only on fresh holdout_5..9): Kinship evidence should act as deterministic constraints, not as probabilistic Fellegi-Sunter evidence, because roster overlap violates conditional independence (it signals household, not person). Pipeline K = the reference model (v3, or v3.1 if adopted) with the kinship comparison removed, plus resolution with the listed_as_other_member cannot-link constraint (roster arrays still computed for the constraint). Decision rule: adopt K if its dev expected cost (resolved, own selected t_link/t_bridge) is at least 2% lower than the reference model's resolved dev cost. Confirmation: report K vs the reference on holdout_5..9 (seed offsets 1005-1009, never used before), using paired per-seed cost differences and the direction on 5/5 seeds.
 - **Reference Model Resolved Dev Cost**:
   - Baseline reference: `splink_v3_1_resolved` dev expected operational cost = **828.0**.
   - Adoption threshold for Pipeline K: $0.98 \times 828.0 = \mathbf{811.44}$.
+- **Secondary Outcomes (Reported, Not Decisive)**:
+  > Secondary outcomes (reported, not decisive): (a) doppelganger FM at matched recall 0.40/0.50/0.60 on stress_0 for K vs the reference (v3.1). Expectation: K may be WORSE on cross-household doppelgangers, because the listed_as_other_member constraint only acts within households, while probabilistic kinship evidence reduced matched-recall doppelganger FM by about 9 pp on stress_0 (52.4% vs 61.6% at R = 0.50). (b) Same-household false merges on dev for K vs the reference. If K wins on cost but loses on (a), the project reports this as a trade-off and recommends the pipeline by the stated cost ratio, not by the better-looking metric.
 - **Fresh Holdouts Generated**:
   - Built `holdout_5` through `holdout_9` (seed offsets 1005–1009) with `--role holdout` and exported features. No model has been evaluated on them.
 

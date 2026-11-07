@@ -111,10 +111,15 @@ def run_kinship_bug_check(
             if pu == pv and pu is not None:
                 same_person_cuts.append(
                     {
+                        "component_id": str(row.get("component_id", "")),
                         "record_id_l": u,
                         "record_id_r": v,
                         "person_id": pu,
                         "weight": float(row["weight"]),
+                        "name_l": records_df.loc[u, "full_name_raw"],
+                        "name_r": records_df.loc[v, "full_name_raw"],
+                        "guardian_l": records_df.loc[u, "guardian_name_raw"],
+                        "guardian_r": records_df.loc[v, "guardian_name_raw"],
                     }
                 )
 
