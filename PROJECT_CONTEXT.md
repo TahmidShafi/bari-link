@@ -228,6 +228,28 @@ This section records all architectural, demographic, and technical design decisi
 - **Decision 7.6: Structural Limitation of Bridge Detection**:
   - Documented algorithmic limitation: `nx.bridges` finds single-edge cuts (bridges). If two dense cliques are erroneously joined by 2 or more weak parallel edges, neither edge is mathematically a bridge. Consequently, weak-bridge splitting cannot sever multi-edge spurious connections; they rely entirely on hard cannot-link constraints (sex or birth year conflicts) or escalation to clerical review.
 
+### Log Entry 008: 2026-11-07 — Phase 6 Pre-Registration: Model v2 Guardian Disambiguation & Dev Error Diagnosis
+- **Baseline Re-calibration & Leakage Elimination**:
+  - Executed Step 0.d leakage audit on raw registry ingestion: verified that non-UPG modules never collected `guardian_type_raw` and no survey module ever collected `sex_raw`. Nullified leaked columns in `corrupt/registry.py` and enforced schema-invariance via `test_harmonised_columns_match_module_schema`.
+  - Recomputed clean dev baseline on `demo`: `splink_v1` (unresolved) selected operational threshold $t_{\text{cost}} = 9.25$ ($p \approx 0.998360$, $t_{\text{p99}} = 16.75$) with dev expected operational cost $C_{\text{v1}} = 960.0$ (Cluster Precision = 0.9569, Cluster Recall = 0.4206, Cluster F1 = 0.5844).
+  - Selected `splink_v1_resolved` on `demo` over extended grid $[2.0, 14.0]$: optimum is strictly interior at $t_{\text{link}} = 8.5, t_{\text{bridge}} = 10.0$ (min cost 961.0, 23 weak bridges cut).
+  - Evaluated `splink_v1_resolved` across 5 holdout seeds (`holdout_0` .. `holdout_4`): Cluster Precision $0.6303 \pm 0.0327$, Cluster Recall $0.7615 \pm 0.0090$, Cluster F1 $0.6893 \pm 0.0197$, Reach Error $-1.32\% \pm 0.80\%$, Review Queue Size 4,326.4 per 10k records.
+- **DEV Error Diagnosis on `demo` (at $t_{\text{cost}} = 9.25$)**:
+  - Evaluated 49,984 candidate pairs (1,263 candidate true pairs). Observed 708 missed candidate true pairs (56.1% FN at candidate level) and 23 false merges.
+  - Missed true candidate pairs breakdown:
+    - *Guardian type combination*: `both null` (396, 55.93%) and `null/known` (308, 43.50%) account for 99.4% of missed true candidates, as only UPG collected guardian type.
+    - *True guardian switch*: 245 pairs (34.60%) had true guardian switch events.
+    - *Module pair*: Livelihood Support vs Microfinance Group (270, 38.14%), Microfinance Group vs UPG Enrolment (229, 32.34%), Livelihood Support vs UPG Enrolment (75, 10.59%).
+    - *Null count across pair*: Centered at 8–9 null fields (47.3% have 8–9 nulls out of 20 fields).
+    - *Most damaging Bayes factors*: `kinship` (364, 51.41%) and `guardian_name` (137, 19.35%) most severely depressed match weights below $t_{\text{cost}}$.
+  - False merges breakdown (23 pairs): 100% occurred within the same household (20 Sibling pairs [87.0%], 3 Parent-Child pairs [13.0%]), driven by shared kinship rosters (100%), union (100%), village (100%), and parental names (95.7%).
+- **Pre-Registration Hypothesis H1 & Decision Rule**:
+  > H1: Missed duplicates are concentrated in pairs whose guardian fields refer to different relationships (father vs husband, or unknown). A guardian comparison that separates "names differ, guardian types differ or unknown" from "names differ, same guardian type" will raise dev recall at fixed precision. Decision rule: adopt v2 if dev expected cost at its own t_cost is lower than v1's by >= 2%; otherwise keep v1 and report H1 as not supported.
+  - Unresolved reference baseline: $C_{\text{v1}} = 960.0$ at $w = 9.25$.
+  - Adoption cost threshold: $0.98 \times 960.0 = 940.8$.
+  - If `splink_v2` achieves dev expected cost $\le 940.8$, adopt v2; otherwise keep v1. If adopted, evaluate `splink_v2_resolved` against `splink_v1_resolved` separately.
+
+
 
 
 
