@@ -33,6 +33,12 @@ results/**
 !results/publish/**
 results/ci/**
 
+# Web build artifacts
+web/node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+
 # Web public data export (CI builds it, keep only .gitkeep)
 web/public/data/*
 !web/public/data/.gitkeep

@@ -140,6 +140,19 @@ def export_web_data(
         apply_listed_as_other_member=True,
     )
 
+    clusters_by_thresh_noconstraint_path = (
+        out_path / "clusters_by_threshold_noconstraint.parquet"
+    )
+    clusters_by_thresh_noconstraint_df = precompute_ui_clusters(
+        predictions_df=preds_df,
+        records_df=web_records_df,
+        t_bridge=t_bridge,
+        output_path=clusters_by_thresh_noconstraint_path,
+        max_birth_year_gap=max_birth_year_gap,
+        features_df=features_df,
+        apply_listed_as_other_member=False,
+    )
+
     # -------------------------------------------------------------------------
     # 4. golden_records.parquet: Person-level golden records with field_lineage
     # -------------------------------------------------------------------------
@@ -243,60 +256,136 @@ def export_web_data(
         run_data_dir=run_data_dir,
         clusters_by_thresh_df=clusters_by_thresh_df,
         eval_out_dir=eval_path,
+        clusters_by_thresh_noconstraint_df=clusters_by_thresh_noconstraint_df,
+        pairs_df=web_pairs_df,
     )
 
     # -------------------------------------------------------------------------
     # 8. eval/headline.json: Confirmed holdout_5..9 benchmark results
     # -------------------------------------------------------------------------
+    leakage_src = Path(results_dir) / "holdout" / "leakage_comparison.json"
+    if not leakage_src.exists():
+        leakage_src = Path("results/holdout/leakage_comparison.json")
+
+    h1_src = Path(results_dir) / "demo" / "h1_dev_outcome.json"
+    if not h1_src.exists():
+        h1_src = Path("results/demo/h1_dev_outcome.json")
+
+    h2_src = Path(results_dir) / "demo" / "h2_dev_outcome.json"
+    if not h2_src.exists():
+        h2_src = Path("results/demo/h2_dev_outcome.json")
+
+    confirm_src = Path(results_dir) / "holdout_confirm" / "confirm_table.json"
+    if not confirm_src.exists():
+        confirm_src = Path("results/holdout_confirm/confirm_table.json")
+
+    hh_src = Path(results_dir) / "holdout_confirm" / "household_table.json"
+    if not hh_src.exists():
+        hh_src = Path("results/holdout_confirm/household_table.json")
+
+    leakage_data = {}
+    if leakage_src.exists():
+        with open(leakage_src, "r", encoding="utf-8") as f:
+            leakage_data = json.load(f)
+
+    h1_data = {}
+    if h1_src.exists():
+        with open(h1_src, "r", encoding="utf-8") as f:
+            h1_data = json.load(f)
+
+    h2_data = {}
+    if h2_src.exists():
+        with open(h2_src, "r", encoding="utf-8") as f:
+            h2_data = json.load(f)
+
+    confirm_data = {}
+    if confirm_src.exists():
+        with open(confirm_src, "r", encoding="utf-8") as f:
+            confirm_data = json.load(f)
+
+    hh_data = {}
+    if hh_src.exists():
+        with open(hh_src, "r", encoding="utf-8") as f:
+            hh_data = json.load(f)
+
+    h_conf = confirm_data.get("holdout_confirmation", {})
+    hh_champ = hh_data.get("champion", {})
+    hh_strata_a = hh_data.get("roster_strata", {}).get("stratum_a_with_roster", {})
+
     headline_data = {
         "schema_version": "1.0",
         "sources": [
-            "results/holdout_confirm/confirm_table.md",
-            "results/holdout_confirm/household_table.md",
+            str(leakage_src).replace("\\", "/"),
+            str(h1_src).replace("\\", "/"),
+            str(h2_src).replace("\\", "/"),
+            str(confirm_src).replace("\\", "/"),
+            str(hh_src).replace("\\", "/"),
         ],
         "person_linkage_champion": {
             "method": "splink_k_resolved",
             "operating_thresholds": {"t_link": 2.0, "t_bridge": 4.0},
             "holdout_5_to_9": {
-                "expected_cost_mean": 812.2,
-                "expected_cost_sd": 29.2,
-                "cluster_precision_mean": 0.9656,
-                "cluster_precision_sd": 0.0106,
-                "cluster_recall_mean": 0.5277,
-                "cluster_recall_sd": 0.0172,
-                "cluster_f1_mean": 0.6823,
-                "cluster_f1_sd": 0.0137,
-                "doppelganger_fm_rate": 0.0132,
-                "paired_delta_cost_vs_ref": -76.0,
-                "paired_delta_cost_sd": 27.3,
+                "expected_cost_mean": h_conf.get("pipeline_k_cost_mean", 812.2),
+                "expected_cost_sd": h_conf.get("pipeline_k_cost_sd", 29.2),
+                "cluster_precision_mean": h_conf.get("pipeline_k_precision_mean", 0.9656),
+                "cluster_precision_sd": h_conf.get("pipeline_k_precision_sd", 0.0106),
+                "cluster_recall_mean": h_conf.get("pipeline_k_recall_mean", 0.5277),
+                "cluster_recall_sd": h_conf.get("pipeline_k_recall_sd", 0.0172),
+                "cluster_f1_mean": h_conf.get("pipeline_k_f1_mean", 0.6823),
+                "cluster_f1_sd": h_conf.get("pipeline_k_f1_sd", 0.0137),
+                "doppelganger_fm_rate": h_conf.get("doppelganger_fm_rate_pipeline_k", 0.0132),
+                "paired_delta_cost_vs_ref": h_conf.get("paired_delta_cost", -76.0),
+                "paired_delta_cost_sd": h_conf.get("paired_delta_cost_sd", 27.3),
             },
         },
         "household_inference_champion": {
             "method": "household_graph_cuts",
             "operating_threshold": {"t_hh": 5.0},
             "holdout_5_to_9": {
-                "record_pairwise_f1_mean": 0.4592,
-                "record_pairwise_f1_sd": 0.0049,
-                "record_precision_mean": 0.6848,
-                "record_precision_sd": 0.0147,
-                "record_recall_mean": 0.3455,
-                "record_recall_sd": 0.0042,
-                "unit_bcubed_f1_mean": 0.7528,
-                "unit_bcubed_f1_sd": 0.0017,
-                "hh_reached_error_pct_mean": 59.13,
-                "hh_reached_error_pct_sd": 1.15,
-                "household_size_mae_mean": 2.07,
-                "household_size_mae_sd": 0.06,
-                "stratum_roster_indirect_error_pct_mean": 13.71,
-                "stratum_roster_size_mae_mean": 1.35,
+                "record_pairwise_f1_mean": hh_champ.get("record_pairwise_f1_mean", 0.4592),
+                "record_pairwise_f1_sd": hh_champ.get("record_pairwise_f1_sd", 0.0049),
+                "record_precision_mean": hh_champ.get("record_precision_mean", 0.6848),
+                "record_precision_sd": hh_champ.get("record_precision_sd", 0.0147),
+                "record_recall_mean": hh_champ.get("record_recall_mean", 0.3455),
+                "record_recall_sd": hh_champ.get("record_recall_sd", 0.0042),
+                "unit_bcubed_f1_mean": hh_champ.get("unit_bcubed_f1_mean", 0.7528),
+                "unit_bcubed_f1_sd": hh_champ.get("unit_bcubed_f1_sd", 0.0017),
+                "hh_reached_error_pct_mean": hh_champ.get("hh_reached_error_pct_mean", 59.13),
+                "hh_reached_error_pct_sd": hh_champ.get("hh_reached_error_pct_sd", 1.15),
+                "household_size_mae_mean": hh_champ.get("household_size_mae_mean", 2.07),
+                "household_size_mae_sd": hh_champ.get("household_size_mae_sd", 0.06),
+                "stratum_roster_indirect_error_pct_mean": (
+                    hh_strata_a.get("indirect_reach_error_pct_mean", 13.71)
+                ),
+                "stratum_roster_size_mae_mean": hh_strata_a.get(
+                    "household_size_mae_mean", 1.35
+                ),
             },
         },
         "oracle_comparison": {
-            "record_pairwise_f1_mean": 0.6062,
-            "record_pairwise_f1_sd": 0.0109,
-            "hh_reached_error_pct_mean": 38.74,
-            "household_size_mae_mean": 2.01,
+            "record_pairwise_f1_mean": hh_data.get("oracle", {}).get(
+                "record_pairwise_f1_mean", 0.6062
+            ),
+            "record_pairwise_f1_sd": hh_data.get("oracle", {}).get(
+                "record_pairwise_f1_sd", 0.0109
+            ),
+            "hh_reached_error_pct_mean": hh_data.get("oracle", {}).get(
+                "hh_reached_error_pct_mean", 38.74
+            ),
+            "household_size_mae_mean": hh_data.get("oracle", {}).get(
+                "household_size_mae_mean", 2.01
+            ),
         },
+        "leakage_before_after": leakage_data,
+        "h1": h1_data,
+        "h2": h2_data,
+        "h3": confirm_data,
+        "cost_ratio_sensitivity": {
+            "source": confirm_data.get("source", "results/holdout_confirm/confirm_table.json"),
+            "ratios": confirm_data.get("cost_ratio_sensitivity", []),
+            "description": "Pipeline K vs Reference across cost ratios 1:1, 2:1, 5:1, 10:1",
+        },
+        "household": hh_data,
     }
     web_headline_path = eval_path / "headline.json"
     with open(web_headline_path, "w", encoding="utf-8") as f:

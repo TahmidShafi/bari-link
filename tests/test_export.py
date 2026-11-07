@@ -83,11 +83,22 @@ def _verify_web_data_contract(web_dir: Path):
     for r in clusters_df["record_id"].astype(str):
         assert r in valid_record_ids, f"Cluster record_id {r} not in records"
 
+    # 4b. clusters_by_threshold_noconstraint.parquet integrity
+    nc_clusters_path = web_dir / "clusters_by_threshold_noconstraint.parquet"
+    assert nc_clusters_path.exists(), "clusters_by_threshold_noconstraint.parquet must exist"
+    nc_clusters_df = pd.read_parquet(nc_clusters_path)
+    for r in nc_clusters_df["record_id"].astype(str):
+        assert r in valid_record_ids, f"Cluster record_id {r} not in records"
+
     # 5. Every t_link has exactly one cluster_id per record; rows = n_thresholds x n_records
     n_thresholds = clusters_df["t_link"].nunique()
     n_records = len(records_df)
     assert len(clusters_df) == n_thresholds * n_records, (
         f"clusters rows ({len(clusters_df)}) != thresholds ({n_thresholds}) x records ({n_records})"
+    )
+    assert len(nc_clusters_df) == n_thresholds * n_records, (
+        f"nc_clusters rows ({len(nc_clusters_df)}) != "
+        f"thresholds ({n_thresholds}) x records ({n_records})"
     )
 
     eval_thresh_path = web_dir / "eval" / "threshold_table.parquet"
@@ -96,6 +107,10 @@ def _verify_web_data_contract(web_dir: Path):
     assert set(clusters_df["t_link"].unique()) == set(thresh_table_df["t_link"].unique()), (
         "Distinct t_link set in clusters_by_threshold must equal threshold_table t_link set"
     )
+    assert "variant" in thresh_table_df.columns, "variant column missing in threshold_table"
+    assert {"constraint", "no_constraint", "raw"}.issubset(
+        set(thresh_table_df["variant"].unique())
+    ), "threshold_table must contain constraint, no_constraint, and raw variants"
 
     for t_val, grp in clusters_df.groupby("t_link"):
         assert len(grp) == len(

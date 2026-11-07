@@ -36,7 +36,22 @@ Outputs will be generated in `data/generated/demo/`:
 
 ### Running Tests and Linting
 ```bash
-pytest -q
+pytest -q -m "not publish and not artifacts"
 ruff check .
+```
+
+### Static Web Application & Offline Fixtures
+The browser application in `web/` runs client-side on DuckDB-Wasm and deploys to GitHub Pages:
+```bash
+# Regenerate Vitest fixtures from published web data
+python scripts/export_fixture.py
+
+# Web development & test suite
+npm ci --prefix web
+npm run lint --prefix web
+npm test --prefix web
+npm run build --prefix web
+npm run test:e2e --prefix web
+npm run perf --prefix web  # Standalone performance audit via web/scripts/measure_perf.cjs
 ```
 

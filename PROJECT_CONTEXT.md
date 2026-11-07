@@ -69,6 +69,17 @@ pytest -q -m publish                         # Full publication pipeline data co
 
 # 6. Verify CI isolation in a clean temporary clone (workflow: commit locally -> run prove_ci.py -> push)
 python scripts/prove_ci.py
+
+# 7. Regenerate Vitest offline test fixtures from exported web data
+python scripts/export_fixture.py
+
+# 8. Web Application: install, lint, test, build, E2E smoke tests, and performance audit
+npm ci --prefix web
+npm run lint --prefix web
+npm test --prefix web
+npm run build --prefix web
+npm run test:e2e --prefix web
+npm run perf --prefix web  # Or node web/scripts/measure_perf.cjs
 ```
 
 ---
@@ -529,6 +540,33 @@ This section records all architectural, demographic, and technical design decisi
   - Asserts complete absence of untracked experiment directories (`data/generated/` and `results/holdout_5/`).
   - Creates a fresh virtualenv, installs package with dev dependencies, executes `ruff check .`, `pytest -q -m "not publish and not artifacts"`, `python -m barilink.cli pipeline --profile ci`, and validates zero tracked file mutations via `git diff --exit-code`.
   - Supports `--worktree` flag for verifying candidate working tree changes prior to committing.
+
+### Log Entry 013: 2026-11-07 — Phase 9 Static Web Application, Client-Side DuckDB-Wasm, and GitHub Pages CI
+- **Decision 13.1: Zero-Backend In-Browser Architecture**:
+  - Built standalone React 18 + TypeScript + Vite web application in `web/` running client-side with `@duckdb/duckdb-wasm` (loaded via same-origin Blob worker from jsDelivr CDN), Observable Plot (SVG precision/recall curves), and d3-force (small household graphs).
+  - Configured Vite base path `/bari-link/` (configurable via `VITE_BASE_PATH`) for seamless deployment on GitHub Pages.
+  - Hard constraint: Zero backend, zero analytics, zero cookies, zero external network queries except DuckDB-Wasm CDN bundles. Persistent top banner on every page: *"All data are synthetic. No real person is represented."*
+  - Strict isolation: ESLint `no-restricted-imports` forbids `src/data/` and `src/workers/` from importing `src/eval/`. AST scan tests ensure zero `"eval"` in data/workers and zero `"data/eval"` outside `src/eval`.
+  - Zero hard-coded figures: Overview and Findings render dynamically from DuckDB queries or `eval/headline.json`, enforced by AST `findings_no_hardcoded_numbers.test.ts`.
+- **Decision 13.2: Counterfactual Python Export Extensions**:
+  - Extended `src/barilink/export/web.py` to export `clusters_by_threshold_noconstraint.parquet` (same predictions and thresholds, but with `listed_as_other_member` disabled).
+  - Extended `eval/threshold_table.parquet` with a `variant` column in `{"constraint", "no_constraint", "raw"}` (75 rows total).
+  - Extended `eval/headline.json` with 6 machine-readable sections carrying `"source"` paths: `leakage_before_after`, `h1`, `h2`, `h3`, `cost_ratio_sensitivity`, `household`.
+- **Decision 13.3: Interactive 4-View Suite & Performance Benchmarks**:
+  - **Overview**: Dynamic module counts (4,841 naive registrations), true persons (3,689, +31.2% inflation), threshold slider ($t_{\text{link}} \in [2.0, 14.0]$, default 2.0 marked *"selected on dev data"*), 3-way pipeline mode switch, 6 live metric tiles, Observable Plot P/R curve, and clickable false-merge error inspector.
+  - **Pair Explorer**: Prefix search by name or ID, candidate pair drawer sorted by weight, side-by-side administrative fields comparison with TruthChip, and exact Fellegi-Sunter log-odds evidence waterfall (`prior_log2_odds + sum(log2 bf) == match_weight` within $10^{-6}$).
+  - **Households**: Search by person or household ID, golden household profile (direct/indirect reach, rosters, lineage), and 1-hop interactive force-directed graph with E1–E5 edge evidence labels.
+  - **Findings**: Pure machine-readable display of ground-truth leakage discovery, H1–H3 outcomes, cost-ratio sensitivity (Pipeline K wins when false merges cost $\ge 2\times$ missed duplicates), and household engineering limitations (E2 penalty, weight fragility).
+  - **Measured Performance**:
+    - First Meaningful Paint (FMP): **115.2 ms** (target < 2,000 ms, 17x faster than budget).
+    - Full DuckDB-Wasm Ready: **1,948 ms**.
+    - Slider Update Latency (Resolved Mode): **68.8 ms** (target < 100 ms).
+    - Production Bundle Size: `index.js` 676.6 KB (**202.4 KB gzip**), `unionfind.worker.js` 1.03 KB (**0.50 KB gzip**), `index.css` 7.89 KB (**2.14 KB gzip**).
+- **Decision 13.4: Automated GitHub Pages Deployment (`.github/workflows/pages.yml`)**:
+  - Dual-job pipeline: `publish-data` (Python 3.11, `pipeline --verify`, data-contract tests, upload `web-data` artifact) $\to$ `build-and-deploy` (Node 22, `npm ci`, ESLint, Vitest, build with `VITE_BASE_PATH=/bari-link/`, Playwright smoke test, GitHub Pages deployment).
+  - Permissions: `pages: write`, `id-token: write`, `contents: read`. Concurrency group: `pages` (`cancel-in-progress: false`).
+  - Required one-time manual repository configuration: **Settings -> Pages -> Build and deployment -> Source = GitHub Actions**.
+
 
 
 
