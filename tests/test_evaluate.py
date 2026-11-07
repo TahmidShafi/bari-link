@@ -545,3 +545,34 @@ def test_stress_run_refused_by_select_mode(tmp_path):
             base_data_dir=tmp_path,
         )
 
+
+def test_kinship_bug_check_on_dev():
+    """Verify bug check runs on dev and identifies cuts."""
+    from barilink.evaluate.bug_check import run_kinship_bug_check
+
+    v31_res = run_kinship_bug_check(
+        method="splink_v3_1", resolved_method="splink_v3_1_resolved"
+    )
+    assert v31_res["true_pairs_listed_fired_count"] == 2
+    assert v31_res["same_person_cuts_count"] == 3
+
+
+def test_stress_curves_and_matched_recall():
+    """Verify stress curve generation and matched-recall interpolation."""
+    from barilink.evaluate.ablation import compute_stress_curves
+
+    curves_df, matched_df = compute_stress_curves(
+        run_name="stress_0",
+        methods=["splink_v1", "splink_v3", "splink_v3_no_kinship"],
+    )
+    assert not curves_df.empty
+    assert "pooled_fm_rate" in curves_df.columns
+    assert "cluster_recall" in curves_df.columns
+
+    assert not matched_df.empty
+    assert "pooled_fm@0.50" in matched_df.columns
+    # Check that curves file and chart exist
+    assert Path("results/stress_0/stress_curves.parquet").exists()
+    assert Path("results/stress_0/charts/stress_fm_vs_recall.html").exists()
+
+

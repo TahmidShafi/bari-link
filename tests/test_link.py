@@ -17,6 +17,7 @@ from barilink.link.model import (
     train_splink_model,
 )
 from barilink.link.normalise import (
+    build_features,
     canonicalise_name,
     canonicalise_village,
     clean_text_basic,
@@ -603,4 +604,51 @@ def test_config_overrides_produce_distinct_models():
     for i in range(len(all_dicts)):
         for j in range(i + 1, len(all_dicts)):
             assert all_dicts[i] != all_dicts[j]
+
+
+def test_v3_1_self_roster_skeleton_filtering():
+    """Verify v3.1 removes roster entries matching participant's name_skeleton or name_canon."""
+    records_df = pd.DataFrame(
+        [
+            {
+                "record_id": "rec_001",
+                "source_module": "upg_enrolment",
+                "enrolment_date": "2025-01-01",
+                "full_name_raw": "Md. Aminul Islam Sheikh",
+                "guardian_name_raw": "Abdul Karim Sheikh",
+                "guardian_type_raw": "father",
+                "age_raw": 35,
+                "sex_raw": None,
+                "phone_raw": "01711223344",
+                "village_raw": "Dokkhin Para",
+                "union_raw": "Union A",
+                "upazila_raw": "Upazila 1",
+                "district_raw": "District 1",
+                "group_id": None,
+            }
+        ]
+    )
+
+    rosters_df = pd.DataFrame(
+        [
+            {
+                "record_id": "rec_001",
+                "member_name_raw": "Aminol Islam Sheikh",  # Same skeleton, differing canon
+                "relation_raw": "head",
+            },
+            {
+                "record_id": "rec_001",
+                "member_name_raw": "Lal Mia Sheikh",  # Other member
+                "relation_raw": "child",
+            },
+        ]
+    )
+
+    feats = build_features(records_df, rosters_df)
+    r_skels = feats.iloc[0]["roster_skels_v3"]
+    # Self entry matching skeleton must be removed
+    assert "amnlslmsk" not in r_skels
+    # Genuine other member must be retained
+    assert "lmsk" in r_skels
+
 

@@ -1111,6 +1111,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--output", "-o", type=str, default=None, help="Output markdown file path"
     )
 
+    # Subcommand: evaluate batch
+    bat_parser = eval_subparsers.add_parser(
+        "batch", help="Batch predict, resolve, and evaluate methods across runs"
+    )
+    bat_parser.add_argument(
+        "--runs",
+        nargs="+",
+        default=["holdout_0..holdout_4"],
+        help="List of runs or range (e.g. holdout_0..holdout_4, stress_0)",
+    )
+    bat_parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=None,
+        help="List of methods to score and evaluate in batch",
+    )
+    bat_parser.add_argument(
+        "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
+    )
+    bat_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
+    bat_parser.add_argument(
+        "--threads", type=int, default=1, help="DuckDB execution threads"
+    )
+
     # Standard evaluate options on eval_parser
     eval_parser.add_argument(
         "--method",
@@ -1425,6 +1449,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 f"\nStress table generated across {len(df)} methods on "
                 f"'{args.run_name}' at: {out_p}"
+            )
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "batch":
+            from barilink.evaluate.batch import run_batch_evaluation
+
+            run_batch_evaluation(
+                runs=args.runs,
+                methods=args.methods,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+                threads=args.threads,
             )
             return 0
         else:

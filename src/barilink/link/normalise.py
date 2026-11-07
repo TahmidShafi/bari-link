@@ -290,10 +290,16 @@ def build_features(
         features["roster_skels"] = features["record_id"].map(grouped_skels)
         features["roster_canons"] = features["record_id"].map(grouped_canons)
 
-        # Self-filtered (v3): remove roster entries matching record's own name_canon
+        # Self-filtered (v3.1): remove roster entries whose name_skeleton OR name_canon
+        # equals the record's own
         rec_canons = dict(zip(features["record_id"], features["name_canon"]))
+        rec_skels = dict(zip(features["record_id"], features["name_skeleton"]))
         roster_work["self_canon"] = roster_work["record_id"].map(rec_canons)
-        roster_filt = roster_work[roster_work["canon"] != roster_work["self_canon"]]
+        roster_work["self_skel"] = roster_work["record_id"].map(rec_skels)
+        roster_filt = roster_work[
+            (roster_work["canon"] != roster_work["self_canon"])
+            & (roster_work["skel"] != roster_work["self_skel"])
+        ]
 
         filt_skels = (
             roster_filt.groupby("record_id")["skel"]

@@ -309,11 +309,30 @@ This section records all architectural, demographic, and technical design decisi
     - Natural pairs: 2/60 (3.3%) merged across all kinship models, rising to 4/60 (6.7%) for `no_kinship`.
     - Injected pairs: `splink_v3` = 302/499 (60.5%), `splink_v3_resolved` = 317/499 (63.5%), whereas `splink_v3_no_kinship` surges to **381/499 (76.4%)** [+15.9 pp].
     - Pooled pairs: `splink_v3` = 304/559 (54.4%), `splink_v3_resolved` = 319/559 (57.1%), whereas `splink_v3_no_kinship` surges to **385/559 (68.9%)** [+14.5 pp].
-  - Proves that while kinship rosters cannot completely prevent false merges when non-kin share identical names, guardians, and locations without rosters, kinship evidence is essential for rejecting doppelgangers: removing kinship inflates false merges by over 16 percentage points.
+  - Variants operate at different selected thresholds whose weight scales are not comparable, and only 21/559 doppelganger pairs have rosters on both records, so the stress table alone does not isolate a kinship effect.
 - **Reporting Artifacts Generated**:
   - `results/holdout/ablation_table.md`: Systematic ablation across 5 holdout seeds with paired per-seed $\Delta F_1$.
   - `results/stress_0/stress_table.md`: Complete natural vs injected vs pooled doppelganger breakdown with Wilson 95% CIs and generation notes.
   - `results/holdout/baseline_comparison.md`: Multi-seed benchmark comparing baselines, `splink_v1`, `splink_v1_resolved`, `splink_v3`, and `splink_v3_resolved`.
+
+### Log Entry 009: 2026-11-07 — Phase 6b Model v3.1 Self-Roster Filtering Bug Fix & Pre-Registration H3
+- **Model v3.1 Bug Fix (Self-Roster Member Collision)**:
+  - On `demo`, diagnostic truth check identified 4 true candidate pairs where the v3 level `listed_as_other_member` erroneously fired, resulting in 5 resolution cannot-link constraint cuts separating records belonging to the SAME person.
+  - *Root Cause*: Self-entry removal in Model v3 checked exact `name_canon` equality (`member_canon == self_canon`). When a participant was listed in their own household roster as the head with minor phonetic vowel differences (e.g. "Aminul" vs "Aminol", "Ali Hossain" vs "Ali Hussain", "Soloeman" vs "Soleman"), `name_canon` differed, leaving the entry unremoved. However, `name_skeleton` was identical (`amnlslmsk`, `alhsn`, `slmnlm`), causing the `listed_as_other_member` trigger to match the participant's own name in their other record.
+  - *Fix (Model v3.1)*: In `src/barilink/link/normalise.py`, removed roster entries whose `name_skeleton` OR `name_canon` equals the record's own.
+  - *Dev Evaluation Outcome*:
+    - Resolved cannot-link cuts separating the same person fell from 5 to 3.
+    - DEV expected operational cost decreased from 830.0 (`splink_v3_resolved`) to **828.0** (`splink_v3_1_resolved`, $t_{\text{link}}=6.5, t_{\text{bridge}}=8.0$).
+    - Cluster F1 improved to 0.6672.
+    - **Model v3.1 is adopted as the champion reference model** replacing v3 for H3.
+- **Pre-Registration Hypothesis H3 & Decision Rule**:
+  > H3 (formed after inspecting holdout_0..4 ablations, therefore confirmed only on fresh holdout_5..9): Kinship evidence should act as deterministic constraints, not as probabilistic Fellegi-Sunter evidence, because roster overlap violates conditional independence (it signals household, not person). Pipeline K = the reference model (v3, or v3.1 if adopted) with the kinship comparison removed, plus resolution with the listed_as_other_member cannot-link constraint (roster arrays still computed for the constraint). Decision rule: adopt K if its dev expected cost (resolved, own selected t_link/t_bridge) is at least 2% lower than the reference model's resolved dev cost. Confirmation: report K vs the reference on holdout_5..9 (seed offsets 1005-1009, never used before), using paired per-seed cost differences and the direction on 5/5 seeds.
+- **Reference Model Resolved Dev Cost**:
+  - Baseline reference: `splink_v3_1_resolved` dev expected operational cost = **828.0**.
+  - Adoption threshold for Pipeline K: $0.98 \times 828.0 = \mathbf{811.44}$.
+- **Fresh Holdouts Generated**:
+  - Built `holdout_5` through `holdout_9` (seed offsets 1005–1009) with `--role holdout` and exported features. No model has been evaluated on them.
+
 
 
 

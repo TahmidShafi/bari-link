@@ -29,7 +29,19 @@ All models are evaluated strictly at their frozen dev-selected operational thres
 - **Mean Roster Overlap**: 0.43 members (Maximum: 1 members).
 - **Significance**: Because doppelgangers belong to distinct households, their kinship rosters show essentially zero overlap. In contrast, same-household co-residents exhibit high roster overlap ($\ge 2$ members).
 
-### Critical Role of Kinship Features
-- When kinship is active (`splink_v1`, `splink_v2`, `splink_v3`), the lack of roster overlap prevents spurious merges from receiving large kinship match boosts.
-- When kinship is completely removed (`splink_v3_no_kinship`), injected false merges surge to **76.4%** (381/499) and pooled false merges reach **68.9%** (385/559), an increase of +15.9 to +17.2 percentage points over champion. This proves kinship is mathematically essential for rejecting hard doppelgangers in rural registries.
+### Interpretation Note
+- Variants operate at different selected thresholds whose weight scales are not comparable, and only 21/559 doppelganger pairs have rosters on both records, so the stress table alone does not isolate a kinship effect.
 
+---
+
+## 3. Matched-Recall Doppelganger False-Merge Comparison
+
+To control for threshold stringency across variants, doppelganger false-merge rates are evaluated at matched cluster recall levels $R \in \{0.40, 0.50, 0.60\}$ via linear interpolation along each variant's parametric threshold sweep curve. Complete curves are saved to `stress_curves.parquet` and visualized in `charts/stress_fm_vs_recall.html`.
+
+| Method | Pooled FM @ R=0.40 | Natural FM @ R=0.40 | Injected FM @ R=0.40 | Pooled FM @ R=0.50 | Natural FM @ R=0.50 | Injected FM @ R=0.50 | Pooled FM @ R=0.60 | Natural FM @ R=0.60 | Injected FM @ R=0.60 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `splink_v1` | 41.8% | 0.0% | 46.9% | 49.3% | 3.3% | 54.8% | 56.9% | 3.3% | 63.3% |
+| `splink_v2` | 43.8% | 0.0% | 49.1% | 49.1% | 3.3% | 54.6% | 54.9% | 3.3% | 61.0% |
+| `splink_v3` | 46.7% | 0.0% | 52.3% | 52.4% | 3.3% | 58.2% | 58.3% | 3.3% | 64.9% |
+| `splink_v3_no_tf` | 47.6% | 3.3% | 52.9% | 52.8% | 3.3% | 58.8% | 58.2% | 3.3% | 64.8% |
+| `splink_v3_no_kinship` | 54.5% | 0.0% | 61.1% | 61.6% | 1.7% | 68.8% | 66.5% | 6.7% | 73.7% |

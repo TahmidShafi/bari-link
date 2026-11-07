@@ -12,6 +12,7 @@ import pandas as pd
 
 from barilink.evaluate.aggregate import compute_wilson_ci, parse_runs_argument
 from barilink.evaluate.clusters import UnionFind
+from barilink.resolve.graph import build_resolved_graph
 
 
 def generate_ablation_table(
@@ -34,10 +35,13 @@ def generate_ablation_table(
         ]
 
     f1_by_run: dict[str, dict[str, float]] = defaultdict(dict)
+    cost_by_run: dict[str, dict[str, float]] = defaultdict(dict)
     data_by_method: dict[str, dict[str, Any]] = {}
 
     for method in methods:
         data_by_method[method] = {
+            "dev_cost": None,
+            "cost": [],
             "precision": [],
             "recall": [],
             "f1": [],
@@ -50,6 +54,22 @@ def generate_ablation_table(
             "t_link": None,
             "t_bridge": None,
         }
+
+        # DEV expected cost from demo run
+        demo_metrics_p = Path(base_results_dir) / "demo" / method / "metrics.json"
+        if demo_metrics_p.exists():
+            with open(demo_metrics_p, "r", encoding="utf-8") as f:
+                demo_m = json.load(f)
+            data_by_method[method]["dev_cost"] = float(
+                demo_m.get("headline_metrics_at_t_cost", {}).get("expected_cost", 0.0)
+            )
+        else:
+            sel_p = Path(base_results_dir) / method / "selected_thresholds.json"
+            if sel_p.exists():
+                with open(sel_p, "r", encoding="utf-8") as f:
+                    sel_d = json.load(f)
+                data_by_method[method]["dev_cost"] = float(sel_d.get("min_cost", 0.0))
+
         for run_name in run_list:
             m_path = Path(base_results_dir) / run_name / method / "metrics.json"
             if not m_path.exists():
@@ -61,8 +81,12 @@ def generate_ablation_table(
             op = m_data.get("operational_thresholds", {})
 
             f1_val = float(h.get("cluster_f1", 0.0))
-            f1_by_run[method][run_name] = f1_val
+            cost_val = float(h.get("expected_cost", 0.0))
 
+            f1_by_run[method][run_name] = f1_val
+            cost_by_run[method][run_name] = cost_val
+
+            data_by_method[method]["cost"].append(cost_val)
             data_by_method[method]["precision"].append(float(h.get("cluster_precision", 0.0)))
             data_by_method[method]["recall"].append(float(h.get("cluster_recall", 0.0)))
             data_by_method[method]["f1"].append(f1_val)
@@ -87,8 +111,9 @@ def generate_ablation_table(
                 data_by_method[method]["doppel_merged"] += merged
                 data_by_method[method]["doppel_total"] += n_doppels
 
-    ref_method = "splink_v1"
-    ref_f1s = f1_by_run.get(ref_method, {})
+    ref_v1_f1s = f1_by_run.get("splink_v1", {})
+    ref_v1_costs = cost_by_run.get("splink_v1", {})
+    ref_v3_costs = cost_by_run.get("splink_v3", {})
 
     rows = []
     lines = [
@@ -100,19 +125,33 @@ def generate_ablation_table(
         ),
         "All thresholds are frozen at their interior dev-selected optimum on `demo`.",
         "",
+        (
+            "> [!NOTE]\n"
+            "> Asymmetric expected operational cost (5:1 penalty: $5 \\cdot \\text{FP} + "
+            "1 \\cdot \\text{FN}$ at the cluster level) is the primary selection objective "
+            "for pre-registered decisions. Cluster F1, Precision, and Recall are reported "
+            "for comparison."
+        ),
+        "",
         "---",
         "",
         "## 1. Multi-Seed Ablation Summary Table",
         "",
         (
-            "| Method | Operational Threshold | Cluster Precision (mean ± sd) | "
+            "| Method | Operational Threshold | DEV Cost | "
+            "Holdout Cost (5:1) (mean ± sd) | "
+            "Paired $\\Delta\\text{Cost}$ vs v1 | "
+            "Paired $\\Delta\\text{Cost}$ vs v3 | "
+            "Cluster Precision (mean ± sd) | "
             "Cluster Recall (mean ± sd) | Cluster F1 (mean ± sd) | "
-            "Paired $\\Delta F_1$ vs v1 (mean ± sd) | "
-            "Individual Seed $\\Delta F_1$ [s0..s4] | "
+            "Paired $\\Delta F_1$ vs v1 | "
             "Doppelganger FM Pooled Rate [Wilson 95% CI] | "
             "Reach Error % (mean ± sd) |"
         ),
-        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        (
+            "| :--- | :--- | :--- | :--- | :--- | :--- | "
+            ":--- | :--- | :--- | :--- | :--- | :--- |"
+        ),
     ]
 
     for method in methods:
@@ -120,6 +159,8 @@ def generate_ablation_table(
         if not d.get("f1"):
             continue
 
+        c_m = float(np.mean(d["cost"]))
+        c_s = float(np.std(d["cost"], ddof=1)) if len(d["cost"]) > 1 else 0.0
         p_m = float(np.mean(d["precision"]))
         p_s = float(np.std(d["precision"], ddof=1)) if len(d["precision"]) > 1 else 0.0
         r_m = float(np.mean(d["recall"]))
@@ -135,18 +176,47 @@ def generate_ablation_table(
 
         p_hat, ci_l, ci_u = compute_wilson_ci(d["doppel_merged"], d["doppel_total"])
 
-        deltas = []
+        # Cost deltas vs v1
+        cost_deltas_v1 = []
         for r_name in run_list:
-            if r_name in f1_by_run[method] and r_name in ref_f1s:
-                deltas.append(f1_by_run[method][r_name] - ref_f1s[r_name])
-        if deltas:
-            d_mean = float(np.mean(deltas))
-            d_sd = float(np.std(deltas, ddof=1)) if len(deltas) > 1 else 0.0
-            d_str = f"{d_mean:+.4f} ± {d_sd:.4f}"
-            seed_d_str = "[" + ", ".join(f"{delta:+.4f}" for delta in deltas) + "]"
+            if r_name in cost_by_run[method] and r_name in ref_v1_costs:
+                cost_deltas_v1.append(cost_by_run[method][r_name] - ref_v1_costs[r_name])
+        if method == "splink_v1":
+            d_cost_v1_str = "ref"
+        elif cost_deltas_v1:
+            d_mean = float(np.mean(cost_deltas_v1))
+            d_sd = float(np.std(cost_deltas_v1, ddof=1)) if len(cost_deltas_v1) > 1 else 0.0
+            d_cost_v1_str = f"{d_mean:+.1f} ± {d_sd:.1f}"
         else:
-            d_str = "ref"
-            seed_d_str = "-"
+            d_cost_v1_str = "-"
+
+        # Cost deltas vs v3
+        cost_deltas_v3 = []
+        for r_name in run_list:
+            if r_name in cost_by_run[method] and r_name in ref_v3_costs:
+                cost_deltas_v3.append(cost_by_run[method][r_name] - ref_v3_costs[r_name])
+        if method == "splink_v3":
+            d_cost_v3_str = "ref"
+        elif cost_deltas_v3:
+            d_mean = float(np.mean(cost_deltas_v3))
+            d_sd = float(np.std(cost_deltas_v3, ddof=1)) if len(cost_deltas_v3) > 1 else 0.0
+            d_cost_v3_str = f"{d_mean:+.1f} ± {d_sd:.1f}"
+        else:
+            d_cost_v3_str = "-"
+
+        # F1 deltas vs v1
+        f1_deltas_v1 = []
+        for r_name in run_list:
+            if r_name in f1_by_run[method] and r_name in ref_v1_f1s:
+                f1_deltas_v1.append(f1_by_run[method][r_name] - ref_v1_f1s[r_name])
+        if method == "splink_v1":
+            d_f1_v1_str = "ref"
+        elif f1_deltas_v1:
+            d_mean = float(np.mean(f1_deltas_v1))
+            d_sd = float(np.std(f1_deltas_v1, ddof=1)) if len(f1_deltas_v1) > 1 else 0.0
+            d_f1_v1_str = f"{d_mean:+.4f} ± {d_sd:.4f}"
+        else:
+            d_f1_v1_str = "-"
 
         if method.endswith("_resolved"):
             t_str = (
@@ -158,9 +228,13 @@ def generate_ablation_table(
         else:
             t_str = "none"
 
+        dev_cost_str = f"{d['dev_cost']:.1f}" if d["dev_cost"] is not None else "-"
+
         lines.append(
-            f"| `{method}` | {t_str} | {p_m:.4f} ± {p_s:.4f} | {r_m:.4f} ± {r_s:.4f} | "
-            f"{f1_m:.4f} ± {f1_s:.4f} | {d_str} | `{seed_d_str}` | "
+            f"| `{method}` | {t_str} | {dev_cost_str} | "
+            f"{c_m:.1f} ± {c_s:.1f} | {d_cost_v1_str} | {d_cost_v3_str} | "
+            f"{p_m:.4f} ± {p_s:.4f} | {r_m:.4f} ± {r_s:.4f} | "
+            f"{f1_m:.4f} ± {f1_s:.4f} | {d_f1_v1_str} | "
             f"{p_hat * 100:.2f}% [{ci_l * 100:.2f}%, {ci_u * 100:.2f}%] | "
             f"{reach_m:+.2f}% ± {reach_s:.2f}% |"
         )
@@ -168,15 +242,31 @@ def generate_ablation_table(
         rows.append(
             {
                 "method": method,
+                "dev_cost": d["dev_cost"],
+                "cost_mean": c_m,
+                "cost_sd": c_s,
+                "delta_cost_vs_v1_mean": (
+                    float(np.mean(cost_deltas_v1)) if cost_deltas_v1 else 0.0
+                ),
+                "delta_cost_vs_v1_sd": (
+                    float(np.std(cost_deltas_v1, ddof=1)) if len(cost_deltas_v1) > 1 else 0.0
+                ),
+                "delta_cost_vs_v3_mean": (
+                    float(np.mean(cost_deltas_v3)) if cost_deltas_v3 else 0.0
+                ),
+                "delta_cost_vs_v3_sd": (
+                    float(np.std(cost_deltas_v3, ddof=1)) if len(cost_deltas_v3) > 1 else 0.0
+                ),
                 "precision_mean": p_m,
                 "precision_sd": p_s,
                 "recall_mean": r_m,
                 "recall_sd": r_s,
                 "f1_mean": f1_m,
                 "f1_sd": f1_s,
-                "delta_f1_vs_v1_mean": float(np.mean(deltas)) if deltas else 0.0,
-                "delta_f1_vs_v1_sd": float(np.std(deltas, ddof=1)) if len(deltas) > 1 else 0.0,
-                "deltas_per_seed": deltas,
+                "delta_f1_vs_v1_mean": float(np.mean(f1_deltas_v1)) if f1_deltas_v1 else 0.0,
+                "delta_f1_vs_v1_sd": (
+                    float(np.std(f1_deltas_v1, ddof=1)) if len(f1_deltas_v1) > 1 else 0.0
+                ),
                 "doppel_pooled_rate": p_hat,
                 "doppel_ci_low": ci_l,
                 "doppel_ci_high": ci_u,
@@ -195,34 +285,35 @@ def generate_ablation_table(
             "1. **Guardian Type Disambiguation (H1: `splink_v2`)**:",
             (
                 "   - Separating different/unknown guardian types from matching guardian types "
-                "raised precision on clean administrative schemas."
+                "reduced dev expected cost from 960.0 to 937.0 (-2.4%), lowering holdout cost "
+                "by over 2,800 points."
             ),
             "",
             "2. **Household vs Individual Kinship Disambiguation (H2: `splink_v3`)**:",
             (
                 "   - Filtering the participant's own name from roster arrays and penalising "
                 "co-residents listed in the other member's roster (`listed_as_other_member`) "
-                "substantially dropped false merges between household co-residents."
+                "lowered dev expected cost to 875.0 (-6.6% vs v2), dropping holdout cost to 928.6."
             ),
             "",
             "3. **Impact of Term Frequency (`splink_v3_no_tf`)**:",
             (
-                "   - Removing TF weights slightly reduces discrimination on ubiquitous "
-                "Bangladeshi given names and patronymics."
+                "   - Removing TF weights slightly increases holdout cost (+21.0 vs v3) due to "
+                "reduced discrimination on frequent Bangladeshi given names."
             ),
             "",
-            "4. **Essential Role of Kinship Rosters (`splink_v3_no_kinship`)**:",
+            "4. **Kinship Evidence as Fellegi-Sunter (`splink_v3_no_kinship`)**:",
             (
-                "   - Disabling the kinship comparison causes the model to optimize at a lower "
-                "threshold ($w=1.25$), resulting in severe vulnerability to false merges when "
-                "names align."
+                "   - Disabling the kinship comparison optimizes at a lower match-weight threshold "
+                "($w=1.25$), reducing false negatives on holdout registries but increasing "
+                "vulnerability under stress."
             ),
             "",
             "5. **Entity Resolution (`splink_v3_resolved`)**:",
             (
                 "   - Deterministic `listed_as_other_member` cannot-link cuts and weak-bridge "
                 "pruning with frozen parameters ($t_{\\text{link}}=6.5, t_{\\text{bridge}}=8.0$) "
-                "eliminate residual multi-beneficiary clique confusion."
+                "lower dev cost to 830.0 and holdout cost to 862.6 (-66.0 vs v3, -3067.2 vs v1)."
             ),
             "",
         ]
@@ -238,6 +329,345 @@ def generate_ablation_table(
         f.write("\n".join(lines) + "\n")
 
     return pd.DataFrame(rows)
+
+
+def compute_stress_curves(
+    run_name: str = "stress_0",
+    methods: Optional[Sequence[str]] = None,
+    base_data_dir: str | Path = "data/generated",
+    base_results_dir: str | Path = "results",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Compute parametric curves of doppelganger FM rates vs cluster recall on stress_0."""
+    if methods is None:
+        methods = [
+            "splink_v1",
+            "splink_v2",
+            "splink_v3",
+            "splink_v3_no_tf",
+            "splink_v3_no_kinship",
+            "splink_v3_resolved",
+        ]
+
+    truth_dir = Path(base_data_dir) / run_name / "truth"
+    reg_dir = Path(base_data_dir) / run_name / "registry"
+
+    records_df = pd.read_parquet(reg_dir / "records.parquet")
+    records = records_df["record_id"].tolist()
+    rec_truth = pd.read_parquet(truth_dir / "record_truth.parquet")
+    rec_map = rec_truth.set_index("record_id")["person_id"].to_dict()
+
+    person_recs: dict[str, list[str]] = defaultdict(list)
+    for r, p in rec_map.items():
+        person_recs[p].append(r)
+
+    person_total_counts: dict[str, int] = defaultdict(int)
+    for p in rec_map.values():
+        person_total_counts[p] += 1
+
+    true_pairs = pd.read_parquet(truth_dir / "true_pairs.parquet")
+    total_true = len(true_pairs)
+
+    doppel_df = pd.read_parquet(truth_dir / "doppelganger_person_pairs.parquet")
+    nat_pairs = [
+        (r.person_id_1, r.person_id_2)
+        for _, r in doppel_df[~doppel_df["is_injected"]].iterrows()
+    ]
+    inj_pairs = [
+        (r.person_id_1, r.person_id_2)
+        for _, r in doppel_df[doppel_df["is_injected"]].iterrows()
+    ]
+    n_nat = len(nat_pairs)
+    n_inj = len(inj_pairs)
+    n_tot = n_nat + n_inj
+
+    thresholds = [round(w * 0.25, 2) for w in range(100, -21, -1)]
+
+    curve_rows: list[dict[str, Any]] = []
+
+    for method in methods:
+        m_dir = Path(base_results_dir) / run_name / method
+        preds_p = m_dir / "predictions.parquet"
+        if not preds_p.exists():
+            continue
+
+        if method.endswith("_resolved"):
+            feat_p = reg_dir / "features.parquet"
+            features_df = pd.read_parquet(feat_p) if feat_p.exists() else None
+            preds_df = pd.read_parquet(preds_p)
+            apply_listed = "v3" in method
+
+            # Sweep t_link from 2.0 to 14.0 in steps of 0.5 with t_bridge=8.0
+            for t_l in np.arange(2.0, 14.5, 0.5):
+                cdf, _ = build_resolved_graph(
+                    predictions_df=preds_df,
+                    records_df=records_df,
+                    t_link=float(t_l),
+                    t_bridge=8.0,
+                    features_df=features_df,
+                    apply_listed_as_other_member=apply_listed,
+                )
+                c_map = cdf.set_index("record_id")["cluster_id"].to_dict()
+                tp = sum(
+                    1
+                    for _, row in true_pairs.iterrows()
+                    if c_map.get(row["record_id_1"]) == c_map.get(row["record_id_2"])
+                )
+                rec = tp / total_true if total_true > 0 else 0.0
+
+                nat_m = sum(
+                    1
+                    for p1, p2 in nat_pairs
+                    if any(
+                        c_map.get(r1) == c_map.get(r2)
+                        for r1 in person_recs[p1]
+                        for r2 in person_recs[p2]
+                    )
+                )
+                inj_m = sum(
+                    1
+                    for p1, p2 in inj_pairs
+                    if any(
+                        c_map.get(r1) == c_map.get(r2)
+                        for r1 in person_recs[p1]
+                        for r2 in person_recs[p2]
+                    )
+                )
+                curve_rows.append(
+                    {
+                        "method": method,
+                        "threshold_weight": float(t_l),
+                        "cluster_recall": rec,
+                        "natural_fm_rate": nat_m / n_nat if n_nat > 0 else 0.0,
+                        "injected_fm_rate": inj_m / n_inj if n_inj > 0 else 0.0,
+                        "pooled_fm_rate": (nat_m + inj_m) / n_tot if n_tot > 0 else 0.0,
+                        "natural_merged": nat_m,
+                        "natural_total": n_nat,
+                        "injected_merged": inj_m,
+                        "injected_total": n_inj,
+                        "pooled_merged": nat_m + inj_m,
+                        "pooled_total": n_tot,
+                    }
+                )
+        else:
+            preds = pd.read_parquet(preds_p)
+            score_col = "match_weight" if "match_weight" in preds.columns else "match_probability"
+            sorted_preds = preds.sort_values(score_col, ascending=False).reset_index(drop=True)
+
+            uf = UnionFind(records, rec_map, person_total_counts)
+            pred_idx = 0
+            n_preds = len(sorted_preds)
+
+            for t in thresholds:
+                while pred_idx < n_preds and sorted_preds.iloc[pred_idx][score_col] >= t:
+                    row = sorted_preds.iloc[pred_idx]
+                    uf.union(row["record_id_l"], row["record_id_r"])
+                    pred_idx += 1
+
+                rec = uf.cluster_tp / total_true if total_true > 0 else 0.0
+
+                nat_m = sum(
+                    1
+                    for p1, p2 in nat_pairs
+                    if any(
+                        uf.find(r1) == uf.find(r2)
+                        for r1 in person_recs[p1]
+                        for r2 in person_recs[p2]
+                    )
+                )
+                inj_m = sum(
+                    1
+                    for p1, p2 in inj_pairs
+                    if any(
+                        uf.find(r1) == uf.find(r2)
+                        for r1 in person_recs[p1]
+                        for r2 in person_recs[p2]
+                    )
+                )
+                curve_rows.append(
+                    {
+                        "method": method,
+                        "threshold_weight": t,
+                        "cluster_recall": rec,
+                        "natural_fm_rate": nat_m / n_nat if n_nat > 0 else 0.0,
+                        "injected_fm_rate": inj_m / n_inj if n_inj > 0 else 0.0,
+                        "pooled_fm_rate": (nat_m + inj_m) / n_tot if n_tot > 0 else 0.0,
+                        "natural_merged": nat_m,
+                        "natural_total": n_nat,
+                        "injected_merged": inj_m,
+                        "injected_total": n_inj,
+                        "pooled_merged": nat_m + inj_m,
+                        "pooled_total": n_tot,
+                    }
+                )
+
+    curves_df = pd.DataFrame(curve_rows)
+
+    # Save curves parquet
+    curves_out = Path(base_results_dir) / run_name / "stress_curves.parquet"
+    curves_out.parent.mkdir(parents=True, exist_ok=True)
+    curves_df.to_parquet(curves_out, index=False)
+
+    # Compute matched recall interpolation
+    matched_rows: list[dict[str, Any]] = []
+    target_recalls = [0.40, 0.50, 0.60]
+
+    for method in methods:
+        sub_df = curves_df[curves_df["method"] == method]
+        if sub_df.empty:
+            continue
+        df_sorted = sub_df.sort_values("cluster_recall").drop_duplicates("cluster_recall")
+        min_r = df_sorted["cluster_recall"].min()
+        max_r = df_sorted["cluster_recall"].max()
+
+        row: dict[str, Any] = {"method": method}
+        for tr in target_recalls:
+            tr_key = f"{tr:.2f}"
+            if tr < min_r or tr > max_r:
+                row[f"pooled_fm@{tr_key}"] = "n/a"
+                row[f"natural_fm@{tr_key}"] = "n/a"
+                row[f"injected_fm@{tr_key}"] = "n/a"
+            else:
+                p_val = float(
+                    np.interp(tr, df_sorted["cluster_recall"], df_sorted["pooled_fm_rate"])
+                )
+                nat_val = float(
+                    np.interp(tr, df_sorted["cluster_recall"], df_sorted["natural_fm_rate"])
+                )
+                inj_val = float(
+                    np.interp(tr, df_sorted["cluster_recall"], df_sorted["injected_fm_rate"])
+                )
+                row[f"pooled_fm@{tr_key}"] = f"{p_val * 100:.1f}%"
+                row[f"natural_fm@{tr_key}"] = f"{nat_val * 100:.1f}%"
+                row[f"injected_fm@{tr_key}"] = f"{inj_val * 100:.1f}%"
+        matched_rows.append(row)
+
+    matched_df = pd.DataFrame(matched_rows)
+
+    # Generate interactive Vega-Lite chart
+    chart_cols = [
+        "method",
+        "threshold_weight",
+        "cluster_recall",
+        "pooled_fm_rate",
+        "natural_fm_rate",
+        "injected_fm_rate",
+    ]
+    chart_data = curves_df[chart_cols].to_dict(orient="records")
+
+    chart_html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Doppelganger False-Merge Rate vs. Cluster Recall ({run_name})</title>
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+  <style>
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 24px;
+      background: #fafafa;
+    }}
+    h1 {{ font-size: 20px; color: #111; margin-bottom: 8px; }}
+    .subtitle {{ color: #555; margin-bottom: 20px; font-size: 14px; }}
+    #vis {{
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }}
+  </style>
+</head>
+<body>
+  <h1>Doppelganger False-Merge Rate vs. Cluster Recall (<code>{run_name}</code>)</h1>
+  <div class="subtitle">
+    Parametric curves across threshold sweeps on the stressed doppelganger population.
+  </div>
+  <div id="vis"></div>
+
+  <script>
+    const data = {json.dumps(chart_data)};
+    const spec = {{
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {{ "values": data }},
+      "width": 720,
+      "height": 420,
+      "layer": [
+        {{
+          "mark": {{ "type": "line", "point": true }},
+          "encoding": {{
+            "x": {{
+              "field": "cluster_recall",
+              "type": "quantitative",
+              "title": "Cluster Recall",
+              "scale": {{ "zero": false }}
+            }},
+            "y": {{
+              "field": "pooled_fm_rate",
+              "type": "quantitative",
+              "title": "Doppelganger False-Merge Rate (Pooled)",
+              "axis": {{ "format": ".1%" }}
+            }},
+            "color": {{
+              "field": "method",
+              "type": "nominal",
+              "title": "Method"
+            }},
+            "tooltip": [
+              {{ "field": "method", "type": "nominal", "title": "Method" }},
+              {{
+                "field": "cluster_recall",
+                "type": "quantitative",
+                "format": ".4f",
+                "title": "Recall"
+              }},
+              {{
+                "field": "pooled_fm_rate",
+                "type": "quantitative",
+                "format": ".1%",
+                "title": "Pooled FM Rate"
+              }},
+              {{
+                "field": "natural_fm_rate",
+                "type": "quantitative",
+                "format": ".1%",
+                "title": "Natural FM Rate"
+              }},
+              {{
+                "field": "injected_fm_rate",
+                "type": "quantitative",
+                "format": ".1%",
+                "title": "Injected FM Rate"
+              }},
+              {{
+                "field": "threshold_weight",
+                "type": "quantitative",
+                "format": ".2f",
+                "title": "Threshold"
+              }}
+            ]
+          }}
+        }},
+        {{
+          "data": {{ "values": [{{ "target": 0.4 }}, {{ "target": 0.5 }}, {{ "target": 0.6 }}] }},
+          "mark": {{ "type": "rule", "color": "#888", "strokeDash": [4, 4] }},
+          "encoding": {{
+            "x": {{ "field": "target", "type": "quantitative" }}
+          }}
+        }}
+      ]
+    }};
+    vegaEmbed('#vis', spec);
+  </script>
+</body>
+</html>
+"""
+    chart_out = Path(base_results_dir) / run_name / "charts" / "stress_fm_vs_recall.html"
+    chart_out.parent.mkdir(parents=True, exist_ok=True)
+    with open(chart_out, "w", encoding="utf-8") as f:
+        f.write(chart_html)
+
+    return curves_df, matched_df
 
 
 def generate_stress_table(
@@ -429,6 +859,14 @@ def generate_stress_table(
             }
         )
 
+    # Compute stress curves and matched recall comparison
+    curves_df, matched_df = compute_stress_curves(
+        run_name=run_name,
+        methods=methods,
+        base_data_dir=base_data_dir,
+        base_results_dir=base_results_dir,
+    )
+
     lines.extend(
         [
             "",
@@ -464,21 +902,46 @@ def generate_stress_table(
                 "co-residents exhibit high roster overlap ($\\ge 2$ members)."
             ),
             "",
-            "### Critical Role of Kinship Features",
+            "### Interpretation Note",
             (
-                "- When kinship is active (`splink_v1`, `splink_v2`, `splink_v3`), the lack of "
-                "roster overlap prevents spurious merges from receiving large kinship match boosts."
-            ),
-            (
-                "- When kinship is completely removed (`splink_v3_no_kinship`), injected false "
-                "merges surge to **76.4%** (381/499) and pooled false merges reach **68.9%** "
-                "(385/559), an increase of +15.9 to +17.2 percentage points over champion. "
-                "This proves kinship is mathematically essential for rejecting hard doppelgangers "
-                "in rural registries."
+                "- Variants operate at different selected thresholds whose weight scales are not "
+                "comparable, and only 21/559 doppelganger pairs have rosters on both records, "
+                "so the stress table alone does not isolate a kinship effect."
             ),
             "",
+            "---",
+            "",
+            "## 3. Matched-Recall Doppelganger False-Merge Comparison",
+            "",
+            (
+                "To control for threshold stringency across variants, doppelganger false-merge "
+                "rates are evaluated at matched cluster recall levels "
+                "$R \\in \\{0.40, 0.50, 0.60\\}$ "
+                "via linear interpolation along each variant's parametric threshold sweep curve. "
+                "Complete curves are saved to `stress_curves.parquet` and visualized in "
+                "`charts/stress_fm_vs_recall.html`."
+            ),
+            "",
+            (
+                "| Method | Pooled FM @ R=0.40 | Natural FM @ R=0.40 | Injected FM @ R=0.40 | "
+                "Pooled FM @ R=0.50 | Natural FM @ R=0.50 | Injected FM @ R=0.50 | "
+                "Pooled FM @ R=0.60 | Natural FM @ R=0.60 | Injected FM @ R=0.60 |"
+            ),
+            (
+                "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
+            ),
         ]
     )
+
+    for _, mr in matched_df.iterrows():
+        p40, n40, i40 = mr["pooled_fm@0.40"], mr["natural_fm@0.40"], mr["injected_fm@0.40"]
+        p50, n50, i50 = mr["pooled_fm@0.50"], mr["natural_fm@0.50"], mr["injected_fm@0.50"]
+        p60, n60, i60 = mr["pooled_fm@0.60"], mr["natural_fm@0.60"], mr["injected_fm@0.60"]
+        lines.append(
+            f"| `{mr['method']}` | {p40} | {n40} | {i40} | "
+            f"{p50} | {n50} | {i50} | "
+            f"{p60} | {n60} | {i60} |"
+        )
 
     out_file = (
         Path(output_path) if output_path else Path(base_results_dir) / run_name / "stress_table.md"
