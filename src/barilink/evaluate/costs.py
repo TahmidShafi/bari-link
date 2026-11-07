@@ -112,32 +112,41 @@ def select_thresholds(
     desc_df = sorted_df.sort_values(col, ascending=False).reset_index(drop=True)
     t_p99: Optional[float] = None
     explanation: Optional[str] = None
-
-    valid_t: list[float] = []
-    for _, row in desc_df.iterrows():
-        t = float(row[col])
-        p = float(row["precision"])
-        if p >= 0.99:
-            valid_t.append(t)
-        else:
-            break
-
     t_p99_weight: Optional[float] = None
     t_p99_prob: Optional[float] = None
 
-    if valid_t:
-        t_p99 = min(valid_t)
-        if grid == "weight":
-            t_p99_weight = t_p99
-            t_p99_prob = weight_to_prob(t_p99_weight)
-        else:
-            t_p99_prob = t_p99
-            t_p99_weight = prob_to_weight(t_p99_prob)
+    pred_max = 0
+    if "predicted_pairs" in sorted_df.columns:
+        pred_max = int(sorted_df["predicted_pairs"].max())
+    elif "tp" in sorted_df.columns and "fp" in sorted_df.columns:
+        pred_max = int((sorted_df["tp"] + sorted_df["fp"]).max())
+
+    if pred_max == 0:
+        explanation = "No pairs predicted; t_p99 is undefined."
     else:
-        max_p = sorted_df["precision"].max()
-        explanation = (
-            f"No threshold achieves cluster-level precision >= 0.99 (maximum observed: {max_p:.4f})"
-        )
+        valid_t: list[float] = []
+        for _, row in desc_df.iterrows():
+            t = float(row[col])
+            p = float(row["precision"])
+            if p >= 0.99:
+                valid_t.append(t)
+            else:
+                break
+
+        if valid_t:
+            t_p99 = min(valid_t)
+            if grid == "weight":
+                t_p99_weight = t_p99
+                t_p99_prob = weight_to_prob(t_p99_weight)
+            else:
+                t_p99_prob = t_p99
+                t_p99_weight = prob_to_weight(t_p99_prob)
+        else:
+            max_p = sorted_df["precision"].max()
+            explanation = (
+                "No threshold achieves cluster-level precision >= 0.99 "
+                f"(maximum observed: {max_p:.4f})"
+            )
 
     return CostThresholdSelection(
         cost_false_merge=cost_false_merge,

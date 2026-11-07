@@ -1,11 +1,11 @@
 {
   "method": "splink_v1_resolved",
   "dev_run": "demo",
-  "t_link": 9.0,
-  "t_bridge": 9.0,
-  "min_cost": 892.0,
-  "cluster_precision": 0.9656716417910448,
-  "cluster_recall": 0.45435393258426965,
-  "cluster_f1": 0.6179560649474689,
+  "t_link": 8.5,
+  "t_bridge": 10.0,
+  "min_cost": 961.0,
+  "cluster_precision": 0.9533437013996889,
+  "cluster_recall": 0.43047752808988765,
+  "cluster_f1": 0.5931301402999516,
   "doppelganger_false_merge_rate": 0.0
 }

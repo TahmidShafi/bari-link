@@ -228,12 +228,7 @@ This section records all architectural, demographic, and technical design decisi
 - **Decision 7.6: Structural Limitation of Bridge Detection**:
   - Documented algorithmic limitation: `nx.bridges` finds single-edge cuts (bridges). If two dense cliques are erroneously joined by 2 or more weak parallel edges, neither edge is mathematically a bridge. Consequently, weak-bridge splitting cannot sever multi-edge spurious connections; they rely entirely on hard cannot-link constraints (sex or birth year conflicts) or escalation to clerical review.
 
-### Log Entry 008: 2026-11-07 — Phase 6 Pre-Registration: Model v2 Guardian Disambiguation & Dev Error Diagnosis
-- **Baseline Re-calibration & Leakage Elimination**:
-  - Executed Step 0.d leakage audit on raw registry ingestion: verified that non-UPG modules never collected `guardian_type_raw` and no survey module ever collected `sex_raw`. Nullified leaked columns in `corrupt/registry.py` and enforced schema-invariance via `test_harmonised_columns_match_module_schema`.
-  - Recomputed clean dev baseline on `demo`: `splink_v1` (unresolved) selected operational threshold $t_{\text{cost}} = 9.25$ ($p \approx 0.998360$, $t_{\text{p99}} = 16.75$) with dev expected operational cost $C_{\text{v1}} = 960.0$ (Cluster Precision = 0.9569, Cluster Recall = 0.4206, Cluster F1 = 0.5844).
-  - Selected `splink_v1_resolved` on `demo` over extended grid $[2.0, 14.0]$: optimum is strictly interior at $t_{\text{link}} = 8.5, t_{\text{bridge}} = 10.0$ (min cost 961.0, 23 weak bridges cut).
-  - Evaluated `splink_v1_resolved` across 5 holdout seeds (`holdout_0` .. `holdout_4`): Cluster Precision $0.6303 \pm 0.0327$, Cluster Recall $0.7615 \pm 0.0090$, Cluster F1 $0.6893 \pm 0.0197$, Reach Error $-1.32\% \pm 0.80\%$, Review Queue Size 4,326.4 per 10k records.
+### Log Entry 008: 2026-11-07 — Phase 6 Pre-Registration H1: Model v2 Guardian Disambiguation & Dev Error Diagnosis
 - **DEV Error Diagnosis on `demo` (at $t_{\text{cost}} = 9.25$)**:
   - Evaluated 49,984 candidate pairs (1,263 candidate true pairs). Observed 708 missed candidate true pairs (56.1% FN at candidate level) and 23 false merges.
   - Missed true candidate pairs breakdown:
@@ -248,6 +243,40 @@ This section records all architectural, demographic, and technical design decisi
   - Unresolved reference baseline: $C_{\text{v1}} = 960.0$ at $w = 9.25$.
   - Adoption cost threshold: $0.98 \times 960.0 = 940.8$.
   - If `splink_v2` achieves dev expected cost $\le 940.8$, adopt v2; otherwise keep v1. If adopted, evaluate `splink_v2_resolved` against `splink_v1_resolved` separately.
+
+### Log Entry 008a: 2026-11-07 — Phase 6 Ground-Truth Leakage Audit & Metric Re-baselining
+- **Leakage Finding & Root Cause**:
+  - Pre-implementation schema audit discovered ground-truth attribute leakage into `registry/records.parquet`:
+    1. `guardian_type_raw` was populated with `"father"` for all 2,179 `livelihood_support` records, despite `livelihood_support.csv` having only a `father_name` column and no guardian type field.
+    2. `sex_raw` was populated across all 4,798 records, despite no raw module CSV collecting beneficiary sex.
+  - **Status of Pre-Fix Metrics**: All pre-fix Splink metrics (from Phase 4, Phase 4b, and Phase 5) are **invalid** because models were trained and evaluated on leaked features not present in real administrative survey schemas.
+- **Remediation**:
+  - Updated `src/barilink/corrupt/registry.py` to enforce that `final_guardian_type` is non-null ONLY for `upg_enrolment`, and `final_sex` is `None` for all records. Added `test_harmonised_columns_match_module_schema` to lock this schema contract permanently. Rebuilt `demo` and all holdouts `holdout_0` .. `holdout_4`.
+- **Before / After 5-Seed Holdout Comparison**:
+
+| Method | Status | Cluster Precision (mean ± sd) | Cluster Recall (mean ± sd) | Cluster F1 (mean ± sd) | Doppelganger FM Rate [Wilson 95% CI] | Reach Error % (mean ± sd) | Review Pairs / 10k | Operational Thresholds |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `splink_v1` | Pre-Fix (Leaked) | 0.9404 ± 0.0081 | 0.4741 ± 0.0122 | 0.6303 ± 0.0105 | 1.89% [0.92%, 3.85%] | +14.85% ± 0.69% | 2,031.1 | $w=9.00$ ($p=0.998051$) |
+| `splink_v1` | Post-Fix (Clean) | 0.6068 ± 0.0421 | 0.7564 ± 0.0106 | 0.6728 ± 0.0266 | 16.76% [13.30%, 20.90%] | -1.22% ± 0.87% | 6,919.2 | $w=9.25$ ($p=0.998360$) |
+| `splink_v1_resolved` | Pre-Fix (Leaked) | 0.9484 ± 0.0067 | 0.4740 ± 0.0123 | 0.6320 ± 0.0107 | 1.89% [0.92%, 3.85%] | +14.97% ± 0.69% | 0.0 (placeholder) | $t_{\text{link}}=9.0, t_{\text{bridge}}=9.0$ |
+| `splink_v1_resolved` | Post-Fix (Clean) | 0.6303 ± 0.0327 | 0.7615 ± 0.0090 | 0.6893 ± 0.0197 | 16.22% [12.81%, 20.32%] | -1.32% ± 0.80% | 4,326.4 | $t_{\text{link}}=8.5, t_{\text{bridge}}=10.0$ |
+
+- **Reversal of Phase 5 Bridge-Splitting Finding**:
+  - In Phase 5 on leaked data, grid sweep selected $t_{\text{bridge}} = t_{\text{link}} = 9.0$, leading to the conclusion that weak-bridge splitting did not improve cost.
+  - On clean data, this finding **reversed**: dev grid search selected $t_{\text{link}} = 8.5, t_{\text{bridge}} = 10.0$ (strictly interior, $t_{\text{bridge}} > t_{\text{link}}$), cutting 23 weak bridges and lowering expected operational cost from 963.0 (no-bridge baseline) to 961.0.
+- **Inert Sex Constraint Note**:
+  - Because no module schema collects sex, `sex_raw` is null everywhere in `records.parquet`. Consequently, the sex cannot-link constraint in resolution is currently **inert** (it never fires). This is intentional and documented; fixing survey module schemas to collect sex is out of scope for H1/H2.
+
+### Log Entry 008b: 2026-11-07 — Phase 6 Pre-Registration H2: Model v3 Household vs Individual Kinship Disambiguation
+- **Pre-Registration Hypothesis H2 & Decision Rule**:
+  > H2: Roster overlap identifies households, not persons, and the current kinship null rule penalises pairs where only one record has a roster. Model v3 changes ONLY the kinship comparison of the model adopted after testing H1:
+  >  (i) roster entries matching the record's own name_canon are removed from that record's roster arrays;
+  >  (ii) a new FIRST kinship level 'listed_as_other_member': l.name_skeleton is in r.roster_skels or r.name_skeleton is in l.roster_skels;
+  >  (iii) the null level applies when EITHER roster is null (unless level ii or the guardian cross-check fires);
+  >  (iv) the remaining levels are unchanged.
+  > Decision rule: adopt v3 if its dev expected cost at its own t_cost is at least 2% lower than the model adopted after H1. Secondary outcome (reported, not decisive): the number of dev false merges between same-household persons.
+- **Deterministic Resolution Constraint**:
+  - In entity resolution, pairs where `listed_as_other_member` fires become a deterministic **cannot-link constraint** (applied only for v3 and its resolved variant `splink_v3_resolved`). If record A's name skeleton is listed as an other member in record B's roster (or vice versa), they are proven to be distinct co-residents of the same household and cannot be merged.
 
 
 

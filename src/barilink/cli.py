@@ -1020,6 +1020,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     agg_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
 
+    # Subcommand: evaluate diagnose
+    diag_parser = eval_subparsers.add_parser(
+        "diagnose", help="Run DEV error diagnosis on candidate pairs"
+    )
+    diag_parser.add_argument(
+        "--run-name", "-r", type=str, default="demo", help="Run identifier name (typically demo)"
+    )
+    diag_parser.add_argument(
+        "--method", "-m", type=str, default="splink_v1", help="Linkage method name"
+    )
+    diag_parser.add_argument(
+        "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
+    )
+    diag_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
+
     # Standard evaluate options on eval_parser
     eval_parser.add_argument(
         "--method",
@@ -1286,6 +1301,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 base_results_dir=args.results_dir,
             )
             print(f"\nAggregated {len(summary)} methods across runs: {args.runs}")
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "diagnose":
+            from barilink.evaluate.diagnosis import run_dev_diagnosis
+
+            run_dev_diagnosis(
+                run_name=args.run_name,
+                method=args.method,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+            )
             return 0
         else:
             if not args.method or not args.mode:

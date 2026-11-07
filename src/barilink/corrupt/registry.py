@@ -157,9 +157,9 @@ class RegistryOrchestrator:
 
             final_full_name: Optional[str] = curr_name
             final_guardian_name: Optional[str] = g_name
-            final_guardian_type: Optional[str] = g_type
+            final_guardian_type: Optional[str] = None
             final_age: Optional[int] = corrupt_age
-            final_sex: Optional[str] = cand.clean_sex
+            final_sex: Optional[str] = None
             final_phone: Optional[str] = corrupt_phone
             final_village: Optional[str] = c_village
             final_union: Optional[str] = c_union
@@ -185,6 +185,7 @@ class RegistryOrchestrator:
                 )
 
             elif mod_name == "upg_enrolment":
+                final_guardian_type = g_type
                 final_group_id = None
                 final_guardian_name = self.corruptor.apply_missingness(
                     mod_name, "guardian_name", final_guardian_name, rec_id
@@ -225,8 +226,8 @@ class RegistryOrchestrator:
                 )
 
             elif mod_name == "livelihood_support":
+                final_guardian_type = None
                 final_group_id = None
-                final_guardian_type = "father"
                 final_guardian_name = self.corruptor.apply_missingness(
                     mod_name, "guardian_name", final_guardian_name, rec_id
                 )

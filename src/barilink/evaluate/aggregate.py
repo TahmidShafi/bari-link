@@ -240,11 +240,10 @@ def aggregate_holdout_metrics(
                 tp99_str = "resolved"
             elif s["t_cost_weight"] is not None:
                 t_str = f"{s['t_cost_weight']:.2f} / {s['t_cost_prob']:.6f}"
-                tp99_str = (
-                    f"{s['t_p99_weight']:.2f} / {s['t_p99_prob']:.6f}"
-                    if s["t_p99_weight"] is not None
-                    else "none"
-                )
+                if method == "no_link" or s["t_p99_weight"] is None:
+                    tp99_str = "none"
+                else:
+                    tp99_str = f"{s['t_p99_weight']:.2f} / {s['t_p99_prob']:.6f}"
             else:
                 t_str = "none"
                 tp99_str = "none"

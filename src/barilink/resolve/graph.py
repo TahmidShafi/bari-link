@@ -376,7 +376,7 @@ def select_resolve_parameters(
     Returns:
       (best_selection_dict, resolve_grid_df)
     """
-    t_link_values = [round(x, 1) for x in np.arange(2.0, 9.1, 0.5)]
+    t_link_values = [round(x, 1) for x in np.arange(2.0, 14.1, 0.5)]
     grid_rows = []
 
     best_cost = float("inf")
@@ -570,7 +570,7 @@ def precompute_ui_clusters(
 
     Output format: resolved_by_threshold.parquet with columns (t_link, record_id, cluster_id).
     """
-    t_link_values = [round(x, 1) for x in np.arange(2.0, 9.1, 0.5)]
+    t_link_values = [round(x, 1) for x in np.arange(2.0, 14.1, 0.5)]
     all_dfs = []
 
     for t_l in t_link_values:

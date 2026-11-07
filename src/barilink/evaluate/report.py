@@ -664,6 +664,29 @@ def generate_resolved_evaluation_report(
         else 0.0
     )
 
+    # Compute actual review queue load per 10k records
+    from barilink.resolve.review import build_review_queue
+
+    preds_path = Path(base_results_dir) / run_name / "splink_v1" / "predictions.parquet"
+    res_log_path = results_dir / "resolution_log.parquet"
+    records_path = run_dir / "registry" / "records.parquet"
+
+    preds_df = pd.read_parquet(preds_path) if preds_path.exists() else pd.DataFrame()
+    res_log_df = pd.read_parquet(res_log_path) if res_log_path.exists() else None
+    n_records = len(pd.read_parquet(records_path)) if records_path.exists() else len(clusters_df)
+
+    if not preds_df.empty:
+        queue_df = build_review_queue(
+            predictions_df=preds_df,
+            clusters_df=clusters_df,
+            resolution_log_df=res_log_df,
+            t_link=t_link,
+            window_delta=6.0,
+        )
+        rev_load = (len(queue_df) / n_records) * 10000.0 if n_records > 0 else 0.0
+    else:
+        rev_load = 0.0
+
     pair_completeness = 0.8904
     splink_metrics_path = Path(base_results_dir) / run_name / "splink_v1" / "metrics.json"
     if splink_metrics_path.exists():
@@ -691,7 +714,7 @@ def generate_resolved_evaluation_report(
         "split_persons": c_metrics.split_persons,
         "doppelganger_false_merge_rate": c_metrics.doppelganger_false_merge_rate,
         "expected_cost": p_metrics["expected_cost"],
-        "review_pairs_per_10k": 0.0,
+        "review_pairs_per_10k": rev_load,
         "dedup_reach": dedup_reach,
         "reach_error_pct": reach_error_pct,
     }

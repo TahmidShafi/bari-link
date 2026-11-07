@@ -398,3 +398,72 @@ def test_summary_file_generated(test_setup: tuple[Path, Path]) -> None:
     assert "Hard Negatives (Doppelganger Audit across Distinct Households)" in content
     assert "Example Clusters" in content
     assert "Post-Fix Name Frequency Shares" in content
+
+
+MODULE_COLLECTED_FIELDS = {
+    "club_formation": {
+        "full_name_raw",
+        "age_raw",
+        "guardian_name_raw",
+        "village_raw",
+    },
+    "upg_enrolment": {
+        "full_name_raw",
+        "age_raw",
+        "guardian_name_raw",
+        "guardian_type_raw",
+        "phone_raw",
+        "village_raw",
+        "union_raw",
+        "upazila_raw",
+        "district_raw",
+    },
+    "microfinance_group": {
+        "full_name_raw",
+        "guardian_name_raw",
+        "phone_raw",
+        "village_raw",
+        "union_raw",
+        "group_id",
+    },
+    "livelihood_support": {
+        "full_name_raw",
+        "age_raw",
+        "guardian_name_raw",
+        "phone_raw",
+        "village_raw",
+        "union_raw",
+        "upazila_raw",
+        "district_raw",
+    },
+}
+
+
+def test_harmonised_columns_match_module_schema(test_setup: tuple[Path, Path]) -> None:
+    """Every module in records.parquet has non-null values ONLY for its collected fields."""
+    cfg_path, base_tmp = test_setup
+    reg_tables, _ = export_registries(cfg_path, "demo", base_tmp)
+    records_df = reg_tables["records"]
+
+    metadata_cols = {"record_id", "source_module", "enrolment_date"}
+    all_harmonised_cols = set(records_df.columns) - metadata_cols
+
+    for mod_name, allowed_cols in MODULE_COLLECTED_FIELDS.items():
+        mod_df = records_df[records_df["source_module"] == mod_name]
+        assert not mod_df.empty, f"No records found for module '{mod_name}'"
+
+        # 1. Uncollected columns MUST be 100% null
+        uncollected_cols = all_harmonised_cols - allowed_cols
+        for col in uncollected_cols:
+            non_null_count = mod_df[col].notna().sum()
+            assert non_null_count == 0, (
+                f"Module '{mod_name}' leaked uncollected column '{col}': "
+                f"{non_null_count} / {len(mod_df)} rows are non-null!"
+            )
+
+        # 2. In particular, guardian_type_raw must be null for club, microfinance, livelihood
+        if mod_name in ("club_formation", "microfinance_group", "livelihood_support"):
+            assert mod_df["guardian_type_raw"].isna().all(), (
+                f"Module '{mod_name}' must have null guardian_type_raw!"
+            )
+

@@ -2,23 +2,23 @@
 
 - **Dataset Role**: `holdout`
 - **Evaluation Mode**: `report`
-- **Operational Thresholds**: $t_{\text{link}} = 9.0$,
-  $t_{\text{bridge}} = 9.0$
+- **Operational Thresholds**: $t_{\text{link}} = 8.5$,
+  $t_{\text{bridge}} = 10.0$
 
 ## Headline Metrics
 
 | Metric | Cluster-Level (Headline) | B-cubed |
 | :--- | :--- | :--- |
-| **Precision** | **0.9519** | 0.9944 |
-| **Recall** | **0.4877** | 0.8769 |
-| **F1 Score** | **0.6449** | 0.9320 |
+| **Precision** | **0.6335** | 0.9227 |
+| **Recall** | **0.7773** | 0.9458 |
+| **F1 Score** | **0.6981** | 0.9341 |
 
 | Safety & Cluster Entity Resolution Metrics | Value |
 | :--- | :--- |
-| **Doppelganger False-Merge Rate** | **1.82%** |
-| **False-Merge Clusters** | 24 |
-| **False-Merged Records (Minority)** | 25 |
-| **Split Persons** | 509 |
-| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 902.0 |
-| **Deduplicated Reach** | 4,255 (Error: +14.50%) |
+| **Doppelganger False-Merge Rate** | **14.55%** |
+| **False-Merge Clusters** | 264 |
+| **False-Merged Records (Minority)** | 323 |
+| **Split Persons** | 233 |
+| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 3,506.0 |
+| **Deduplicated Reach** | 3,664 (Error: -1.40%) |
 | **Pair Completeness (Recall Ceiling)** | 88.72% |

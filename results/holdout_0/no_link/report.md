@@ -4,11 +4,13 @@
 - **Evaluation Mode**: `report`
 - **Threshold Grid**: `weight`
 - **Threshold Source Run**: `demo`
-- **Thresholds SHA-256**: `b5cc8efe54144b0a...`
+- **Thresholds SHA-256**: `4a590d2aadc7307b...`
 - **Selected $t_{\text{cost}}$**: `Weight = 25.00 (p = 1.000000)`
-- **Selected $t_{p99}$**: `Weight = -5.00 (p = 0.030303)`
+- **Selected $t_{p99}$**: `none`
 
 > **Warning on $t_{\text{cost}}$**: Selected threshold lies on the grid boundary! The true optimum may lie outside the current grid range.
+
+> **Note on $t_{p99}$**: No pairs predicted; t_p99 is undefined.
 
 ## Headline Metrics at Operational Threshold ($t_{\text{cost}}$)
 

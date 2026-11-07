@@ -5,7 +5,7 @@
     "retain_intermediate_calculation_columns": true,
     "additional_columns_to_retain": [],
     "sql_dialect": "duckdb",
-    "linker_uid": "oi8wtwkn",
+    "linker_uid": "0cvd9xjd",
     "em_convergence": 0.0001,
     "max_iterations": 25,
     "bayes_factor_column_prefix": "bf_",
@@ -49,7 +49,7 @@
                 {
                     "sql_condition": "\"name_canon_l\" = \"name_canon_r\"",
                     "label_for_charts": "Exact match on name_canon",
-                    "m_probability": 0.5315993858418676,
+                    "m_probability": 0.5311903357517629,
                     "u_probability": 0.008972063525082404,
                     "fix_m_probability": false,
                     "fix_u_probability": false,
@@ -59,7 +59,7 @@
                 {
                     "sql_condition": "\"name_skeleton_l\" = \"name_skeleton_r\"",
                     "label_for_charts": "Exact match on name_skeleton",
-                    "m_probability": 0.0361285242713378,
+                    "m_probability": 0.03610086522717169,
                     "u_probability": 0.0005487742967591113,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -67,7 +67,7 @@
                 {
                     "sql_condition": "\"name_tokens_sorted_l\" = \"name_tokens_sorted_r\"",
                     "label_for_charts": "Exact match on name_tokens_sorted",
-                    "m_probability": 0.010322435071645644,
+                    "m_probability": 0.010314532337333504,
                     "u_probability": 2.1297197437402337e-05,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -75,7 +75,7 @@
                 {
                     "sql_condition": "jaro_winkler_similarity(\"name_canon_l\", \"name_canon_r\") >= 0.92",
                     "label_for_charts": "Jaro-Winkler distance of name_canon >= 0.92",
-                    "m_probability": 0.04128972098073616,
+                    "m_probability": 0.041258103393271364,
                     "u_probability": 0.0012243412108199668,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -83,7 +83,7 @@
                 {
                     "sql_condition": "jaro_winkler_similarity(\"name_canon_l\", \"name_canon_r\") >= 0.85",
                     "label_for_charts": "Jaro-Winkler distance of name_canon >= 0.85",
-                    "m_probability": 0.08257865829566619,
+                    "m_probability": 0.08251515393720134,
                     "u_probability": 0.006221753353689492,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -91,7 +91,7 @@
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.2980812755387467,
+                    "m_probability": 0.29862100935325914,
                     "u_probability": 0.9830117704162116,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -112,7 +112,7 @@
                 {
                     "sql_condition": "\"guardian_canon_l\" = \"guardian_canon_r\"",
                     "label_for_charts": "Exact match on guardian_canon",
-                    "m_probability": 0.5207860971841977,
+                    "m_probability": 0.550543674030964,
                     "u_probability": 0.0017924139696959575,
                     "fix_m_probability": false,
                     "fix_u_probability": false,
@@ -122,7 +122,7 @@
                 {
                     "sql_condition": "\"guardian_skeleton_l\" = \"guardian_skeleton_r\"",
                     "label_for_charts": "Exact match on guardian_skeleton",
-                    "m_probability": 0.07114578879641299,
+                    "m_probability": 0.07590624020885266,
                     "u_probability": 0.0002560591385279939,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -130,7 +130,7 @@
                 {
                     "sql_condition": "jaro_winkler_similarity(\"guardian_canon_l\", \"guardian_canon_r\") >= 0.92",
                     "label_for_charts": "Jaro-Winkler distance of guardian_canon >= 0.92",
-                    "m_probability": 0.05382591066537974,
+                    "m_probability": 0.05435160119532868,
                     "u_probability": 0.005349409394030482,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -138,7 +138,7 @@
                 {
                     "sql_condition": "jaro_winkler_similarity(\"guardian_canon_l\", \"guardian_canon_r\") >= 0.85",
                     "label_for_charts": "Jaro-Winkler distance of guardian_canon >= 0.85",
-                    "m_probability": 0.036909914542974404,
+                    "m_probability": 0.036131259046782285,
                     "u_probability": 0.014718390612649321,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -146,7 +146,7 @@
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.31733228881103515,
+                    "m_probability": 0.2830672255180724,
                     "u_probability": 0.9778837268850963,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -167,7 +167,7 @@
                 {
                     "sql_condition": "coalesce(len(list_intersect(roster_skels_l, roster_skels_r)), 0) >= 2",
                     "label_for_charts": "Roster intersect >= 2",
-                    "m_probability": 0.2425376283448314,
+                    "m_probability": 0.25411910320153575,
                     "u_probability": 9.901417117545614e-05,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -175,7 +175,7 @@
                 {
                     "sql_condition": "coalesce(list_contains(roster_skels_l, guardian_skeleton_r), false) OR coalesce(list_contains(roster_skels_r, guardian_skeleton_l), false)",
                     "label_for_charts": "Cross-household guardian match",
-                    "m_probability": 0.40916309617283086,
+                    "m_probability": 0.4286746013530407,
                     "u_probability": 0.003540212206199745,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -183,7 +183,7 @@
                 {
                     "sql_condition": "coalesce(len(list_intersect(roster_skels_l, roster_skels_r)), 0) >= 1",
                     "label_for_charts": "Roster intersect >= 1",
-                    "m_probability": 0.03608240523007665,
+                    "m_probability": 0.036713802913048335,
                     "u_probability": 0.0038378621686290305,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -191,7 +191,7 @@
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.312216870252261,
+                    "m_probability": 0.2804924925323753,
                     "u_probability": 0.9925229114539957,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -212,7 +212,7 @@
                 {
                     "sql_condition": "\"phone_norm_l\" = \"phone_norm_r\"",
                     "label_for_charts": "Exact match on phone_norm",
-                    "m_probability": 0.5848175478687316,
+                    "m_probability": 0.6029564831960256,
                     "u_probability": 0.00013941994332579305,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -227,7 +227,7 @@
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.4151824521312683,
+                    "m_probability": 0.3970435168039744,
                     "u_probability": 0.999857094558091,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -248,7 +248,7 @@
                 {
                     "sql_condition": "\"birth_year_est_l\" = \"birth_year_est_r\"",
                     "label_for_charts": "Exact match on birth_year_est",
-                    "m_probability": 0.38843218762181964,
+                    "m_probability": 0.39440312483469464,
                     "u_probability": 0.02334378107573984,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -256,7 +256,7 @@
                 {
                     "sql_condition": "ABS(\"birth_year_est_l\" - \"birth_year_est_r\") <= 2",
                     "label_for_charts": "Absolute difference of 'birth_year_est' <= 2",
-                    "m_probability": 0.4250355088158613,
+                    "m_probability": 0.4257731464062656,
                     "u_probability": 0.08496028599121383,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -264,7 +264,7 @@
                 {
                     "sql_condition": "ABS(\"birth_year_est_l\" - \"birth_year_est_r\") <= 5",
                     "label_for_charts": "Absolute difference of 'birth_year_est' <= 5",
-                    "m_probability": 0.0982840828627995,
+                    "m_probability": 0.09716333224683137,
                     "u_probability": 0.12556675855644928,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -272,7 +272,7 @@
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.08824822069951971,
+                    "m_probability": 0.08266039651220843,
                     "u_probability": 0.7661291743765971,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -327,7 +327,7 @@
                 {
                     "sql_condition": "\"union_raw_l\" = \"union_raw_r\"",
                     "label_for_charts": "Exact match on union_raw",
-                    "m_probability": 0.984002647299073,
+                    "m_probability": 0.9891775340598459,
                     "u_probability": 0.05555381722359755,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -335,7 +335,7 @@
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.015997352700926958,
+                    "m_probability": 0.010822465940154097,
                     "u_probability": 0.9444461827764025,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -356,16 +356,12 @@
                 {
                     "sql_condition": "\"sex_raw_l\" = \"sex_raw_r\"",
                     "label_for_charts": "Exact match on sex_raw",
-                    "m_probability": 0.9566838181491757,
-                    "u_probability": 0.6479444489845446,
                     "fix_m_probability": false,
                     "fix_u_probability": false
                 },
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.043316181850824274,
-                    "u_probability": 0.3520555510154553,
                     "fix_m_probability": false,
                     "fix_u_probability": false
                 }
@@ -385,7 +381,7 @@
                 {
                     "sql_condition": "\"title_token_l\" = \"title_token_r\"",
                     "label_for_charts": "Exact match on title_token",
-                    "m_probability": 0.8519078464800209,
+                    "m_probability": 0.8609984732889077,
                     "u_probability": 0.23631569150586337,
                     "fix_m_probability": false,
                     "fix_u_probability": false
@@ -393,7 +389,7 @@
                 {
                     "sql_condition": "ELSE",
                     "label_for_charts": "All other comparisons",
-                    "m_probability": 0.14809215351997904,
+                    "m_probability": 0.13900152671109234,
                     "u_probability": 0.7636843084941366,
                     "fix_m_probability": false,
                     "fix_u_probability": false
