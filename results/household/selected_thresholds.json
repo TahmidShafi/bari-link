@@ -1,0 +1,16 @@
+{
+  "method": "household_graph_cuts",
+  "selection_run": "demo",
+  "selection_metric": "record_pairwise_f1",
+  "t_hh": 5.0,
+  "weights": {
+    "E1": 4.0,
+    "E2": 4.0,
+    "E3": 2.0,
+    "E4": 3.0,
+    "E5": 1.0
+  },
+  "max_size": 12,
+  "patrilocal_residence": true
+}
+

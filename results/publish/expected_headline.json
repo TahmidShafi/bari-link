@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "run_name": "holdout_5",
+  "role": "holdout",
+  "seed_offset": 1005,
+  "operating_points": {
+    "person_linkage": {
+      "method": "splink_k_resolved",
+      "t_link": 2.0,
+      "t_bridge": 4.0
+    },
+    "household_inference": {
+      "t_hh": 5.0
+    }
+  },
+  "metrics": {
+    "person_linkage": {
+      "cluster_precision": 0.9651022864019254,
+      "cluster_recall": 0.556557945870923,
+      "cluster_f1": 0.7059859154929579,
+      "expected_cost": 784.0,
+      "false_merge_clusters": 23,
+      "split_persons": 427,
+      "dedup_reach": 4136,
+      "doppelganger_false_merge_rate": 0.012658227848101266
+    },
+    "household_inference": {
+      "record_pairwise_precision": 0.7026540710751237,
+      "record_pairwise_recall": 0.3523573200992556,
+      "record_pairwise_f1": 0.4693509615384615,
+      "unit_bcubed_f1": 0.753577215414697,
+      "households_reached_error_pct": 57.89934354485777,
+      "household_size_mae": 2.010503282275711,
+      "n_inferred_households": 3608
+    }
+  },
+  "determinism_note": "File hashes are not used for cross-OS validation because DuckDB/Arrow parquet encodings, floating-point LSBs in Splink EM, and platform newlines vary between Windows and Linux. Determinism is asserted via semantic equivalence within 0.005 tolerance."
+}

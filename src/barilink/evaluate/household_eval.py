@@ -345,9 +345,11 @@ def run_household_evaluation_on_run(
     weights: Optional[dict[str, float]] = None,
     output_dir: Optional[Path] = None,
     use_oracle_persons: bool = False,
+    base_data_dir: str | Path = "data/generated",
+    base_results_dir: str | Path = "results",
 ) -> tuple[HouseholdEvalMetrics, pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """Execute end-to-end household inference and evaluation on a dataset run."""
-    data_dir = Path("data/generated") / run_name
+    data_dir = Path(base_data_dir) / run_name
     reg_dir = data_dir / "registry"
 
     records_df = pd.read_parquet(reg_dir / "records.parquet")
@@ -360,7 +362,7 @@ def run_household_evaluation_on_run(
     if use_oracle_persons:
         person_clusters_df = build_oracle_person_clusters(data_dir)
     else:
-        clusters_path = Path("results") / run_name / method / "clusters.parquet"
+        clusters_path = Path(base_results_dir) / run_name / method / "clusters.parquet"
         if not clusters_path.exists():
             raise FileNotFoundError(f"Person clusters not found: {clusters_path}")
         person_clusters_df = pd.read_parquet(clusters_path)

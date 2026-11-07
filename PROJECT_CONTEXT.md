@@ -1,5 +1,7 @@
 # Project Context: bari-link
 
+[![CI](https://github.com/USER/bari-link/actions/workflows/ci.yml/badge.svg)](https://github.com/USER/bari-link/actions/workflows/ci.yml)
+
 ## 1. Executive Summary & Goal
 `bari-link` is a portfolio project designed to perform **kinship-aware probabilistic deduplication** of NGO beneficiary registries in rural Bangladesh where no universal national identification numbers (NID) are available. 
 
@@ -43,6 +45,30 @@ The project follows a modular, reproducible 6-stage pipeline:
    - Synthesize canonical entity profiles using rule-based survivorship (e.g., most complete records, most recent observation, canonical name selection).
 6. **Static Web Demo**:
    - Zero-cost interactive deployment compiled to DuckDB-Wasm running entirely client-side in the browser on GitHub Pages.
+
+### 2.1 Reproducing the Pipeline
+All frozen pipeline stages can be executed and verified with single CLI commands:
+
+```bash
+# 1. Run the full publication pipeline (builds holdout_5, runs frozen Splink K, resolution, golden records, household inference, evaluation, and web export)
+python -m barilink.cli pipeline --run-name holdout_5 --profile publish
+
+# 2. Verify deterministic reproduction against committed reference metrics (asserts metrics within ±0.005 absolute tolerance)
+python -m barilink.cli pipeline --verify
+
+# 3. Fast CI smoke-test pipeline (uses configs/ci.yaml, 500 households, seed offset 9000)
+python -m barilink.cli pipeline --profile ci
+
+# 4. Standalone export of web data assets to web/public/data/
+python -m barilink.cli export web --run-name holdout_5
+
+# 5. Run test suite
+pytest -q -m "not publish"  # Fast CI test suite (mocked / small data)
+pytest -q                   # Full test suite including publication pipeline verification
+
+# 6. Verify CI isolation in a clean temporary clone and virtual environment from scratch
+python scripts/prove_ci.py
+```
 
 ---
 
@@ -461,6 +487,32 @@ This section records all architectural, demographic, and technical design decisi
   - `results/holdout_confirm/household_table.md`: Comprehensive confirmation report.
   - `results/holdout_5/household/household_graph.json`: Complete interactive visualization graph for `holdout_5` (4,136 nodes, 13,237 candidate edges).
   - Per-seed results in `results/<run>/household/`: `household_clusters.parquet`, `household_golden.parquet`, `household_metrics.json`, `household_log.parquet`.
+
+### Log Entry 011: 2026-11-07 — Phase 8 Reproducible Pipeline, Web Export, and CI Architecture
+- **Decision 11.1: Single Frozen Publish Specification (`results/publish/publish_spec.json`)**:
+  - Committed a single, immutable configuration contract tracking all parameters required for full deterministic reproduction of the champion pipeline on `holdout_5`:
+    - Model artifact: `results/models/splink_k/model.json`.
+    - Linkage parameters: `guardian_mode = "v2"`, `use_kinship = false`, `kinship_constraint = true`, `roster_self_filter = "v3.1"`, `max_birth_year_gap = 10`.
+    - Person resolution thresholds: `t_link = 2.0`, `t_bridge = 4.0` (sourced from `results/splink_k_resolved/selected_thresholds.json`).
+    - Household inference thresholds & weights: `t_hh = 5.0`, `max_size = 12`, `patrilocal_residence = true`, weights `E1: 4.0, E2: 4.0, E3: 2.0, E4: 3.0, E5: 1.0` (sourced from `results/household/selected_thresholds.json`).
+  - At pipeline initialization, `pipeline.py` strictly validates these settings against `model.json` (asserting zero probabilistic kinship comparisons) and asserts existence of all referenced files. Any parameter mismatch or missing file halts execution immediately.
+- **Decision 11.2: Cross-OS Semantic Determinism vs Binary File Hashing**:
+  - Rather than comparing fragile bitwise file hashes across operating systems (which diverge due to Apache Arrow/Parquet metadata timestamps, compression dictionary differences, and CPU floating-point rounding), determinism is validated semantically against committed reference metrics (`results/publish/expected_headline.json`).
+  - The verification command `python -m barilink.cli pipeline --verify` executes all 8 pipeline stages, recomputes all 14 person and household linkage metrics, and asserts absolute agreement within $\pm 0.005$ ($\pm 1\%$ on integer counts).
+  - Cross-check passed: On `holdout_5`, Splink K resolved person linkage cost reproduced exactly at $784.0$ (matching `confirm_table.md`), and household pairwise F1 reproduced at $0.4578$ (matching `household_table.md`).
+- **Decision 11.3: Web Data Export Contracts & Zero Ground-Truth Leakage**:
+  - The export module (`src/barilink/export/web.py`) outputs 10 static assets into `web/public/data/` for client-side DuckDB-Wasm exploration:
+    - Model-visible tables: `records.parquet` (4,841 rows, 0.19 MB), `pairs.parquet` (2,018 rows, 0.09 MB, candidate pairs with weight $\ge -5.0$), `clusters_by_threshold.parquet` (121,025 rows, 0.52 MB), `golden_records.parquet` (4,136 rows, 0.51 MB), `household_golden.parquet` (3,608 rows, 0.55 MB), `household_graph.json` (2.99 MB, 4,136 nodes, 13,237 edges), `model_summary.json` (0.01 MB).
+    - Evaluation tables (truth-isolated under `web/public/data/eval/` generated strictly via `src/barilink/evaluate/export_eval.py`): `threshold_table.parquet` (25 rows, 0.01 MB), `record_labels.parquet` (4,841 rows, 0.11 MB), `headline.json` (0.002 MB).
+    - Cryptographic manifest (`manifest.json`): schema version 1.0.0, Git commit SHA, dirty flag, file sizes, row counts, and SHA-256 hashes.
+  - Zero truth leakage enforcement: AST security scanner forbids `truth` access in `barilink.export`. In `household_golden.parquet`, `household_id` was explicitly renamed to `household_cluster_id` to guarantee that no file outside `eval/` contains `person_id` or `household_id`.
+  - Total payload size: **4.96 MB** (comfortably within the 25 MB static asset budget).
+- **Decision 11.4: GitHub Actions Workflows & Proof of Isolation**:
+  - Configured two GitHub Actions workflows using latest verified action versions (Node 24 runtime):
+    - `.github/workflows/ci.yml`: Runs on pull requests and pushes to `main`. Uses Ubuntu 22.04, Python 3.11, pip cache, `actions/checkout@v5`, `actions/setup-python@v6`, `ruff check .`, `pytest -q -m "not publish"` (89 unit/integration tests in ~32s), and `python -m barilink.cli pipeline --profile ci` using `configs/ci.yaml` (500 households, seed offset 9000).
+    - `.github/workflows/publish-data.yml`: Runs on manual dispatch and on pushes touching pipeline configurations, models, or core code. Uses `actions/checkout@v5`, `actions/setup-python@v6`, `actions/upload-artifact@v5`. Executes full publication pipeline on `holdout_5`, verifies determinism with `pipeline --verify`, runs `@pytest.mark.publish` tests, and uploads `web/public/data/` as a workflow artifact (`web-data`).
+    - Verified CI safety in an isolated clone with a fresh virtual environment from scratch (`scripts/prove_ci.py`): all 89 tests and the CI pipeline passed with zero errors.
+
 
 
 

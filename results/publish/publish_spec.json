@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "profile": "publish",
+  "model_path": "results/models/splink_k/model.json",
+  "linkage_switches": {
+    "guardian_mode": "v2",
+    "use_kinship": false,
+    "kinship_constraint": true,
+    "roster_self_filter": "v3.1"
+  },
+  "resolve_thresholds_path": "results/splink_k_resolved/selected_thresholds.json",
+  "household_thresholds_path": "results/household/selected_thresholds.json",
+  "max_birth_year_gap": 10,
+  "household_weights": {
+    "E1": 4.0,
+    "E2": 4.0,
+    "E3": 2.0,
+    "E4": 3.0,
+    "E5": 1.0
+  },
+  "household_max_size": 12,
+  "patrilocal_residence": true
+}
+

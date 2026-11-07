@@ -1418,6 +1418,85 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--threshold", "-t", type=float, default=5.0, help="Household linking threshold t_hh"
     )
 
+    # 12. pipeline
+    pip_parser = subparsers.add_parser(
+        "pipeline", help="Reproducible end-to-end pipeline execution"
+    )
+    pip_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default=None,
+        help="Run identifier name",
+    )
+    pip_parser.add_argument(
+        "--profile",
+        "-p",
+        type=str,
+        choices=["publish", "ci"],
+        default="publish",
+        help="Pipeline profile (publish: full holdout_5 run; ci: fast smoke-test)",
+    )
+    pip_parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify current metrics against committed expected headline",
+    )
+    pip_parser.add_argument(
+        "--config", "-c", type=str, default=None, help="Optional config path override"
+    )
+    pip_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory for generated data",
+    )
+    pip_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for results",
+    )
+    pip_parser.add_argument(
+        "--web-dir",
+        type=str,
+        default="web/public/data",
+        help="Base directory for web data export",
+    )
+
+    # 13. export
+    exp_parser = subparsers.add_parser("export", help="Export pipeline assets")
+    exp_subparsers = exp_parser.add_subparsers(dest="export_subcommand", required=True)
+    web_exp_parser = exp_subparsers.add_parser("web", help="Export datasets for web visualization")
+    web_exp_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="holdout_5",
+        help="Run identifier name",
+    )
+    web_exp_parser.add_argument(
+        "--output-dir",
+        "-o",
+        type=str,
+        default="web/public/data",
+        help="Output directory for web data export",
+    )
+    web_exp_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory for generated data",
+    )
+    web_exp_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for results",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "generate":
@@ -1649,8 +1728,37 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"Outputs saved to: {res_dir}"
             )
             return 0
+    elif args.command == "pipeline":
+        from barilink.pipeline import run_pipeline, verify_pipeline
 
-    return 1
+        if args.verify:
+            success = verify_pipeline(
+                run_name=args.run_name,
+                results_dir=args.results_dir,
+            )
+            return 0 if success else 1
+        else:
+            run_pipeline(
+                profile=args.profile,
+                run_name=args.run_name,
+                config_path=args.config,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+                web_dir=args.web_dir,
+            )
+            return 0
+    elif args.command == "export":
+        if getattr(args, "export_subcommand", None) == "web":
+            from barilink.export.web import export_web_data
+
+            export_web_data(
+                run_name=args.run_name,
+                output_dir=args.output_dir,
+                data_dir=args.data_dir,
+                results_dir=args.results_dir,
+            )
+            print(f"Web assets exported successfully to: {args.output_dir}")
+            return 0
 
     return 1
 

@@ -30,6 +30,12 @@ results/**
 !results/**/*.md
 !results/**/selected_thresholds.json
 !results/**/model.json
+!results/publish/**
+results/ci/**
+
+# Web public data export (CI builds it, keep only .gitkeep)
+web/public/data/*
+!web/public/data/.gitkeep
 
 # OS-specific
 .DS_Store

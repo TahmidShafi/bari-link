@@ -37,6 +37,9 @@ ignore = []
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "publish: tests requiring the full holdout_5 publish run",
+]
 filterwarnings = [
     "ignore:Automatically deduplicated selection parameter.*:UserWarning",
 ]
