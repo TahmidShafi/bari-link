@@ -344,6 +344,39 @@ This section records all architectural, demographic, and technical design decisi
   > Secondary outcomes (reported, not decisive): (a) doppelganger FM at matched recall 0.40/0.50/0.60 on stress_0 for K vs the reference (v3.1). Expectation: K may be WORSE on cross-household doppelgangers, because the listed_as_other_member constraint only acts within households, while probabilistic kinship evidence reduced matched-recall doppelganger FM by about 9 pp on stress_0 (52.4% vs 61.6% at R = 0.50). (b) Same-household false merges on dev for K vs the reference. If K wins on cost but loses on (a), the project reports this as a trade-off and recommends the pipeline by the stated cost ratio, not by the better-looking metric.
 - **Fresh Holdouts Generated**:
   - Built `holdout_5` through `holdout_9` (seed offsets 1005–1009) with `--role holdout` and exported features. No model has been evaluated on them.
+- **Outcome of Hypothesis H3 on DEV (`demo`)**:
+  - `splink_k` trained on `demo` with `guardian_mode="v2"`, no kinship comparison, and evaluated with resolution applying deterministic `listed_as_other_member` cannot-link constraints.
+  - On the dev 2D resolution grid, `splink_k_resolved` selected optimal thresholds $t_{\text{link}} = 2.0$, $t_{\text{bridge}} = 4.0$.
+  - Dev expected operational cost: **$C_{\text{K, resolved}} = 782.0$** (Cluster Precision = 0.9772, Cluster Recall = 0.5105, Cluster F1 = 0.6707, Doppelganger FM Rate = 0.00%, False-Merge Clusters = 14, Split Persons = 452).
+  - Relative to reference model dev cost $C_{\text{v3.1, resolved}} = 828.0$, expected cost decreased by **$5.56\%$** (46.0 cost points), beating the $2\%$ pre-registered threshold ($782.0 \le 811.44$).
+  - **Verdict on DEV**: **Hypothesis H3 is SUPPORTED**. Pipeline K is **ADOPTED**.
+- **Fresh Holdout Confirmation (`holdout_5` .. `holdout_9`)**:
+  - Evaluated on 5 fresh, uninspected holdout seeds (seed offsets 1005–1009) at frozen interior thresholds:
+    - Reference (`splink_v3_1_resolved`, $t_{\text{link}}=6.5, t_{\text{bridge}}=8.0$): Holdout Cost = $888.2 \pm 51.2$, Precision = $0.9457 \pm 0.0127$, Recall = $0.5334 \pm 0.0202$, F1 = $0.6819 \pm 0.0174$, Doppelganger FM = $1.58\%$ [$0.73\%, 3.40\%$].
+    - Pipeline K (`splink_k_resolved`, $t_{\text{link}}=2.0, t_{\text{bridge}}=4.0$): Holdout Cost = **$812.2 \pm 29.2$**, Precision = **$0.9656 \pm 0.0106$**, Recall = $0.5277 \pm 0.0172$, F1 = $0.6823 \pm 0.0137$, Doppelganger FM = **$1.32\%$** [$0.56\%, 3.04\%$].
+    - *Holdout Doppelganger FM*: No detectable difference; CIs overlap.
+  - **Precision vs Recall Trade-Off**: K's cost advantage comes from precision (0.966 vs 0.946) at equal recall (F1 difference +0.0004), and the ranking depends on the cost ratio.
+  - **Paired Per-Seed Cost Difference**: $\Delta C = C_{\text{K}} - C_{\text{ref}} = \mathbf{-76.0 \pm 27.3}$ cost points (-8.56%).
+    - Individual seeds: `holdout_5` (-33.0), `holdout_6` (-74.0), `holdout_7` (-108.0), `holdout_8` (-80.0), `holdout_9` (-85.0).
+    - **Direction Consistency**: **5/5 seeds; one-sided sign test p = 0.031 (two-sided 0.0625)** strictly favoured Pipeline K.
+  - **Cost Ratio Sensitivity Analysis (`holdout_5` .. `holdout_9` Mean Cost)**:
+    - Recomputed from existing threshold tables at each pipeline's frozen operating point (no re-tuning):
+      - **1:1 Cost**: Ref = $713.0 \pm 34.7$, K = $704.2 \pm 26.6$, $\Delta = -8.8 \pm 12.4$ (K won on 3/5 seeds).
+      - **2:1 Cost**: Ref = $756.8 \pm 35.7$, K = $731.2 \pm 23.1$, $\Delta = -25.6 \pm 13.7$ (K won on 5/5 seeds).
+      - **5:1 Cost** (Pre-registered): Ref = $888.2 \pm 51.2$, K = $812.2 \pm 29.2$, $\Delta = -76.0 \pm 27.3$ (K won on 5/5 seeds).
+      - **10:1 Cost**: Ref = $1107.2 \pm 93.0$, K = $947.2 \pm 64.5$, $\Delta = -160.0 \pm 56.4$ (K won on 5/5 seeds).
+  - **Confirmation Verdict**: **Hypothesis H3 is CONFIRMED**.
+- **Secondary Outcomes**:
+  - *(a) Doppelganger FM at Matched Recall on `stress_0`*: At $R=0.50$, Pipeline K Pooled FM is 62.1% vs 52.3% for the reference model (+9.8 pp). As predicted, removing probabilistic kinship increases false merges on synthetic cross-household doppelgangers because roster constraints only act within households.
+  - *(b) Same-Household False Merges on DEV*: On `demo`, false-merge clusters dropped from 25 to **14** (-44.0%), and same-household false-merge pairs dropped from 24 to **16** (-33.3%).
+  - *(c) Hypothesized Mechanism for (b) (not yet confirmed)*: Operating at lower match weights without the distorted kinship conditional independence penalties may allow min-cut resolution to enforce `listed_as_other_member` constraints cleanly without collateral damage.
+- **Benchmark Conclusion**:
+  - **Pipeline K (`splink_k_resolved`) is preferred under this synthetic benchmark and the assumed 5:1 cost ratio; not validated on real registry data.**
+- **Limitations**:
+  - *(a) Boundary Threshold*: Pipeline K's selected $t_{\text{link}} = 2.0$ lies on the lower grid boundary, and the optimum may be lower; not re-tuned, to preserve the confirmation protocol.
+  - *(b) Holdout Consumption*: `holdout_5..9` are now consumed for linkage decisions, and any further linkage tuning requires new seeds (holdout_10+).
+
+
 
 
 

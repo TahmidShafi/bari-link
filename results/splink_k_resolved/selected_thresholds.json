@@ -1,0 +1,11 @@
+{
+  "method": "splink_k_resolved",
+  "dev_run": "demo",
+  "t_link": 2.0,
+  "t_bridge": 4.0,
+  "min_cost": 782.0,
+  "cluster_precision": 0.9771505376344086,
+  "cluster_recall": 0.5105337078651685,
+  "cluster_f1": 0.6706642066420664,
+  "doppelganger_false_merge_rate": 0.0
+}

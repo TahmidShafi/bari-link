@@ -15,6 +15,8 @@ All models are evaluated strictly at their frozen dev-selected operational thres
 | `splink_v3_no_tf` | $w=7.75$ ($p=0.9954$) | 0.6235 | 0.5490 | 0.5839 | **2/60** (3.3%) [0.9%, 11.4%] | **303/499** (60.7%) [56.4%, 64.9%] | **305/559** (54.6%) [50.4%, 58.6%] | +6.18% |
 | `splink_v3_no_kinship` | $w=1.25$ ($p=0.7040$) | 0.6095 | 0.6462 | 0.6273 | **4/60** (6.7%) [2.6%, 15.9%] | **381/499** (76.4%) [72.4%, 79.9%] | **385/559** (68.9%) [64.9%, 72.6%] | +2.03% |
 | `splink_v3_resolved` | $t_{\text{link}}=6.5$, $t_{\text{bridge}}=8.0$ | 0.6347 | 0.5734 | 0.6025 | **2/60** (3.3%) [0.9%, 11.4%] | **317/499** (63.5%) [59.2%, 67.6%] | **319/559** (57.1%) [52.9%, 61.1%] | +5.15% |
+| `splink_v3_1_resolved` | $t_{\text{link}}=6.5$, $t_{\text{bridge}}=8.0$ | 0.6347 | 0.5734 | 0.6025 | **2/60** (3.3%) [0.9%, 11.4%] | **317/499** (63.5%) [59.2%, 67.6%] | **319/559** (57.1%) [52.9%, 61.1%] | +5.15% |
+| `splink_k_resolved` | $t_{\text{link}}=2.0$, $t_{\text{bridge}}=4.0$ | 0.6171 | 0.5545 | 0.5842 | **0/60** (0.0%) [0.0%, 6.0%] | **355/499** (71.1%) [67.0%, 74.9%] | **355/559** (63.5%) [59.4%, 67.4%] | +4.93% |
 
 ---
 
@@ -44,4 +46,12 @@ To control for threshold stringency across variants, doppelganger false-merge ra
 | `splink_v2` | 43.8% | 0.0% | 49.1% | 49.1% | 3.3% | 54.6% | 54.9% | 3.3% | 61.0% |
 | `splink_v3` | 46.7% | 0.0% | 52.3% | 52.4% | 3.3% | 58.2% | 58.3% | 3.3% | 64.9% |
 | `splink_v3_no_tf` | 47.6% | 3.3% | 52.9% | 52.8% | 3.3% | 58.8% | 58.2% | 3.3% | 64.8% |
-| `splink_v3_no_kinship` | 54.5% | 0.0% | 61.1% | 61.6% | 1.7% | 68.8% | 66.5% | 6.7% | 73.7% |
+| `splink_v3_no_kinship` (unresolved) | 54.5% | 0.0% | 61.1% | 61.6% | 1.7% | 68.8% | 66.5% | 6.7% | 73.7% |
+| `splink_v3_resolved` | 46.7% | 0.0% | 52.3% | 52.3% | 2.8% | 58.3% | 58.8% | 3.3% | 65.5% |
+| `splink_v3_1_resolved` (Reference) | 46.7% | 0.0% | 52.3% | 52.3% | 2.7% | 58.3% | 58.8% | 3.3% | 65.5% |
+| `splink_k_resolved` (Pipeline K) | 55.0% | 0.0% | 61.6% | 62.1% | 0.0% | 69.6% | 64.9% | 0.0% | 72.7% |
+
+### Evaluation Benchmark Note
+- On natural demographic holdouts (`holdout_5` .. `holdout_9`), doppelganger false-merge rates for Pipeline K (1.32% [0.56%, 3.04%]) vs Reference (1.58% [0.73%, 3.40%]) show no detectable difference; CIs overlap.
+- Pipeline K (`splink_k_resolved`) is preferred under this synthetic benchmark and the assumed 5:1 cost ratio; not validated on real registry data.
+

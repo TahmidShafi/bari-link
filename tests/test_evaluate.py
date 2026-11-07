@@ -576,3 +576,52 @@ def test_stress_curves_and_matched_recall():
     assert Path("results/stress_0/charts/stress_fm_vs_recall.html").exists()
 
 
+def test_pipeline_k_model_and_resolution():
+    """Verify Pipeline K configuration, absence of kinship comparison, and dev cost."""
+    model_path = Path("results/models/splink_k/model.json")
+    assert model_path.exists()
+    with open(model_path, "r", encoding="utf-8") as f:
+        m = json.load(f)
+    comp_cols = [c.get("output_column_name") for c in m.get("comparisons", [])]
+    assert "kinship_co_resident_count" not in comp_cols
+    assert "given_name" in comp_cols
+    assert "guardian_name" in comp_cols
+
+    sel_path = Path("results/splink_k_resolved/selected_thresholds.json")
+    assert sel_path.exists()
+    with open(sel_path, "r", encoding="utf-8") as f:
+        sel = json.load(f)
+    assert sel["t_link"] == 2.0
+    assert sel["t_bridge"] == 4.0
+    assert sel["min_cost"] == 782.0
+    assert sel["min_cost"] <= 811.44  # Pre-registered adoption threshold
+
+
+def test_confirm_table_generation_and_direction():
+    """Verify Hypothesis H3 confirmation table generation and 5/5 seed direction."""
+    from barilink.evaluate.confirm import generate_confirm_table
+
+    df = generate_confirm_table(runs="holdout_5..holdout_9")
+    assert not df.empty
+    assert "splink_k_resolved" in df["method"].values
+
+    confirm_file = Path("results/holdout_confirm/confirm_table.md")
+    assert confirm_file.exists()
+    content = confirm_file.read_text(encoding="utf-8")
+    assert "Direction Consistency" in content
+    assert "5/5 seeds" in content
+    assert "CONFIRMED" in content
+
+
+def test_stress_table_contains_requested_variants():
+    """Verify stress table contains splink_v3_1_resolved, Pipeline K, and v3_no_kinship."""
+    stress_file = Path("results/stress_0/stress_table.md")
+    assert stress_file.exists()
+    content = stress_file.read_text(encoding="utf-8")
+    assert "splink_v3_1_resolved" in content
+    assert "splink_k_resolved" in content
+    assert "splink_v3_no_kinship" in content
+    assert "Matched-Recall Doppelganger False-Merge Comparison" in content
+
+
+

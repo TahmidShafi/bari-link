@@ -37,6 +37,14 @@ def run_batch_evaluation(
             "splink_v3_no_kinship",
             "splink_v3_resolved",
         ]
+    else:
+        flat_methods = []
+        for m in methods:
+            for item in str(m).split(","):
+                item_s = item.strip()
+                if item_s:
+                    flat_methods.append(item_s)
+        methods = flat_methods
 
     for run_name in run_list:
         run_dir = Path(base_data_dir) / run_name
@@ -87,7 +95,14 @@ def run_batch_evaluation(
                 out_dir = Path(base_results_dir) / run_name / method
                 out_dir.mkdir(parents=True, exist_ok=True)
 
-                apply_listed = "v3" in base_method or "v3" in method
+                apply_listed = (
+                    "v3" in base_method
+                    or "v3" in method
+                    or "k" in base_method.lower().split("_")
+                    or "k" in method.lower().split("_")
+                    or "splink_k" in base_method
+                    or "splink_k" in method
+                )
                 clusters_df, res_log_df = build_resolved_graph(
                     predictions_df=base_preds_df,
                     records_df=records_df,
@@ -120,26 +135,40 @@ def run_batch_evaluation(
                 print(f"  Resolved and evaluated in {time.time() - t0:.1f}s")
 
             elif method in ("no_link", "exact", "phone", "exact_or_phone"):
-                from barilink.baseline.methods import (
-                    run_exact_matching,
-                    run_exact_or_phone_matching,
-                    run_no_link_baseline,
-                    run_phone_matching,
+                from barilink.baselines.exact import run_exact_baseline
+                from barilink.baselines.phone import (
+                    run_exact_or_phone_baseline,
+                    run_phone_baseline,
                 )
+                from barilink.evaluate.contracts import PairwisePredictions
 
                 m_dir = Path(base_results_dir) / run_name / method
                 m_dir.mkdir(parents=True, exist_ok=True)
                 preds_path = m_dir / "predictions.parquet"
                 if not preds_path.exists():
                     if method == "no_link":
-                        preds_df, cand_count = run_no_link_baseline(records_df)
+                        n_rec = len(records_df)
+                        cand_pairs = (n_rec * (n_rec - 1)) // 2
+                        empty_df = pd.DataFrame(
+                            columns=["record_id_l", "record_id_r", "match_probability"]
+                        )
+                        res = PairwisePredictions(
+                            predictions_df=empty_df,
+                            candidate_pair_count=cand_pairs,
+                            metadata={
+                                "method": "no_link",
+                                "description": "Empty predictions baseline (no links)",
+                            },
+                        )
                     elif method == "exact":
-                        preds_df, cand_count = run_exact_matching(records_df)
+                        res = run_exact_baseline(records_df)
                     elif method == "phone":
-                        preds_df, cand_count = run_phone_matching(records_df)
+                        res = run_phone_baseline(records_df)
                     elif method == "exact_or_phone":
-                        preds_df, cand_count = run_exact_or_phone_matching(records_df)
+                        res = run_exact_or_phone_baseline(records_df)
 
+                    preds_df = res.predictions_df
+                    cand_count = res.candidate_pair_count
                     preds_df.to_parquet(preds_path, index=False)
                     meta = {
                         "method": method,

@@ -54,7 +54,11 @@ def run_resolve_select(
     records_df = pd.read_parquet(records_path)
     preds_df = pd.read_parquet(preds_path)
     features_df = pd.read_parquet(feat_path) if feat_path.exists() else None
-    apply_listed = "v3" in base_method
+    apply_listed = (
+        "v3" in base_method
+        or "k" in base_method.lower().split("_")
+        or base_method in ("k", "splink_k")
+    )
 
     truth_dir = run_dir / "truth"
     record_truth_df = pd.read_parquet(truth_dir / "record_truth.parquet")

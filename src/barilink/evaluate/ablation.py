@@ -346,6 +346,8 @@ def compute_stress_curves(
             "splink_v3_no_tf",
             "splink_v3_no_kinship",
             "splink_v3_resolved",
+            "splink_v3_1_resolved",
+            "splink_k_resolved",
         ]
 
     truth_dir = Path(base_data_dir) / run_name / "truth"
@@ -385,24 +387,33 @@ def compute_stress_curves(
     curve_rows: list[dict[str, Any]] = []
 
     for method in methods:
-        m_dir = Path(base_results_dir) / run_name / method
-        preds_p = m_dir / "predictions.parquet"
-        if not preds_p.exists():
-            continue
-
         if method.endswith("_resolved"):
+            base_method = method.replace("_resolved", "")
+            base_preds_p = Path(base_results_dir) / run_name / base_method / "predictions.parquet"
+            if not base_preds_p.exists():
+                continue
             feat_p = reg_dir / "features.parquet"
             features_df = pd.read_parquet(feat_p) if feat_p.exists() else None
-            preds_df = pd.read_parquet(preds_p)
-            apply_listed = "v3" in method
+            preds_df = pd.read_parquet(base_preds_p)
+            apply_listed = (
+                "v3" in method
+                or "k" in method.lower().split("_")
+                or "splink_k" in method
+            )
+            sel_path = Path(base_results_dir) / method / "selected_thresholds.json"
+            t_bridge_val = 8.0
+            if sel_path.exists():
+                with open(sel_path, "r", encoding="utf-8") as f:
+                    sel = json.load(f)
+                t_bridge_val = float(sel.get("t_bridge", 8.0))
 
-            # Sweep t_link from 2.0 to 14.0 in steps of 0.5 with t_bridge=8.0
-            for t_l in np.arange(2.0, 14.5, 0.5):
+            # Sweep t_link from 0.5 to 14.0 in steps of 0.5
+            for t_l in np.arange(0.5, 14.5, 0.5):
                 cdf, _ = build_resolved_graph(
                     predictions_df=preds_df,
                     records_df=records_df,
                     t_link=float(t_l),
-                    t_bridge=8.0,
+                    t_bridge=max(float(t_l), t_bridge_val),
                     features_df=features_df,
                     apply_listed_as_other_member=apply_listed,
                 )
@@ -449,6 +460,10 @@ def compute_stress_curves(
                     }
                 )
         else:
+            m_dir = Path(base_results_dir) / run_name / method
+            preds_p = m_dir / "predictions.parquet"
+            if not preds_p.exists():
+                continue
             preds = pd.read_parquet(preds_p)
             score_col = "match_weight" if "match_weight" in preds.columns else "match_probability"
             sorted_preds = preds.sort_values(score_col, ascending=False).reset_index(drop=True)
@@ -686,6 +701,8 @@ def generate_stress_table(
             "splink_v3_no_tf",
             "splink_v3_no_kinship",
             "splink_v3_resolved",
+            "splink_v3_1_resolved",
+            "splink_k_resolved",
         ]
 
     truth_dir = Path(base_data_dir) / run_name / "truth"
@@ -937,11 +954,37 @@ def generate_stress_table(
         p40, n40, i40 = mr["pooled_fm@0.40"], mr["natural_fm@0.40"], mr["injected_fm@0.40"]
         p50, n50, i50 = mr["pooled_fm@0.50"], mr["natural_fm@0.50"], mr["injected_fm@0.50"]
         p60, n60, i60 = mr["pooled_fm@0.60"], mr["natural_fm@0.60"], mr["injected_fm@0.60"]
+        m_name = mr["method"]
+        if m_name == "splink_k_resolved":
+            display_name = "`splink_k_resolved` (Pipeline K)"
+        elif m_name == "splink_v3_1_resolved":
+            display_name = "`splink_v3_1_resolved` (Reference)"
+        elif m_name == "splink_v3_no_kinship":
+            display_name = "`splink_v3_no_kinship` (unresolved)"
+        else:
+            display_name = f"`{m_name}`"
         lines.append(
-            f"| `{mr['method']}` | {p40} | {n40} | {i40} | "
+            f"| {display_name} | {p40} | {n40} | {i40} | "
             f"{p50} | {n50} | {i50} | "
             f"{p60} | {n60} | {i60} |"
         )
+
+    lines.extend(
+        [
+            "",
+            "### Evaluation Benchmark Note",
+            (
+                "- On natural demographic holdouts (`holdout_5` .. `holdout_9`), doppelganger "
+                "false-merge rates for Pipeline K (1.32% [0.56%, 3.04%]) vs Reference "
+                "(1.58% [0.73%, 3.40%]) show no detectable difference; CIs overlap."
+            ),
+            (
+                "- Pipeline K (`splink_k_resolved`) is preferred under this synthetic benchmark "
+                "and the assumed 5:1 cost ratio; not validated on real registry data."
+            ),
+            "",
+        ]
+    )
 
     out_file = (
         Path(output_path) if output_path else Path(base_results_dir) / run_name / "stress_table.md"

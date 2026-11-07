@@ -609,7 +609,11 @@ def run_resolve(
     records_df = pd.read_parquet(records_path)
     preds_df = pd.read_parquet(preds_path)
     features_df = pd.read_parquet(feat_path) if feat_path.exists() else None
-    apply_listed = "v3" in base_method
+    apply_listed = (
+        "v3" in base_method
+        or "k" in base_method.lower().split("_")
+        or base_method in ("k", "splink_k")
+    )
 
     if mode == "select":
         from barilink.evaluate.resolve_eval import run_resolve_select
@@ -791,10 +795,13 @@ def run_link(
     elif "v3" in model:
         link_cfg["guardian_mode"] = "v2"
         link_cfg["kinship_mode"] = "v3"
+    elif "k" in model.lower().split("_") or model in ("splink_k", "k"):
+        link_cfg["guardian_mode"] = "v2"
+        link_cfg["use_kinship"] = False
 
     if "no_tf" in model:
         link_cfg["use_term_frequency"] = False
-    if "no_kinship" in model:
+    if "no_kinship" in model or "k" in model.lower().split("_") or model in ("splink_k", "k"):
         link_cfg["use_kinship"] = False
     model_cfg["linkage"] = link_cfg
 
@@ -1135,6 +1142,38 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--threads", type=int, default=1, help="DuckDB execution threads"
     )
 
+    # Subcommand: evaluate confirm
+    conf_parser = eval_subparsers.add_parser(
+        "confirm", help="Generate fresh holdout confirmation table for Hypothesis H3"
+    )
+    conf_parser.add_argument(
+        "--runs",
+        nargs="+",
+        default=["holdout_5..holdout_9"],
+        help="List of runs or range (default: holdout_5..holdout_9)",
+    )
+    conf_parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=None,
+        help="List of methods to evaluate in confirmation benchmark",
+    )
+    conf_parser.add_argument(
+        "--reference-method",
+        type=str,
+        default="splink_v3_1_resolved",
+        help="Reference benchmark method (default: splink_v3_1_resolved)",
+    )
+    conf_parser.add_argument(
+        "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
+    )
+    conf_parser.add_argument(
+        "--results-dir", type=str, default="results", help="Results directory"
+    )
+    conf_parser.add_argument(
+        "--output", "-o", type=str, default=None, help="Output markdown file path"
+    )
+
     # Standard evaluate options on eval_parser
     eval_parser.add_argument(
         "--method",
@@ -1460,6 +1499,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 base_data_dir=args.data_dir,
                 base_results_dir=args.results_dir,
                 threads=args.threads,
+            )
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "confirm":
+            from barilink.evaluate.confirm import generate_confirm_table
+
+            generate_confirm_table(
+                runs=args.runs,
+                methods=args.methods,
+                reference_method=args.reference_method,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+                output_path=args.output,
             )
             return 0
         else:
