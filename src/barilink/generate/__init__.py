@@ -37,4 +37,3 @@ __all__ = [
     "compute_zipf_mandelbrot_weights",
     "generate_population",
 ]
-

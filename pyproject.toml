@@ -15,6 +15,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "pytest>=7.4.0",
     "splink>=4.0.16,<5",
+    "networkx>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -36,4 +37,7 @@ ignore = []
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore:Automatically deduplicated selection parameter.*:UserWarning",
+]
 

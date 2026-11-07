@@ -319,8 +319,7 @@ def test_household_given_name_uniqueness(small_config: Path, tmp_path: Path) -> 
         n_members = len(g)
         n_unique_given = g["given_name"].nunique()
         assert n_members == n_unique_given, (
-            f"Household {hh_id} has duplicate given names: "
-            f"{g['given_name'].tolist()}"
+            f"Household {hh_id} has duplicate given names: {g['given_name'].tolist()}"
         )
 
 
@@ -339,5 +338,3 @@ def test_father_son_given_name_distinct(small_config: Path, tmp_path: Path) -> N
             f"Son {row['person_id']} in HH {row['household_id']} shares given_name "
             f"'{row['given_name']}' with father_given_name '{row['father_given_name']}'"
         )
-
-

@@ -57,9 +57,7 @@ def evaluate_blocking(
     else:
         reduction_ratio = 1.0
 
-    pair_completeness = (
-        (candidate_true_pairs / total_true_pairs) if total_true_pairs > 0 else 1.0
-    )
+    pair_completeness = (candidate_true_pairs / total_true_pairs) if total_true_pairs > 0 else 1.0
     pair_quality = (candidate_true_pairs / candidate_pairs) if candidate_pairs > 0 else 0.0
 
     return BlockingMetrics(

@@ -27,4 +27,3 @@ __all__ = [
     "export_registries",
     "get_rule_counts",
 ]
-

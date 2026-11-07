@@ -200,32 +200,34 @@ This section records all architectural, demographic, and technical design decisi
   - Diagnostic charts exported to `results/holdout/splink_v1/charts/` (`match_weights.html`, `m_u_parameters.html`).
   - Error analysis report persisted to `results/holdout/splink_v1/error_analysis.md`, attributing false merges and blocking failures across 161 unblocked true pairs (11.31%).
 
-### Log Entry 006: 2026-11-06 — Phase 4b Threshold Resolution & Statistical Uncertainty
-- **Decision 6.1: Match-Weight Threshold Grid Sweep**:
-  - Replaced the truncated probability grid ([0.01, 0.99] in steps of 0.01) with a match-weight space sweep: weights from -5.0 to +25.0 in steps of 0.25 (121 evaluation points).
-  - Stored equivalent match probabilities $p = 2^w / (1 + 2^w)$ in `threshold_table.parquet` (`threshold_weight` and `threshold_probability`).
-  - For deterministic non-ML baselines outputting $p = 1.0$, assigned match-weight $+\infty$, placing their operational cutoff on the upper boundary ($t_{\text{cost}} = 25.00$) and logging an explicit boundary warning.
-  - On `demo`, the match-weight sweep resolved an interior optimum at $w = 9.00$ ($p \approx 0.998051$), reducing false-merge clusters from 58 down to 19, eliminating doppelganger false merges (0.0%), and locating the high-precision operational threshold $t_{\text{p99}} = 15.50$ ($p \approx 0.999978$).
-- **Decision 6.2: Multi-Seed Holdout Protocol & Statistical Uncertainty**:
-  - Instantiated 5 independent holdout populations (`holdout_0` through `holdout_4`) with seed offsets 1000, 1001, 1002, 1003, and 1004.
-  - Frozen `splink_v1` model scored all 5 holdouts without re-training or threshold re-tuning.
-  - Evaluated all 5 methods (`no_link`, `exact`, `phone`, `exact_or_phone`, `splink_v1`) in `report` mode across all 5 seeds, reporting sample mean $\pm$ standard deviation ($N=5$) for headline metrics:
-    - `splink_v1`: Cluster Precision = $0.9404 \pm 0.0081$, Cluster Recall = $0.4741 \pm 0.0122$, Cluster F1 = $0.6303 \pm 0.0105$, Reach Error = $+14.85\% \pm 0.69\%$, Review Pairs per 10k = $2031.1$.
-    - `exact_or_phone`: Cluster Precision = $0.8557 \pm 0.0419$, Cluster Recall = $0.1795 \pm 0.0212$, Cluster F1 = $0.2964 \pm 0.0302$, Reach Error = $+23.70\% \pm 0.99\%$.
-- **Decision 6.3: Pooled Wilson 95% Confidence Interval for Doppelgangers**:
-  - Pooled doppelganger false-merge counts across the 5 holdout seeds (370 total injected cross-household doppelganger pairs).
-  - Derived Wilson score 95% confidence intervals:
-    - `no_link`: $0.00\%$ ($0/370$) [Wilson 95% CI: $0.00\%$, $1.03\%$]
-    - `exact`: $4.86\%$ ($18/370$) [Wilson 95% CI: $3.10\%$, $7.56\%$]
-    - `phone`: $0.27\%$ ($1/370$) [Wilson 95% CI: $0.05\%$, $1.51\%$]
-    - `exact_or_phone`: $5.14\%$ ($19/370$) [Wilson 95% CI: $3.31\%$, $7.88\%$]
-    - `splink_v1`: $1.89\%$ ($7/370$) [Wilson 95% CI: $0.92\%$, $3.85\%$]
-  - Confirmed that multi-feature probabilistic evidence cuts doppelganger false merges by >60% relative to standard deterministic matching (`exact` / `exact_or_phone`).
-- **Decision 6.4: Blocking Diagnostics & Recall Ceiling**:
-  - Analyzed marginal and cumulative candidate pair generation across the 5 blocking rules on `holdout_0`, persisted to `results/holdout_0/splink_v1/blocking.md`.
-  - Pruned search space from 11.5M pairs down to 45,507 comparisons (99.60% reduction ratio) while preserving 88.36% pair completeness (1,298 / 1,469 true pairs).
-- **Decision 6.5: Exclusion of B-cubed from Headline Comparison**:
-  - B-cubed precision and recall are recorded exclusively in `metrics.json` and excluded from the headline comparison table because datasets dominated by singleton clusters artificially inflate B-cubed metrics (e.g. `no_link` scores B-cubed F1 $\approx 0.86$ despite zero recall on actual matching pairs). Cluster-level pairwise metrics ($TP, FP, FN, P, R, F_1$) provide an honest, uninflated headline assessment.
+### Log Entry 007: 2026-11-07 — Phase 5 Entity Resolution, Kinship Golden Records & Clerical Review
+- **Decision 7.1: Unshifted Min-Cut Capacity & Multi-Edge Bias Prevention**:
+  - In Step 2 (cannot-link constraint enforcement), edge capacity in the component subgraph is defined strictly as $c(e) = w(e)$ without additive constant shifts ($c(e) > 0$ is guaranteed since all edges have $w \ge t_{\text{link}} \ge 2.0$).
+  - An additive shift $C > 0$ ($c(e) = w(e) + C$) would penalize an $s$-$t$ cut with $k$ edges by $k \cdot C$, biassing the min-cut toward cutting a single strong edge ($W + C$) rather than multiple weak edges ($\sum w_i + k \cdot C$). With unshifted capacity, min-cut reliably cuts weak parallel chains separating incompatible records (verified via 4-node unit test cutting two weight 3.0 edges instead of a weight 12.0 edge).
+- **Decision 7.2: 4-Step Graph Entity Resolution & Dev Grid Parameter Sweep**:
+  - Implemented the deterministic 4-step resolution pipeline:
+    1. *Step 1*: Connected components on edges with $w \ge t_{\text{link}}$, evaluated in sorted node order.
+    2. *Step 2*: Cannot-link constraints (sex conflict, estimated birth year gap > 10 years, and oracle clerical splits) severed iteratively via minimum $s$-$t$ cut with unshifted capacity.
+    3. *Step 3*: Weak bridge pruning using `nx.bridges` on components with $\ge 3$ records where bridge weight $w < t_{\text{bridge}}$, cutting the weakest bridge first and iterating until all remaining bridges meet or exceed $t_{\text{bridge}}$.
+    4. *Step 4*: Deterministic SHA-256 hashed cluster identifiers based on sorted member lists.
+  - Performed a 2D parameter grid sweep on `demo` over $t_{\text{link}} \in [2.0, 9.0]$ (step 0.5) and $t_{\text{bridge}} \in [t_{\text{link}}, 16]$ (integer steps) to minimize asymmetric operational cost (5:1 false merge to missed duplicate penalty).
+  - Optimum on `demo` selected $t_{\text{link}} = 9.0, t_{\text{bridge}} = 9.0$ (min cost 892.0, cluster precision 96.57%, recall 45.44%, F1 0.6180, doppelganger false-merge rate 0.0%). The global minimum landed on the $t_{\text{bridge}} = t_{\text{link}}$ baseline, where cannot-link constraint cuts alone (3 cuts) optimize cost, with $t_{\text{bridge}} = 10.0$ close behind (cost 893.0, precision 97.31%, 17 bridge cuts).
+- **Decision 7.3: Multi-Seed Holdout Evaluation with Frozen Thresholds**:
+  - Evaluated `splink_v1_resolved` in report mode across all 5 independent holdout seeds (`holdout_0` .. `holdout_4`) using frozen thresholds $t_{\text{link}} = 9.0, t_{\text{bridge}} = 9.0$.
+  - Relative to raw `splink_v1`, entity resolution improved Cluster Precision to $0.9484 \pm 0.0067$ (up from $0.9404 \pm 0.0081$) and Cluster F1 to $0.6320 \pm 0.0107$ (up from $0.6303 \pm 0.0105$), maintaining pair completeness at $89.04\%$ and pooled doppelganger false-merge rate at $1.89\%$ [Wilson 95% CI: $0.92\%, 3.85\%$].
+  - Precomputed UI threshold clusterings for `holdout_0` across all $t_{\text{link}}$ values, exported to `resolved_by_threshold.parquet`.
+- **Decision 7.4: Kinship Golden Records Survivorship & Disambiguation**:
+  - Built canonical golden records per resolved cluster with complete JSON lineage and attribute provenance.
+  - Resolved female beneficiary guardian switches across modules (e.g. unmarried beneficiary reporting father $\to$ married beneficiary reporting husband) by persisting `father_name` and `husband_name` into distinct dedicated columns, rather than overwriting a generic `guardian_name`.
+  - Selected median estimated birth year to protect against single-module age heaping and recall bias.
+  - Evaluated against majority ground-truth identity on `holdout_0`: Title-free canonical name accuracy = 78.62%, Title accuracy = 81.04%, Birth year mean error = 0.71 years (median error = 0.0 years), Phone accuracy among clusters with phone = 48.94% (matches person's own phone) and 80.60% (matches person's own OR household phone), cluster impurity rate = 0.57%.
+- **Decision 7.5: Budgeted Clerical Review & Active Learning Monotonicity**:
+  - Constructed an uncertainty-ranked review queue prioritising cut edges first, followed by boundary candidate pairs sorted by ascending distance $|w - t_{\text{link}}|$ within a $\pm 6.0$ window.
+  - Simulated active clerical review across budgets $K \in \{0, 50, 100, 250, 500\}$ pairs per 10k records, dynamically injecting oracle must-link ($w = 1000.0$) and cannot-link constraints.
+  - On `holdout_0`, expected operational cost decreased strictly monotonically from 951.0 down to 778.0, while Cluster F1 rose from 0.6194 to 0.6809. At $K = 500$, review confirmed 201 true merges and severed 39 false merges.
+- **Decision 7.6: Structural Limitation of Bridge Detection**:
+  - Documented algorithmic limitation: `nx.bridges` finds single-edge cuts (bridges). If two dense cliques are erroneously joined by 2 or more weak parallel edges, neither edge is mathematically a bridge. Consequently, weak-bridge splitting cannot sever multi-edge spurious connections; they rely entirely on hard cannot-link constraints (sex or birth year conflicts) or escalation to clerical review.
+
 
 
 

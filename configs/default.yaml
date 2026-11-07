@@ -169,4 +169,14 @@ linkage:
   prob_random_match_recall: 0.60
   u_max_pairs: 2000000
 
+# ==============================================================================
+# Phase 5: Entity Resolution, Golden Records & Clerical Review
+# ==============================================================================
+resolve:
+  max_birth_year_gap: 10          # Assumed: maximum allowable birth year gap for records in same cluster
+  t_link_adhoc_default: 9.00      # Ad-hoc runs only (report mode strictly requires selected_thresholds.json)
+  t_bridge_adhoc_default: 12.00   # Ad-hoc runs only (report mode strictly requires selected_thresholds.json)
+  review_k_per_10k: [0, 50, 100, 250, 500]
+
+
 

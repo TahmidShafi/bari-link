@@ -240,12 +240,14 @@ def predict_splink_model(
         w = float(row.get("match_weight", 0.0))
         if id_l > id_r:
             id_l, id_r = id_r, id_l
-        preds_records.append({
-            "record_id_l": id_l,
-            "record_id_r": id_r,
-            "match_probability": p,
-            "match_weight": w,
-        })
+        preds_records.append(
+            {
+                "record_id_l": id_l,
+                "record_id_r": id_r,
+                "match_probability": p,
+                "match_weight": w,
+            }
+        )
 
     predictions_df = pd.DataFrame(preds_records)
     if not predictions_df.empty:

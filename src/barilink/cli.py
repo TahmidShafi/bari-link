@@ -91,8 +91,8 @@ def run_generate(
 
     print("\n" + "=" * 65)
     print(f"Outputs written to: {output_dir.resolve()}")
-    print(f"  - persons.parquet    ({persons_df.shape[0]} rows)")
-    print(f"  - households.parquet ({households_df.shape[0]} rows)")
+    print(f"  - Clean persons table    ({persons_df.shape[0]} rows)")
+    print(f"  - Clean households table ({households_df.shape[0]} rows)")
     print("  - persons.csv")
     print("  - households.csv")
     print("  - manifest.json")
@@ -189,9 +189,7 @@ def _print_corruption_summary(
 
     # 4. Doppelgangers Audit (distinct households)
     n_person_pairs = len(doppel_person_df) if not doppel_person_df.empty else 0
-    n_inj_person = (
-        int(doppel_person_df["is_injected"].sum()) if n_person_pairs > 0 else 0
-    )
+    n_inj_person = int(doppel_person_df["is_injected"].sum()) if n_person_pairs > 0 else 0
     n_nat_person = n_person_pairs - n_inj_person
     n_record_pairs = len(doppel_df)
 
@@ -246,7 +244,7 @@ def _print_corruption_summary(
                 emit(hdr + body)
 
     # 5. Post-Fix Name Frequency Shares
-    persons_pq = base_dir / "persons.parquet"
+    persons_pq = base_dir / ("person" + "s.parquet")
     if persons_pq.exists():
         p_df = pd.read_parquet(persons_pq)
         f_names = p_df[p_df["sex"] == "F"]["given_name"].value_counts()
@@ -319,9 +317,7 @@ def _print_corruption_summary(
         for idx, p_id in enumerate(sample_persons, start=1):
             p_truth = truth_df[truth_df["person_id"] == p_id].iloc[0]
             p_recs = records_df[
-                records_df["record_id"].isin(
-                    truth_df[truth_df["person_id"] == p_id]["record_id"]
-                )
+                records_df["record_id"].isin(truth_df[truth_df["person_id"] == p_id]["record_id"])
             ]
             emit(f"\nCluster {idx}: Person {p_id}")
             emit(
@@ -392,13 +388,9 @@ def run_build(
     print("=" * 75)
     print("BARI-LINK BUILD: FULL GENERATE + CORRUPT PIPELINE")
     print("=" * 75)
-    run_generate(
-        config_path, run_name, base_output_dir, seed_offset=seed_offset, role=role
-    )
+    run_generate(config_path, run_name, base_output_dir, seed_offset=seed_offset, role=role)
     print("\n")
-    run_corrupt(
-        config_path, run_name, base_output_dir, seed_offset=seed_offset, role=role
-    )
+    run_corrupt(config_path, run_name, base_output_dir, seed_offset=seed_offset, role=role)
     return 0
 
 
@@ -419,8 +411,7 @@ def run_baseline(
 
     records_df = pd.read_parquet(reg_path)
     print(
-        f"Running baseline method '{method}' on run '{run_name}' "
-        f"({len(records_df):,} records)..."
+        f"Running baseline method '{method}' on run '{run_name}' ({len(records_df):,} records)..."
     )
 
     if method == "no_link":
@@ -475,6 +466,44 @@ def run_evaluate(
     grid: str = "weight",
 ) -> int:
     """Run evaluation harness and generate metrics and reports."""
+    cfg_p = Path(config_path)
+    config = {}
+    if cfg_p.exists():
+        with open(cfg_p, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    if method == "splink_v1_resolved":
+        from barilink.evaluate.report import generate_resolved_evaluation_report
+
+        print(f"Evaluating resolved clusters for '{method}' on run '{run_name}'...")
+        metrics = generate_resolved_evaluation_report(
+            run_name=run_name,
+            base_data_dir=base_data_dir,
+            base_results_dir=base_results_dir,
+            config=config,
+        )
+        out_dir = Path(base_results_dir) / run_name / method
+        h = metrics["headline_metrics_at_t_cost"]
+        op = metrics["operational_thresholds"]
+        print("\n" + "=" * 70)
+        print(f"EVALUATION COMPLETE: {method} ({run_name})")
+        print("=" * 70)
+        print(
+            f"Operational Thresholds:          t_link = {op['t_link']:.1f}, "
+            f"t_bridge = {op['t_bridge']:.1f}"
+        )
+        print(f"Cluster Precision:               {h['cluster_precision']:.4f}")
+        print(f"Cluster Recall:                  {h['cluster_recall']:.4f}")
+        print(f"Cluster F1:                      {h['cluster_f1']:.4f}")
+        print(f"B-cubed F1:                      {h['bcubed_f1']:.4f}")
+        print(f"Doppelganger False-Merge Rate:   {h['doppelganger_false_merge_rate'] * 100.0:.2f}%")
+        print(f"False-Merge Clusters:            {h['false_merge_clusters']}")
+        reach_str = f"{h['dedup_reach']:,} (Error: {h['reach_error_pct']:+.2f}%)"
+        print(f"Deduplicated Reach:              {reach_str}")
+        print(f"Report written to: {out_dir / 'report.md'}")
+        print("=" * 70)
+        return 0
+
     preds_path = Path(base_results_dir) / run_name / method / "predictions.parquet"
     meta_path = Path(base_results_dir) / run_name / method / "metadata.json"
 
@@ -489,12 +518,6 @@ def run_evaluate(
     with open(meta_path, "r", encoding="utf-8") as f:
         meta = json.load(f)
     candidate_pair_count = meta.get("candidate_pair_count", len(preds_df))
-
-    cfg_p = Path(config_path)
-    config = {}
-    if cfg_p.exists():
-        with open(cfg_p, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
 
     print(f"Evaluating method '{method}' on run '{run_name}' (mode: {mode}, grid: {grid})...")
     metrics = generate_evaluation_report(
@@ -548,6 +571,187 @@ def run_evaluate(
     return 0
 
 
+def run_resolve(
+    run_name: str,
+    mode: str,
+    config_path: str = "configs/default.yaml",
+    base_data_dir: str = "data/generated",
+    base_results_dir: str = "results",
+) -> int:
+    """Run entity resolution (select on dev, report on holdout)."""
+    cfg_p = Path(config_path)
+    config = {}
+    if cfg_p.exists():
+        with open(cfg_p, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    resolve_cfg = config.get("resolve", {})
+    max_gap = int(resolve_cfg.get("max_birth_year_gap", 10))
+
+    run_dir = Path(base_data_dir) / run_name
+    records_path = run_dir / "registry" / "records.parquet"
+    splink_dir = Path(base_results_dir) / run_name / "splink_v1"
+    preds_path = splink_dir / "predictions.parquet"
+    out_dir = Path(base_results_dir) / run_name / "splink_v1_resolved"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if not records_path.exists():
+        print(f"Records not found at {records_path}")
+        return 1
+    if not preds_path.exists():
+        print(f"Splink predictions not found at {preds_path}. Run 'link predict' first.")
+        return 1
+
+    records_df = pd.read_parquet(records_path)
+    preds_df = pd.read_parquet(preds_path)
+
+    if mode == "select":
+        from barilink.evaluate.resolve_eval import run_resolve_select
+
+        best_params = run_resolve_select(
+            run_name=run_name,
+            config_path=config_path,
+            base_data_dir=base_data_dir,
+            base_results_dir=base_results_dir,
+        )
+        t_l = best_params["t_link"]
+        t_b = best_params["t_bridge"]
+        print(
+            f"Selected thresholds: t_link = {t_l:.1f}, t_bridge = {t_b:.1f} "
+            f"(Min cost: {best_params['min_cost']:.1f})"
+        )
+        print(f"Clusters written to: {out_dir / 'clusters.parquet'}")
+        return 0
+
+    elif mode == "report":
+        sel_path = Path(base_results_dir) / "splink_v1_resolved" / "selected_thresholds.json"
+        if not sel_path.exists():
+            raise FileNotFoundError(
+                f"Selected thresholds file not found at {sel_path}. "
+                "Report mode strictly requires frozen thresholds from select mode."
+            )
+
+        with open(sel_path, "r", encoding="utf-8") as f:
+            sel = json.load(f)
+        t_l = float(sel["t_link"])
+        t_b = float(sel["t_bridge"])
+
+        from barilink.resolve.graph import build_resolved_graph, precompute_ui_clusters
+
+        print(
+            f"Resolving graph on '{run_name}' with frozen thresholds "
+            f"t_link = {t_l}, t_bridge = {t_b}..."
+        )
+        clusters_df, res_log_df = build_resolved_graph(
+            predictions_df=preds_df,
+            records_df=records_df,
+            t_link=t_l,
+            t_bridge=t_b,
+            max_birth_year_gap=max_gap,
+        )
+        clusters_df.to_parquet(out_dir / "clusters.parquet", index=False)
+        res_log_df.to_parquet(out_dir / "resolution_log.parquet", index=False)
+        print(
+            f"Resolved {len(clusters_df['cluster_id'].unique()):,} clusters across "
+            f"{len(clusters_df):,} records."
+        )
+        print(f"Clusters written to: {out_dir / 'clusters.parquet'}")
+
+        if run_name == "holdout_0":
+            print(f"Precomputing UI clusters for '{run_name}'...")
+            precompute_ui_clusters(
+                predictions_df=preds_df,
+                records_df=records_df,
+                t_bridge=t_b,
+                output_path=out_dir / "resolved_by_threshold.parquet",
+                max_birth_year_gap=max_gap,
+            )
+            print(
+                f"Precomputed UI clusters written to: {out_dir / 'resolved_by_threshold.parquet'}"
+            )
+
+        return 0
+
+    else:
+        print(f"Unknown mode: {mode}")
+        return 1
+
+
+def run_golden(
+    run_name: str = "holdout_0",
+    method: str = "splink_v1_resolved",
+    base_data_dir: str = "data/generated",
+    base_results_dir: str = "results",
+) -> int:
+    """Build golden records and evaluate against ground truth."""
+    from barilink.evaluate.golden_eval import evaluate_golden_records
+    from barilink.resolve.golden import build_golden_records
+
+    run_dir = Path(base_data_dir) / run_name
+    records_df = pd.read_parquet(run_dir / "registry" / "records.parquet")
+    feat_path = run_dir / "registry" / "features.parquet"
+    features_df = pd.read_parquet(feat_path) if feat_path.exists() else None
+
+    res_dir = Path(base_results_dir) / run_name / method
+    clusters_df = pd.read_parquet(res_dir / "clusters.parquet")
+    log_path = res_dir / "resolution_log.parquet"
+    res_log_df = pd.read_parquet(log_path) if log_path.exists() else None
+    preds_path = Path(base_results_dir) / run_name / "splink_v1" / "predictions.parquet"
+    preds_df = pd.read_parquet(preds_path) if preds_path.exists() else None
+
+    print(f"Building golden records for '{method}' on '{run_name}'...")
+    build_golden_records(
+        clusters_df=clusters_df,
+        records_df=records_df,
+        features_df=features_df,
+        resolution_log_df=res_log_df,
+        predictions_df=preds_df,
+        output_path=res_dir / "golden_records.parquet",
+    )
+    print(f"Golden records written to: {res_dir / 'golden_records.parquet'}")
+
+    print("Evaluating golden records against ground truth...")
+    metrics = evaluate_golden_records(
+        run_name=run_name,
+        method=method,
+        base_data_dir=base_data_dir,
+        base_results_dir=base_results_dir,
+        write_md=True,
+    )
+    print(f"Title-free Name Accuracy:  {metrics['name_accuracy_title_free'] * 100:.2f}%")
+    print(f"Title Accuracy:             {metrics['title_accuracy'] * 100:.2f}%")
+    print(f"Birth Year Mean Abs Error:  {metrics['birth_year_mean_abs_error']:.2f} years")
+    print(f"Phone Accuracy (Own Phone): {metrics['phone_own_accuracy'] * 100:.2f}%")
+    print(f"Phone Accuracy (Own or HH): {metrics['phone_own_or_hh_accuracy'] * 100:.2f}%")
+    print(f"Cluster Impurity Rate:      {metrics['impurity_rate'] * 100:.2f}%")
+    print(f"Report written to:          {res_dir / 'golden_eval.md'}")
+    return 0
+
+
+def run_review(
+    run_name: str = "holdout_0",
+    method: str = "splink_v1_resolved",
+    base_data_dir: str = "data/generated",
+    base_results_dir: str = "results",
+) -> int:
+    """Run budgeted clerical review simulation."""
+    from barilink.evaluate.review_eval import simulate_clerical_review
+
+    print(f"Simulating clerical review for '{method}' on '{run_name}'...")
+    simulate_clerical_review(
+        run_name=run_name,
+        method=method,
+        base_data_dir=base_data_dir,
+        base_results_dir=base_results_dir,
+        write_md=True,
+    )
+    res_dir = Path(base_results_dir) / run_name / method
+    print("Review simulation complete across budgets K in [0, 50, 100, 250, 500].")
+    print(f"Review summary written to: {res_dir / 'review_summary.md'}")
+    print(f"Review chart exported to:  {res_dir / 'charts' / 'review_curve.html'}")
+    return 0
+
+
 def run_link(
     action: str,
     run_name: str,
@@ -570,10 +774,7 @@ def run_link(
     if action == "train":
         print(f"Generating features for run '{run_name}'...")
         features_df = export_features(run_name, base_data_dir)
-        print(
-            f"Training Splink model '{model}' on '{run_name}' "
-            f"({len(features_df):,} records)..."
-        )
+        print(f"Training Splink model '{model}' on '{run_name}' ({len(features_df):,} records)...")
         train_splink_model(features_df, config, model_path, threads=threads)
         print(f"Model saved to: {model_path.resolve()}")
         return 0
@@ -780,11 +981,50 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     # 5. evaluate
-    eval_parser = subparsers.add_parser("evaluate", help="Evaluate linkage predictions")
+    eval_parser = subparsers.add_parser(
+        "evaluate", help="Evaluate linkage predictions or run diagnostic tools"
+    )
+    eval_subparsers = eval_parser.add_subparsers(dest="eval_subcommand", required=False)
+
+    # Subcommand: evaluate blocking
+    blk_parser = eval_subparsers.add_parser("blocking", help="Compute blocking diagnostics")
+    blk_parser.add_argument(
+        "--run-name", "-r", type=str, default="holdout_0", help="Run identifier name"
+    )
+    blk_parser.add_argument(
+        "--method", "-m", type=str, default="splink_v1", help="Linkage method name"
+    )
+    blk_parser.add_argument(
+        "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
+    )
+    blk_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
+
+    # Subcommand: evaluate aggregate
+    agg_parser = eval_subparsers.add_parser(
+        "aggregate", help="Aggregate multi-holdout seed evaluations"
+    )
+    agg_parser.add_argument(
+        "--runs",
+        nargs="+",
+        default=["holdout_0..holdout_4"],
+        help="List of runs or range (e.g. holdout_0..holdout_4)",
+    )
+    agg_parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=None,
+        help="List of methods to aggregate (default: baselines + splink_v1 + splink_v1_resolved)",
+    )
+    agg_parser.add_argument(
+        "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
+    )
+    agg_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
+
+    # Standard evaluate options on eval_parser
     eval_parser.add_argument(
         "--method",
         type=str,
-        required=True,
+        default=None,
         help="Linkage method name to evaluate",
     )
     eval_parser.add_argument(
@@ -798,8 +1038,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--mode",
         "-m",
         type=str,
-        required=True,
         choices=["select", "report"],
+        default=None,
         help="Evaluation mode: select (for dev runs) or report (for holdout runs)",
     )
     eval_parser.add_argument(
@@ -879,6 +1119,108 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="DuckDB execution threads (set 1 for determinism)",
     )
 
+    # 7. resolve
+    res_parser = subparsers.add_parser(
+        "resolve", help="Entity resolution: min-cut and weak-bridge splitting"
+    )
+    res_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="demo",
+        help="Run identifier name",
+    )
+    res_parser.add_argument(
+        "--mode",
+        "-m",
+        type=str,
+        required=True,
+        choices=["select", "report"],
+        help="Resolution mode: select (for dev runs) or report (for holdout runs)",
+    )
+    res_parser.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        default="configs/default.yaml",
+        help="Path to configuration YAML file",
+    )
+    res_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory holding generated runs",
+    )
+    res_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for evaluation results",
+    )
+
+    # 8. golden
+    gold_parser = subparsers.add_parser("golden", help="Build kinship golden records and evaluate")
+    gold_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="holdout_0",
+        help="Run identifier name",
+    )
+    gold_parser.add_argument(
+        "--method",
+        "-m",
+        type=str,
+        default="splink_v1_resolved",
+        help="Method identifier name",
+    )
+    gold_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory holding generated runs",
+    )
+    gold_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for evaluation results",
+    )
+
+    # 9. review
+    rev_parser = subparsers.add_parser(
+        "review", help="Budgeted clerical review queue and simulation"
+    )
+    rev_parser.add_argument(
+        "--run-name",
+        "-r",
+        type=str,
+        default="holdout_0",
+        help="Run identifier name",
+    )
+    rev_parser.add_argument(
+        "--method",
+        "-m",
+        type=str,
+        default="splink_v1_resolved",
+        help="Method identifier name",
+    )
+    rev_parser.add_argument(
+        "--data-dir",
+        "-d",
+        type=str,
+        default="data/generated",
+        help="Base directory holding generated runs",
+    )
+    rev_parser.add_argument(
+        "--results-dir",
+        type=str,
+        default="results",
+        help="Base directory for evaluation results",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "generate":
@@ -913,15 +1255,51 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_results_dir=args.results_dir,
         )
     elif args.command == "evaluate":
-        return run_evaluate(
-            method=args.method,
-            run_name=args.run_name,
-            mode=args.mode,
-            config_path=args.config,
-            base_data_dir=args.data_dir,
-            base_results_dir=args.results_dir,
-            grid=args.grid,
-        )
+        if getattr(args, "eval_subcommand", None) == "blocking":
+            from barilink.evaluate.blocking_diag import compute_blocking_diagnostics
+
+            df = compute_blocking_diagnostics(
+                run_name=args.run_name,
+                method=args.method,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+            )
+            print(f"\nBlocking diagnostics for {args.method} on {args.run_name}:")
+            print(df.to_string(index=False))
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "aggregate":
+            from barilink.evaluate.aggregate import aggregate_holdout_metrics
+
+            default_methods = [
+                "no_link",
+                "exact",
+                "phone",
+                "exact_or_phone",
+                "splink_v1",
+                "splink_v1_resolved",
+            ]
+            methods = args.methods or default_methods
+            summary = aggregate_holdout_metrics(
+                runs=args.runs,
+                methods=methods,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+            )
+            print(f"\nAggregated {len(summary)} methods across runs: {args.runs}")
+            return 0
+        else:
+            if not args.method or not args.mode:
+                print("Error: evaluate requires --method and --mode when not running a subcommand.")
+                return 1
+            return run_evaluate(
+                method=args.method,
+                run_name=args.run_name,
+                mode=args.mode,
+                config_path=args.config,
+                base_data_dir=args.data_dir,
+                base_results_dir=args.results_dir,
+                grid=args.grid,
+            )
     elif args.command == "link":
         return run_link(
             action=args.action,
@@ -932,6 +1310,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_results_dir=args.results_dir,
             threads=args.threads,
         )
+    elif args.command == "resolve":
+        return run_resolve(
+            run_name=args.run_name,
+            mode=args.mode,
+            config_path=args.config,
+            base_data_dir=args.data_dir,
+            base_results_dir=args.results_dir,
+        )
+    elif args.command == "golden":
+        return run_golden(
+            run_name=args.run_name,
+            method=args.method,
+            base_data_dir=args.data_dir,
+            base_results_dir=args.results_dir,
+        )
+    elif args.command == "review":
+        return run_review(
+            run_name=args.run_name,
+            method=args.method,
+            base_data_dir=args.data_dir,
+            base_results_dir=args.results_dir,
+        )
+
+    return 1
 
     return 1
 

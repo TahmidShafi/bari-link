@@ -86,9 +86,7 @@ class EnrolmentSampler:
         self.end_date = date.fromisoformat(date_range[1])
         self.total_days = (self.end_date - self.start_date).days
 
-        self.re_registration_rate: float = float(
-            enrol_cfg.get("re_registration_rate", 0.03)
-        )
+        self.re_registration_rate: float = float(enrol_cfg.get("re_registration_rate", 0.03))
         self.module_cfgs = enrol_cfg.get("modules", {})
         self.cross_cfg = enrol_cfg.get("cross_module_conditional", {})
 
@@ -97,12 +95,8 @@ class EnrolmentSampler:
 
         # Lookups
         self.person_dict = self.persons_df.set_index("person_id").to_dict(orient="index")
-        self.hh_dict = self.households_df.set_index("household_id").to_dict(
-            orient="index"
-        )
-        self.hh_members = (
-            self.persons_df.groupby("household_id")["person_id"].apply(list).to_dict()
-        )
+        self.hh_dict = self.households_df.set_index("household_id").to_dict(orient="index")
+        self.hh_members = self.persons_df.groupby("household_id")["person_id"].apply(list).to_dict()
 
         self.skipped_reregistrations = 0
         self.natural_doppelganger_person_pairs = 0
@@ -274,9 +268,7 @@ class EnrolmentSampler:
     # --------------------------------------------------------------------------
     # Microfinance Group
     # --------------------------------------------------------------------------
-    def _sample_microfinance(
-        self, upg_person_ids: set[str]
-    ) -> list[EnrolmentCandidate]:
+    def _sample_microfinance(self, upg_person_ids: set[str]) -> list[EnrolmentCandidate]:
         """Sample microfinance borrowers with group_id, female target share and male quota."""
         cfg = self.module_cfgs.get("microfinance_group", {})
         target_share = float(cfg.get("target_share", 0.30))
@@ -370,9 +362,7 @@ class EnrolmentSampler:
         # 3. Top up males
         needed_male = target_count_male - len(enrolled_male)
         remaining_male = [p_id for p_id in male_eligible if p_id not in enrolled_male]
-        selected_remaining_male = self.rng.choice(
-            remaining_male, size=needed_male, replace=False
-        )
+        selected_remaining_male = self.rng.choice(remaining_male, size=needed_male, replace=False)
         for p_id in selected_remaining_male:
             p = self.person_dict[p_id]
             enrol_date = self.person_enrol_dates[p_id]
@@ -397,9 +387,7 @@ class EnrolmentSampler:
     # --------------------------------------------------------------------------
     # Livelihood Support
     # --------------------------------------------------------------------------
-    def _sample_livelihood(
-        self, upg_person_ids: set[str]
-    ) -> list[EnrolmentCandidate]:
+    def _sample_livelihood(self, upg_person_ids: set[str]) -> list[EnrolmentCandidate]:
         """Sample livelihood recipients (adults 18-60, short roster)."""
         cfg = self.module_cfgs.get("livelihood_support", {})
         target_share = float(cfg.get("target_share", 0.22))
@@ -455,9 +443,7 @@ class EnrolmentSampler:
         }
         return candidates
 
-    def _attach_short_roster(
-        self, cand: EnrolmentCandidate, enrol_date: date
-    ) -> None:
+    def _attach_short_roster(self, cand: EnrolmentCandidate, enrol_date: date) -> None:
         """Attach short roster: head plus up to 3 members."""
         hh_id = cand.household_id
         member_ids = self.hh_members[hh_id]
@@ -467,9 +453,7 @@ class EnrolmentSampler:
         if head_id != cand.person_id:
             roster_pids.append(head_id)
 
-        other_members = [
-            m for m in member_ids if m != cand.person_id and m != head_id
-        ]
+        other_members = [m for m in member_ids if m != cand.person_id and m != head_id]
         for m in other_members[:2]:
             roster_pids.append(m)
 
@@ -585,13 +569,9 @@ class EnrolmentSampler:
     ) -> list[EnrolmentCandidate]:
         """Audit natural enrolled doppelgangers across distinct households and inject if needed."""
         enrolled_pids = {c.person_id for c in candidates}
-        enrolled_persons_df = self.persons_df[
-            self.persons_df["person_id"].isin(enrolled_pids)
-        ]
+        enrolled_persons_df = self.persons_df[self.persons_df["person_id"].isin(enrolled_pids)]
 
-        grouped = enrolled_persons_df.groupby(
-            ["village", "given_name", "guardian_name"]
-        )
+        grouped = enrolled_persons_df.groupby(["village", "given_name", "guardian_name"])
         natural_pairs: set[tuple[str, str]] = set()
         for _, g in grouped:
             if len(g["household_id"].unique()) > 1:

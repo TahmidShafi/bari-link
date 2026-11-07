@@ -124,12 +124,13 @@ def test_setup(tmp_path: Path) -> tuple[Path, Path]:
         },
         "missingness": {
             "club_formation": {"guardian_name": 0.05, "age": 0.04, "village": 0.02},
-            "upg_enrolment": {
-                "guardian_name": 0.04, "age": 0.03, "phone": 0.08, "village": 0.01
-            },
+            "upg_enrolment": {"guardian_name": 0.04, "age": 0.03, "phone": 0.08, "village": 0.01},
             "microfinance_group": {"guardian_name": 0.05, "phone": 0.06, "village": 0.01},
             "livelihood_support": {
-                "guardian_name": 0.04, "age": 0.03, "phone": 0.07, "village": 0.01
+                "guardian_name": 0.04,
+                "age": 0.03,
+                "phone": 0.07,
+                "village": 0.01,
             },
         },
     }
@@ -285,8 +286,7 @@ def test_age_heaping_effectiveness(test_setup: tuple[Path, Path]) -> None:
     assert len(valid_ages) > 0
 
     clean_ages = [
-        truth_df.loc[r["record_id"], "clean_age_at_enrolment"]
-        for _, r in valid_ages.iterrows()
+        truth_df.loc[r["record_id"], "clean_age_at_enrolment"] for _, r in valid_ages.iterrows()
     ]
     raw_ages = valid_ages["age_raw"].astype(int).tolist()
 
@@ -398,5 +398,3 @@ def test_summary_file_generated(test_setup: tuple[Path, Path]) -> None:
     assert "Hard Negatives (Doppelganger Audit across Distinct Households)" in content
     assert "Example Clusters" in content
     assert "Post-Fix Name Frequency Shares" in content
-
-

@@ -92,9 +92,7 @@ class RegistryOrchestrator:
                 curr_name, rec_id, "full_name", mod_intensity
             )
             # Typo drift
-            curr_name = self.corruptor.corrupt_typos(
-                curr_name, rec_id, "full_name", mod_intensity
-            )
+            curr_name = self.corruptor.corrupt_typos(curr_name, rec_id, "full_name", mod_intensity)
 
             # --- Guardian Corruption ---
             g_name, g_type = self.corruptor.corrupt_guardian(
@@ -115,14 +113,10 @@ class RegistryOrchestrator:
                 g_name, rec_id, "guardian_name", mod_intensity
             )
             # Typo on guardian
-            g_name = self.corruptor.corrupt_typos(
-                g_name, rec_id, "guardian_name", mod_intensity
-            )
+            g_name = self.corruptor.corrupt_typos(g_name, rec_id, "guardian_name", mod_intensity)
 
             # Possible field swap (given name <-> guardian name)
-            swap_rate = self.corruptor._effective_rate(
-                "field_swap_guardian", mod_intensity
-            )
+            swap_rate = self.corruptor._effective_rate("field_swap_guardian", mod_intensity)
             if self.rng.random() < swap_rate:
                 self.corruptor.log_event(
                     rec_id, "guardian_name", "field_swap_guardian", g_name, curr_name
@@ -143,15 +137,13 @@ class RegistryOrchestrator:
             )
 
             # --- Location Corruption ---
-            c_village, c_union, c_upazila, c_district = (
-                self.corruptor.corrupt_location(
-                    cand.clean_village,
-                    cand.clean_union,
-                    cand.clean_upazila,
-                    cand.clean_district,
-                    rec_id,
-                    mod_intensity,
-                )
+            c_village, c_union, c_upazila, c_district = self.corruptor.corrupt_location(
+                cand.clean_village,
+                cand.clean_union,
+                cand.clean_upazila,
+                cand.clean_district,
+                rec_id,
+                mod_intensity,
             )
 
             # --- Module-Specific Schema Construction & Missingness ---
@@ -187,9 +179,7 @@ class RegistryOrchestrator:
                 final_guardian_name = self.corruptor.apply_missingness(
                     mod_name, "guardian_name", final_guardian_name, rec_id
                 )
-                final_age = self.corruptor.apply_missingness(
-                    mod_name, "age", final_age, rec_id
-                )
+                final_age = self.corruptor.apply_missingness(mod_name, "age", final_age, rec_id)
                 final_village = self.corruptor.apply_missingness(
                     mod_name, "village", final_village, rec_id
                 )
@@ -199,9 +189,7 @@ class RegistryOrchestrator:
                 final_guardian_name = self.corruptor.apply_missingness(
                     mod_name, "guardian_name", final_guardian_name, rec_id
                 )
-                final_age = self.corruptor.apply_missingness(
-                    mod_name, "age", final_age, rec_id
-                )
+                final_age = self.corruptor.apply_missingness(mod_name, "age", final_age, rec_id)
                 final_phone = self.corruptor.apply_missingness(
                     mod_name, "phone", final_phone, rec_id
                 )
@@ -242,9 +230,7 @@ class RegistryOrchestrator:
                 final_guardian_name = self.corruptor.apply_missingness(
                     mod_name, "guardian_name", final_guardian_name, rec_id
                 )
-                final_age = self.corruptor.apply_missingness(
-                    mod_name, "age", final_age, rec_id
-                )
+                final_age = self.corruptor.apply_missingness(mod_name, "age", final_age, rec_id)
                 final_phone = self.corruptor.apply_missingness(
                     mod_name, "phone", final_phone, rec_id
                 )
@@ -294,9 +280,7 @@ class RegistryOrchestrator:
                     r_name = self.corruptor.corrupt_typos(
                         r_name, rec_id, "roster_member_name", mod_intensity
                     )
-                    r_age = self.corruptor.corrupt_age(
-                        rm.age_raw, rec_id, mod_intensity
-                    )
+                    r_age = self.corruptor.corrupt_age(rm.age_raw, rec_id, mod_intensity)
                     rosters_rows.append(
                         {
                             "record_id": rec_id,
@@ -337,8 +321,10 @@ class RegistryOrchestrator:
         # Convert to DataFrames and shuffle rows
         records_df = pd.DataFrame(records_rows)
         truth_df = pd.DataFrame(truth_rows)
-        rosters_df = pd.DataFrame(rosters_rows) if rosters_rows else pd.DataFrame(
-            columns=["record_id", "member_name_raw", "relation_raw", "age_raw"]
+        rosters_df = (
+            pd.DataFrame(rosters_rows)
+            if rosters_rows
+            else pd.DataFrame(columns=["record_id", "member_name_raw", "relation_raw", "age_raw"])
         )
 
         # Shuffle all tables using seeded permutation
@@ -512,9 +498,7 @@ class RegistryOrchestrator:
             "canonical_village",
             "is_injected",
         ]
-        doppel_df = (
-            pd.DataFrame(doppel_rows) if doppel_rows else pd.DataFrame(columns=doppel_cols)
-        )
+        doppel_df = pd.DataFrame(doppel_rows) if doppel_rows else pd.DataFrame(columns=doppel_cols)
         if not doppel_df.empty:
             doppel_df = doppel_df.drop_duplicates(
                 subset=["record_id_1", "record_id_2"]

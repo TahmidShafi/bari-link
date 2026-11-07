@@ -141,9 +141,7 @@ class PopulationGenerator:
 
         self._person_counter = 0
 
-    def _flatten_geography(
-        self, geo_cfg: dict[str, Any]
-    ) -> list[tuple[str, str, str, str]]:
+    def _flatten_geography(self, geo_cfg: dict[str, Any]) -> list[tuple[str, str, str, str]]:
         """Flatten nested geographic hierarchy into (district, upazila, union, village) tuples."""
         villages_list: list[tuple[str, str, str, str]] = []
         default_villages = geo_cfg.get(
@@ -169,31 +167,21 @@ class PopulationGenerator:
         rest_digits = self.rng.integers(0, 100_000_000)
         return f"01{op_digit}{rest_digits:08d}"
 
-    def _sample_person_name(
-        self, sex: str, religion: str
-    ) -> tuple[str, str]:
+    def _sample_person_name(self, sex: str, religion: str) -> tuple[str, str]:
         """Sample canonical given_name and surname_or_title."""
         if religion == "hindu":
             if sex == "F":
-                given = sample_name(
-                    FEMALE_GIVEN_NAMES_HINDU, self.weights_female_hindu, self.rng
-                )
+                given = sample_name(FEMALE_GIVEN_NAMES_HINDU, self.weights_female_hindu, self.rng)
                 surname = str(self.rng.choice(SURNAMES_HINDU_FEMALE_TITLES))
             else:
-                given = sample_name(
-                    MALE_GIVEN_NAMES_HINDU, self.weights_male_hindu, self.rng
-                )
+                given = sample_name(MALE_GIVEN_NAMES_HINDU, self.weights_male_hindu, self.rng)
                 surname = str(self.rng.choice(SURNAMES_HINDU))
         else:
             if sex == "F":
-                given = sample_name(
-                    FEMALE_GIVEN_NAMES_MUSLIM, self.weights_female_muslim, self.rng
-                )
+                given = sample_name(FEMALE_GIVEN_NAMES_MUSLIM, self.weights_female_muslim, self.rng)
                 surname = str(self.rng.choice(SURNAMES_MUSLIM_FEMALE))
             else:
-                given = sample_name(
-                    MALE_GIVEN_NAMES_MUSLIM, self.weights_male_muslim, self.rng
-                )
+                given = sample_name(MALE_GIVEN_NAMES_MUSLIM, self.weights_male_muslim, self.rng)
                 surname = str(self.rng.choice(SURNAMES_MUSLIM_MALE))
         return given, surname
 
@@ -252,9 +240,7 @@ class PopulationGenerator:
 
             # Household phone
             hh_phone = (
-                self._generate_phone()
-                if self.rng.random() < self.household_phone_rate
-                else None
+                self._generate_phone() if self.rng.random() < self.household_phone_rate else None
             )
 
             # Head gender

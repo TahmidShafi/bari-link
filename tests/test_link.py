@@ -156,71 +156,73 @@ def test_kinship_redesign_levels():
     # Record 1 & 2: same guardian skeleton, but neither has rosters -> falls in NULL level
     # Record 3: has roster containing 'g1' -> cross-household match with Record 1
     # Record 4: has roster ['a', 'b', 'c'], Record 5: has roster ['a', 'b', 'd'] -> intersect >= 2
-    df = pd.DataFrame([
-        {
-            "record_id": "r1",
-            "name_clean": "a",
-            "name_canon": "a",
-            "name_skeleton": "a",
-            "given_first_skel": "a",
-            "name_tokens_sorted": "a",
-            "title_token": "khatun",
-            "guardian_clean": "g",
-            "guardian_canon": "g",
-            "guardian_skeleton": "g1",
-            "phone_norm": "01711111111",
-            "phone_last8": "11111111",
-            "birth_year_est": 1990,
-            "village_canon": "vil",
-            "union_raw": "u",
-            "sex_raw": "F",
-            "source_module": "m",
-            "enrolment_date": "2024-01-01",
-            "roster_skels": None,
-        },
-        {
-            "record_id": "r2",
-            "name_clean": "b",
-            "name_canon": "b",
-            "name_skeleton": "b",
-            "given_first_skel": "b",
-            "name_tokens_sorted": "b",
-            "title_token": "khatun",
-            "guardian_clean": "g",
-            "guardian_canon": "g",
-            "guardian_skeleton": "g1",
-            "phone_norm": "01722222222",
-            "phone_last8": "22222222",
-            "birth_year_est": 1991,
-            "village_canon": "vil",
-            "union_raw": "u",
-            "sex_raw": "F",
-            "source_module": "m",
-            "enrolment_date": "2024-01-01",
-            "roster_skels": None,
-        },
-        {
-            "record_id": "r3",
-            "name_clean": "a",
-            "name_canon": "a",
-            "name_skeleton": "a",
-            "given_first_skel": "a",
-            "name_tokens_sorted": "a",
-            "title_token": "khatun",
-            "guardian_clean": "h",
-            "guardian_canon": "h",
-            "guardian_skeleton": "h1",
-            "phone_norm": "01733333333",
-            "phone_last8": "33333333",
-            "birth_year_est": 1992,
-            "village_canon": "vil",
-            "union_raw": "u",
-            "sex_raw": "F",
-            "source_module": "m",
-            "enrolment_date": "2024-01-01",
-            "roster_skels": ["g1", "x2"],
-        },
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "record_id": "r1",
+                "name_clean": "a",
+                "name_canon": "a",
+                "name_skeleton": "a",
+                "given_first_skel": "a",
+                "name_tokens_sorted": "a",
+                "title_token": "khatun",
+                "guardian_clean": "g",
+                "guardian_canon": "g",
+                "guardian_skeleton": "g1",
+                "phone_norm": "01711111111",
+                "phone_last8": "11111111",
+                "birth_year_est": 1990,
+                "village_canon": "vil",
+                "union_raw": "u",
+                "sex_raw": "F",
+                "source_module": "m",
+                "enrolment_date": "2024-01-01",
+                "roster_skels": None,
+            },
+            {
+                "record_id": "r2",
+                "name_clean": "b",
+                "name_canon": "b",
+                "name_skeleton": "b",
+                "given_first_skel": "b",
+                "name_tokens_sorted": "b",
+                "title_token": "khatun",
+                "guardian_clean": "g",
+                "guardian_canon": "g",
+                "guardian_skeleton": "g1",
+                "phone_norm": "01722222222",
+                "phone_last8": "22222222",
+                "birth_year_est": 1991,
+                "village_canon": "vil",
+                "union_raw": "u",
+                "sex_raw": "F",
+                "source_module": "m",
+                "enrolment_date": "2024-01-01",
+                "roster_skels": None,
+            },
+            {
+                "record_id": "r3",
+                "name_clean": "a",
+                "name_canon": "a",
+                "name_skeleton": "a",
+                "given_first_skel": "a",
+                "name_tokens_sorted": "a",
+                "title_token": "khatun",
+                "guardian_clean": "h",
+                "guardian_canon": "h",
+                "guardian_skeleton": "h1",
+                "phone_norm": "01733333333",
+                "phone_last8": "33333333",
+                "birth_year_est": 1992,
+                "village_canon": "vil",
+                "union_raw": "u",
+                "sex_raw": "F",
+                "source_module": "m",
+                "enrolment_date": "2024-01-01",
+                "roster_skels": ["g1", "x2"],
+            },
+        ]
+    )
 
     linker = Linker(df, settings, DuckDBAPI())
     preds = linker.inference.predict().as_pandas_dataframe()
@@ -244,30 +246,32 @@ def test_kinship_redesign_levels():
 
 def test_training_determinism():
     """Verify Amendment 5: single-threaded DuckDB connection achieves determinism."""
-    df = pd.DataFrame([
-        {
-            "record_id": f"r{i}",
-            "name_clean": f"name{i % 5}",
-            "name_canon": f"name{i % 5}",
-            "name_skeleton": f"nm{i % 5}",
-            "given_first_skel": f"nm{i % 5}",
-            "name_tokens_sorted": f"name{i % 5}",
-            "title_token": "khatun" if i % 2 == 0 else "begum",
-            "guardian_clean": f"guard{i % 4}",
-            "guardian_canon": f"guard{i % 4}",
-            "guardian_skeleton": f"grd{i % 4}",
-            "phone_norm": f"0170000000{i % 10}",
-            "phone_last8": f"000000{i % 10:02d}",
-            "birth_year_est": 1980 + (i % 10),
-            "village_canon": f"village{i % 3}",
-            "union_raw": f"union{i % 2}",
-            "sex_raw": "F" if i % 2 == 0 else "M",
-            "source_module": "livelihood_support",
-            "enrolment_date": "2024-01-01",
-            "roster_skels": [f"skel{i % 3}"] if i % 3 != 0 else None,
-        }
-        for i in range(100)
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "record_id": f"r{i}",
+                "name_clean": f"name{i % 5}",
+                "name_canon": f"name{i % 5}",
+                "name_skeleton": f"nm{i % 5}",
+                "given_first_skel": f"nm{i % 5}",
+                "name_tokens_sorted": f"name{i % 5}",
+                "title_token": "khatun" if i % 2 == 0 else "begum",
+                "guardian_clean": f"guard{i % 4}",
+                "guardian_canon": f"guard{i % 4}",
+                "guardian_skeleton": f"grd{i % 4}",
+                "phone_norm": f"0170000000{i % 10}",
+                "phone_last8": f"000000{i % 10:02d}",
+                "birth_year_est": 1980 + (i % 10),
+                "village_canon": f"village{i % 3}",
+                "union_raw": f"union{i % 2}",
+                "sex_raw": "F" if i % 2 == 0 else "M",
+                "source_module": "livelihood_support",
+                "enrolment_date": "2024-01-01",
+                "roster_skels": [f"skel{i % 3}"] if i % 3 != 0 else None,
+            }
+            for i in range(100)
+        ]
+    )
 
     config = {
         "seed": 42,
@@ -357,18 +361,22 @@ def test_weight_grid_resolves_interior_optimum_above_p99():
     for i in range(10):
         r1, r2 = f"t_{i}_a", f"t_{i}_b"
         p_id = f"P_{i}"
-        record_truth.extend([
-            {"record_id": r1, "person_id": p_id},
-            {"record_id": r2, "person_id": p_id},
-        ])
+        record_truth.extend(
+            [
+                {"record_id": r1, "person_id": p_id},
+                {"record_id": r2, "person_id": p_id},
+            ]
+        )
         true_pairs.append({"record_id_1": r1, "record_id_2": r2})
 
     for j in range(5):
         rf1, rf2 = f"f_{j}_a", f"f_{j}_b"
-        record_truth.extend([
-            {"record_id": rf1, "person_id": f"FP1_{j}"},
-            {"record_id": rf2, "person_id": f"FP2_{j}"},
-        ])
+        record_truth.extend(
+            [
+                {"record_id": rf1, "person_id": f"FP1_{j}"},
+                {"record_id": rf2, "person_id": f"FP2_{j}"},
+            ]
+        )
 
     record_truth_df = pd.DataFrame(record_truth)
     true_pairs_df = pd.DataFrame(true_pairs)
@@ -378,21 +386,25 @@ def test_weight_grid_resolves_interior_optimum_above_p99():
     for r in true_pairs:
         w = 12.0
         p = weight_to_prob(w)
-        preds.append({
-            "record_id_l": r["record_id_1"],
-            "record_id_r": r["record_id_2"],
-            "match_probability": p,
-            "match_weight": w,
-        })
+        preds.append(
+            {
+                "record_id_l": r["record_id_1"],
+                "record_id_r": r["record_id_2"],
+                "match_probability": p,
+                "match_weight": w,
+            }
+        )
     for j in range(5):
         w = 7.0
         p = weight_to_prob(w)
-        preds.append({
-            "record_id_l": f"f_{j}_a",
-            "record_id_r": f"f_{j}_b",
-            "match_probability": p,
-            "match_weight": w,
-        })
+        preds.append(
+            {
+                "record_id_l": f"f_{j}_a",
+                "record_id_r": f"f_{j}_b",
+                "match_probability": p,
+                "match_weight": w,
+            }
+        )
 
     preds_df = pd.DataFrame(preds)
 
@@ -404,7 +416,8 @@ def test_weight_grid_resolves_interior_optimum_above_p99():
         true_pairs_df=true_pairs_df,
         grid="probability",
     )
-    sel_prob = select_thresholds(sweep_prob, grid="probability")
+    with pytest.warns(UserWarning, match="lies on the grid boundary"):
+        sel_prob = select_thresholds(sweep_prob, grid="probability")
     # Cannot separate scores above 0.99; boundary hits 0.99
     assert sel_prob.t_cost_on_boundary is True
     assert sel_prob.t_cost == 0.99

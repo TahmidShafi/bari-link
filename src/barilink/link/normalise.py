@@ -242,10 +242,12 @@ def build_features(
         m_canons = [canonicalise_name(m) for m in m_names]
         m_skels = [compute_skeleton(c) for c in m_canons]
 
-        roster_work = pd.DataFrame({
-            "record_id": rosters_df["record_id"].astype(str),
-            "skel": m_skels,
-        }).dropna(subset=["skel"])
+        roster_work = pd.DataFrame(
+            {
+                "record_id": rosters_df["record_id"].astype(str),
+                "skel": m_skels,
+            }
+        ).dropna(subset=["skel"])
 
         # Group by record_id to list of unique skeletons
         grouped = roster_work.groupby("record_id")["skel"].apply(lambda s: sorted(set(s))).to_dict()

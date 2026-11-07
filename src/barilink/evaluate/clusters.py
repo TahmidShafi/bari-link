@@ -294,9 +294,7 @@ def evaluate_clusters(
     bcubed_p = prec_sum / total_records if total_records > 0 else 1.0
     bcubed_r = rec_sum / total_records if total_records > 0 else 1.0
     bcubed_f1 = (
-        (2.0 * bcubed_p * bcubed_r) / (bcubed_p + bcubed_r)
-        if (bcubed_p + bcubed_r) > 0.0
-        else 0.0
+        (2.0 * bcubed_p * bcubed_r) / (bcubed_p + bcubed_r) if (bcubed_p + bcubed_r) > 0.0 else 0.0
     )
 
     split_persons = sum(1 for p, cids in person_clusters.items() if len(cids) > 1)

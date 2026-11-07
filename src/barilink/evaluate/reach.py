@@ -65,4 +65,3 @@ def compute_reach(
         overall_reach_error_pct=overall_error_pct,
         by_module=by_module,
     )
-

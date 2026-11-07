@@ -203,9 +203,7 @@ class FieldCorruptor:
     # --------------------------------------------------------------------------
     # d) Damerau-Levenshtein Typos
     # --------------------------------------------------------------------------
-    def corrupt_typos(
-        self, text: str, record_id: str, field_name: str, intensity: float
-    ) -> str:
+    def corrupt_typos(self, text: str, record_id: str, field_name: str, intensity: float) -> str:
         """Inject 1-2 QWERTY-adjacent substitutions, insertions, deletions, or transpositions."""
         if len(text) < 3:
             return text
@@ -237,9 +235,7 @@ class FieldCorruptor:
 
         new_text = "".join(chars)
         if new_text != text:
-            self.log_event(
-                record_id, field_name, "typo_damerau_levenshtein", text, new_text
-            )
+            self.log_event(record_id, field_name, "typo_damerau_levenshtein", text, new_text)
             return new_text
         return text
 
@@ -264,9 +260,7 @@ class FieldCorruptor:
     # --------------------------------------------------------------------------
     # f) Age Heaping and Jitter
     # --------------------------------------------------------------------------
-    def corrupt_age(
-        self, clean_age: int, record_id: str, intensity: float
-    ) -> int:
+    def corrupt_age(self, clean_age: int, record_id: str, intensity: float) -> int:
         """Apply age heaping (multiples of 5 increasing with age) and small jitter +/- 1-3."""
         base_heap = float(self.base_rates.get("age_heaping_base", 0.25))
         # Probability increases with age
@@ -308,9 +302,7 @@ class FieldCorruptor:
         curr_type = guardian_type
 
         # Guardian switch for ever-married women only
-        is_ever_married_woman = (
-            sex == "F" and marital_status in {"married", "widowed", "separated"}
-        )
+        is_ever_married_woman = sex == "F" and marital_status in {"married", "widowed", "separated"}
         if is_ever_married_woman and curr_type == "husband":
             switch_rate = self._effective_rate("guardian_switch_ever_married", intensity)
             if self.rng.random() < switch_rate:
@@ -373,9 +365,7 @@ class FieldCorruptor:
         # Replaced with household phone (if different)
         share_rate = self._effective_rate("phone_shared_household", intensity)
         if hh_phone and curr_phone != hh_phone and self.rng.random() < share_rate:
-            self.log_event(
-                record_id, "phone", "phone_shared_household", curr_phone, hh_phone
-            )
+            self.log_event(record_id, "phone", "phone_shared_household", curr_phone, hh_phone)
             curr_phone = hh_phone
 
         # New SIM (fresh valid number)
@@ -484,9 +474,7 @@ class FieldCorruptor:
     # --------------------------------------------------------------------------
     # j) Configured Missingness
     # --------------------------------------------------------------------------
-    def apply_missingness(
-        self, module_name: str, field: str, value: Any, record_id: str
-    ) -> Any:
+    def apply_missingness(self, module_name: str, field: str, value: Any, record_id: str) -> Any:
         """Apply configured per-module x per-field missingness.
 
         Structurally uncollected fields are None and not processed here.

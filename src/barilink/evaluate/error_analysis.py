@@ -64,9 +64,7 @@ def generate_error_analysis(
                 sel = json.load(f)
                 if sel.get("grid") == "weight" or "t_cost_prob" in sel:
                     t_cost_prob = float(sel.get("t_cost_prob", 0.5))
-                    t_cost_weight = (
-                        float(sel["t_cost_weight"]) if "t_cost_weight" in sel else None
-                    )
+                    t_cost_weight = float(sel["t_cost_weight"]) if "t_cost_weight" in sel else None
                 else:
                     t_cost_prob = float(sel.get("t_cost", 0.5))
         elif metrics_path.exists():
@@ -75,9 +73,7 @@ def generate_error_analysis(
                 op = m.get("operational_thresholds", {})
                 if op.get("grid") == "weight" or "t_cost_prob" in op:
                     t_cost_prob = float(op.get("t_cost_prob", 0.5))
-                    t_cost_weight = (
-                        float(op["t_cost_weight"]) if "t_cost_weight" in op else None
-                    )
+                    t_cost_weight = float(op["t_cost_weight"]) if "t_cost_weight" in op else None
                 else:
                     t_cost_prob = float(op.get("t_cost", 0.5))
         else:
@@ -147,9 +143,7 @@ def generate_error_analysis(
     # Unblocked true pairs
     unblocked_true_pairs = sorted(true_pairs_set - scored_pairs_set)
     unblocked_count = len(unblocked_true_pairs)
-    unblocked_share = (
-        (unblocked_count / total_true_pairs * 100.0) if total_true_pairs > 0 else 0.0
-    )
+    unblocked_share = (unblocked_count / total_true_pairs * 100.0) if total_true_pairs > 0 else 0.0
 
     # Build Markdown Report
     if t_cost_weight is not None:
@@ -207,16 +201,18 @@ def generate_error_analysis(
     else:
         lines.append("_No false merges observed at this threshold._")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 2. Top 15 Candidate False Negatives (Lowest Probability True Matches)",
-        "",
-        "Pairs of records representing the same individual that were captured by blocking "
-        "rules but received low match probabilities:",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 2. Top 15 Candidate False Negatives (Lowest Probability True Matches)",
+            "",
+            "Pairs of records representing the same individual that were captured by blocking "
+            "rules but received low match probabilities:",
+            "",
+        ]
+    )
 
     if top_fn:
         lines.append(
@@ -246,18 +242,20 @@ def generate_error_analysis(
     else:
         lines.append("_No candidate false negatives observed._")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 3. Unblocked True Pairs Analysis",
-        "",
-        f"A total of **{unblocked_count:,}** true pairs ({unblocked_share:.2f}%) "
-        "were never generated as candidate pairs because they failed all 5 blocking rules.",
-        "",
-        "### Sample of Unblocked True Pairs and Rule Failure Attribution",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 3. Unblocked True Pairs Analysis",
+            "",
+            f"A total of **{unblocked_count:,}** true pairs ({unblocked_share:.2f}%) "
+            "were never generated as candidate pairs because they failed all 5 blocking rules.",
+            "",
+            "### Sample of Unblocked True Pairs and Rule Failure Attribution",
+            "",
+        ]
+    )
 
     sample_unblocked = unblocked_true_pairs[:10]
     for idx, (r_l, r_r) in enumerate(sample_unblocked, start=1):
@@ -327,8 +325,7 @@ def generate_error_analysis(
         if u_l != u_r:
             r4_reasons.append(f"different union ('{u_l}' vs '{u_r}')")
         lines.append(
-            f"  4. `name_skeleton + union_raw`: "
-            f"{', '.join(r4_reasons) if r4_reasons else 'failed'}"
+            f"  4. `name_skeleton + union_raw`: {', '.join(r4_reasons) if r4_reasons else 'failed'}"
         )
 
         # Rule 5

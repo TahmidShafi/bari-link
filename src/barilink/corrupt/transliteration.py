@@ -278,9 +278,11 @@ def apply_transliteration_variant(
             if re.search(rule.pattern, text):
                 # If compound join, also optionally test hyphenation variant
                 if rule.is_compound and rng.random() < 0.50:
-                    hyphen_rep = rule.replacement.replace("karim", "-Karim").replace(
-                        "kashem", "-Kashem"
-                    ).replace("islam", "-Islam")
+                    hyphen_rep = (
+                        rule.replacement.replace("karim", "-Karim")
+                        .replace("kashem", "-Kashem")
+                        .replace("islam", "-Islam")
+                    )
                     new_val = re.sub(rule.pattern, hyphen_rep, text, count=1)
                 else:
                     new_val = re.sub(rule.pattern, rule.replacement, text, count=1)

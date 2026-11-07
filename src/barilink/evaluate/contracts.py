@@ -65,9 +65,9 @@ def validate_predictions(
     # Normalise unordered pairs so record_id_l < record_id_r
     swap_mask = df["record_id_l"] > df["record_id_r"]
     if swap_mask.any():
-        df.loc[swap_mask, ["record_id_l", "record_id_r"]] = (
-            df.loc[swap_mask, ["record_id_r", "record_id_l"]].values
-        )
+        df.loc[swap_mask, ["record_id_l", "record_id_r"]] = df.loc[
+            swap_mask, ["record_id_r", "record_id_l"]
+        ].values
 
     # Check for self-pairs
     self_pairs = df[df["record_id_l"] == df["record_id_r"]]
@@ -98,8 +98,7 @@ def validate_predictions(
     if unknown_ids:
         sample = list(unknown_ids)[:5]
         err = (
-            f"Found {len(unknown_ids)} unknown record IDs in predictions "
-            f"not in registry: {sample}"
+            f"Found {len(unknown_ids)} unknown record IDs in predictions not in registry: {sample}"
         )
         raise ValueError(err)
 

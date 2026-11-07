@@ -228,9 +228,7 @@ def test_incremental_sweep_equals_from_scratch():
     for i in range(len(record_ids)):
         for j in range(i + 1, len(record_ids)):
             if persons[i] == persons[j]:
-                true_pairs_list.append(
-                    {"record_id_1": record_ids[i], "record_id_2": record_ids[j]}
-                )
+                true_pairs_list.append({"record_id_1": record_ids[i], "record_id_2": record_ids[j]})
     true_pairs_df = pd.DataFrame(true_pairs_list)
 
     # Scored predictions with varying probabilities
@@ -304,9 +302,7 @@ def test_select_fails_on_holdout(tmp_path):
         truth_dir / "corruption_log.parquet"
     )
 
-    preds = pd.DataFrame(
-        [{"record_id_l": "r1", "record_id_r": "r2", "match_probability": 0.9}]
-    )
+    preds = pd.DataFrame([{"record_id_l": "r1", "record_id_r": "r2", "match_probability": 0.9}])
 
     with pytest.raises(ValueError, match="holdout"):
         generate_evaluation_report(
@@ -345,9 +341,7 @@ def test_report_mode_fails_without_selected_thresholds(tmp_path):
         truth_dir / "corruption_log.parquet"
     )
 
-    preds = pd.DataFrame(
-        [{"record_id_l": "r1", "record_id_r": "r2", "match_probability": 0.9}]
-    )
+    preds = pd.DataFrame([{"record_id_l": "r1", "record_id_r": "r2", "match_probability": 0.9}])
 
     with pytest.raises(FileNotFoundError, match="selected_thresholds.json"):
         generate_evaluation_report(
@@ -409,9 +403,7 @@ def test_report_records_sha256(tmp_path):
         f.write(sel_str)
     expected_sha = hashlib.sha256(sel_str.encode("utf-8")).hexdigest()
 
-    preds = pd.DataFrame(
-        [{"record_id_l": "r1", "record_id_r": "r2", "match_probability": 0.9}]
-    )
+    preds = pd.DataFrame([{"record_id_l": "r1", "record_id_r": "r2", "match_probability": 0.9}])
 
     metrics = generate_evaluation_report(
         method_name="exact",
@@ -479,7 +471,7 @@ def test_cluster_contract_validation():
 
 
 def test_truth_directory_access_security_scan():
-    """Verify only evaluate, generate, and corrupt reference 'truth' as path component."""
+    """Verify only evaluate, generate, corrupt reference truth or clean population files."""
     src_dir = Path("src/barilink")
     allowed_packages = {"evaluate", "generate", "corrupt"}
 
@@ -505,14 +497,16 @@ def test_truth_directory_access_security_scan():
 
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 s = node.value
-                is_path_usage = (
+                is_forbidden = (
                     s == "truth"
                     or "/truth" in s
                     or "\\truth" in s
                     or "truth/" in s
                     or "truth\\" in s
+                    or "persons.parquet" in s
+                    or "households.parquet" in s
                 )
-                if is_path_usage:
+                if is_forbidden:
                     violations.append((str(py_file), s))
 
-    assert not violations, f"Forbidden truth directory reference found in: {violations}"
+    assert not violations, f"Forbidden ground-truth reference found in: {violations}"

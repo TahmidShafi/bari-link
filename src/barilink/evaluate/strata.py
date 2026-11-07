@@ -48,14 +48,10 @@ def compute_strata_breakdowns(
     # Corruption flags
     corr_types = corruption_log_df[["record_id", "corruption_type"]].drop_duplicates()
     guardian_switch_rids = set(
-        corr_types[corr_types["corruption_type"].str.contains("guardian", case=False)][
-            "record_id"
-        ]
+        corr_types[corr_types["corruption_type"].str.contains("guardian", case=False)]["record_id"]
     )
     translit_rids = set(
-        corr_types[corr_types["corruption_type"].str.contains("translit", case=False)][
-            "record_id"
-        ]
+        corr_types[corr_types["corruption_type"].str.contains("translit", case=False)]["record_id"]
     )
     phone_rids = set(
         corr_types[corr_types["corruption_type"].str.contains("phone", case=False)]["record_id"]

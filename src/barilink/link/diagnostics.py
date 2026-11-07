@@ -28,27 +28,31 @@ def export_model_diagnostics(
     db_api = DuckDBAPI()
     if features_df is None:
         # Create minimal dummy dataframe for Linker inspection
-        features_df = pd.DataFrame([{
-            "record_id": "dummy_0",
-            "name_clean": "a",
-            "name_canon": "a",
-            "name_skeleton": "a",
-            "given_first_skel": "a",
-            "name_tokens_sorted": "a",
-            "title_token": "khatun",
-            "guardian_clean": "b",
-            "guardian_canon": "b",
-            "guardian_skeleton": "b",
-            "phone_norm": "01700000000",
-            "phone_last8": "00000000",
-            "birth_year_est": 1990,
-            "village_canon": "c",
-            "union_raw": "u",
-            "sex_raw": "F",
-            "source_module": "m",
-            "enrolment_date": "2024-01-01",
-            "roster_skels": ["a"],
-        }])
+        features_df = pd.DataFrame(
+            [
+                {
+                    "record_id": "dummy_0",
+                    "name_clean": "a",
+                    "name_canon": "a",
+                    "name_skeleton": "a",
+                    "given_first_skel": "a",
+                    "name_tokens_sorted": "a",
+                    "title_token": "khatun",
+                    "guardian_clean": "b",
+                    "guardian_canon": "b",
+                    "guardian_skeleton": "b",
+                    "phone_norm": "01700000000",
+                    "phone_last8": "00000000",
+                    "birth_year_est": 1990,
+                    "village_canon": "c",
+                    "union_raw": "u",
+                    "sex_raw": "F",
+                    "source_module": "m",
+                    "enrolment_date": "2024-01-01",
+                    "roster_skels": ["a"],
+                }
+            ]
+        )
 
     linker = Linker(features_df, str(model_p), db_api)
 
