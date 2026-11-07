@@ -139,9 +139,7 @@ def generate_confirm_table(
             "Paired $\\Delta F_1$ vs Reference | "
             "Doppelganger FM Pooled Rate [Wilson 95% CI] | Reach Error % (mean ± sd) |"
         ),
-        (
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
-        ),
+        ("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"),
     ]
 
     rows = []
@@ -229,9 +227,7 @@ def generate_confirm_table(
                 "dev_cost": d["dev_cost"],
                 "cost_mean": c_m,
                 "cost_sd": c_s,
-                "delta_cost_vs_ref_mean": (
-                    float(np.mean(cost_deltas)) if cost_deltas else 0.0
-                ),
+                "delta_cost_vs_ref_mean": (float(np.mean(cost_deltas)) if cost_deltas else 0.0),
                 "delta_cost_vs_ref_sd": (
                     float(np.std(cost_deltas, ddof=1)) if len(cost_deltas) > 1 else 0.0
                 ),
@@ -459,9 +455,9 @@ def generate_confirm_table(
             "",
             "> [!NOTE]",
             (
-                "> **Pre-Registered Policy**: *\"If K wins on cost but loses on (a), the project "
+                '> **Pre-Registered Policy**: *"If K wins on cost but loses on (a), the project '
                 "reports this as a trade-off and recommends the pipeline by the stated cost ratio, "
-                "not by the better-looking metric.\"*"
+                'not by the better-looking metric."*'
             ),
             "",
             "### Analysis of the Trade-Off",

@@ -466,4 +466,3 @@ def test_harmonised_columns_match_module_schema(test_setup: tuple[Path, Path]) -
             assert mod_df["guardian_type_raw"].isna().all(), (
                 f"Module '{mod_name}' must have null guardian_type_raw!"
             )
-

@@ -68,9 +68,7 @@ def run_batch_evaluation(
                     Path(base_results_dir) / run_name / base_method / "predictions.parquet"
                 )
                 if not base_preds_path.exists():
-                    base_model_path = (
-                        Path(base_results_dir) / "models" / base_method / "model.json"
-                    )
+                    base_model_path = Path(base_results_dir) / "models" / base_method / "model.json"
                     print(f"  Scoring base predictions for {base_method}...")
                     base_preds_df, _, _ = predict_splink_model(
                         features_df=features_df,
@@ -219,7 +217,5 @@ def run_batch_evaluation(
                     grid="weight",
                 )
                 print(
-                    f"  Scored ({len(preds_df):,} pairs) and evaluated in "
-                    f"{time.time() - t0:.1f}s"
+                    f"  Scored ({len(preds_df):,} pairs) and evaluated in {time.time() - t0:.1f}s"
                 )
-

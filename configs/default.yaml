@@ -178,5 +178,20 @@ resolve:
   t_bridge_adhoc_default: 12.00   # Ad-hoc runs only (report mode strictly requires selected_thresholds.json)
   review_k_per_10k: [0, 50, 100, 250, 500]
 
+# ==============================================================================
+# Phase 7: Household Inference & Reach Configuration
+# ==============================================================================
+household:
+  weights:
+    E1: 4  # assumed, not fitted: listed_member
+    E2: 4  # assumed, not fitted: husband_link
+    E3: 2  # assumed, not fitted: father_link (patrilocal residence assumed)
+    E4: 3  # assumed, not fitted: roster_overlap
+    E5: 1  # assumed, not fitted: shared_phone
+  max_size: 12  # assumed: maximum allowable household size
+  t_hh_adhoc_default: 4.0  # Ad-hoc runs only (report mode uses demo selection)
+  patrilocal_residence: true  # assumed: adult females (>= 18) do not reside with father
+
+
 
 

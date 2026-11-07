@@ -376,6 +376,93 @@ This section records all architectural, demographic, and technical design decisi
   - *(a) Boundary Threshold*: Pipeline K's selected $t_{\text{link}} = 2.0$ lies on the lower grid boundary, and the optimum may be lower; not re-tuned, to preserve the confirmation protocol.
   - *(b) Holdout Consumption*: `holdout_5..9` are now consumed for linkage decisions, and any further linkage tuning requires new seeds (holdout_10+).
 
+### Log Entry 010: 2026-11-07 — Phase 7 Household Inference, Direct/Indirect Reach & Pre-Registered Confirmation
+- **Context & Scope**:
+  - Person linkage is frozen (`splink_k_resolved`). Phase 7 infers household clusters and estimates direct and indirect program reach from person clusters without modifying person linkage.
+  - Strict segregation enforced: `src/barilink/household` contains only model-visible logic and never imports or inspects ground truth (`test_household_truth_access_forbidden` verified).
+- **Architecture & Evidence System (`src/barilink/household/`)**:
+  - *Candidate Units*: Person clusters from `splink_k_resolved` (or Oracle persons in evaluation), blocked on `village_canon`.
+  - *A-Priori Weights (labelled "assumed, not fitted")*:
+    - $E_1$ `listed_member` ($w = 4.0$): A skeleton of cluster A's name appears in a roster attached to cluster B (or vice versa), after v3.1 self-entry filtering.
+    - $E_2$ `husband_link` ($w = 4.0$): Cluster A has a `husband_name` whose skeleton matches any name skeleton in cluster B (or vice versa).
+    - $E_3$ `father_link` ($w = 2.0$): Cluster A has a `father_name` whose skeleton matches cluster B's name skeleton, birth year of A is $\ge 15$ years after B, A has no `husband_name`, and patrilocal residence holds.
+      - *Patrilocal Residence Assumption (labelled "assumed")*: Married women and adult daughters reside patrilocally; therefore $E_3$ fires only if the child cluster is NOT (`inferred_sex == 'F'` AND estimated age $\ge 18$ at reference date 2026). Adult women never receive $E_3$ links to their father.
+      - *Model-Visible Sex Inference Rule*: Inferred from name prefixes (`mst/most/mosammat` $\to$ F, `md/mohammad/mohd` $\to$ M) and female title tokens (`khatun/begum/akter/bibi/rani/bala` $\to$ F). Conflicts resolved to `conflict`. Achieves **73.3%** coverage across person clusters.
+    - $E_4$ `roster_overlap` ($w = 3.0$): Rosters attached to A and B share $\ge 2$ member skeletons.
+    - $E_5$ `shared_phone` ($w = 1.0$): Clusters A and B share $\ge 1$ normalized 11-digit mobile phone.
+  - *Inference with Constraints (`infer.py`)*:
+    - Candidate edges scored by summing evidence weights. Retain edges with score $\ge t_{\text{hh}}$.
+    - `max_household_size` $\le 12$: Oversized components partitioned via Stoer-Wagner min-cut on weakest edges (with sorted bisection for large components).
+    - `cannot-household` constraint: Two wives of different men linked by $E_2$ cannot co-reside (co-wives sharing the same husband are permitted); conflicts severed by min-cut.
+    - Deterministic IDs: `hh_` + sha256(sorted member cluster IDs).
+  - *Golden Household Records (`golden.py`)*:
+    - Mode village/union, enrolled members, enrolled modules, pooled phones, and `roster_names_unenrolled` (roster skeletons matching no enrolled member skeleton).
+    - `direct_reach` = enrolled member count, `indirect_reach` = `len(roster_names_unenrolled)`, `est_household_size = direct + indirect`. Lineage tracked.
+- **DEV Operating Point Selection (`demo`)**:
+  - Pre-registered headline selection metric: **Record-level household pairwise F1** on `demo` (ties broken by higher $t_{\text{hh}}$).
+  - Grid sweep $t_{\text{hh}} \in \{1.0..8.0\}$:
+    - $t_{\text{hh}} = 1.0$: P = 0.1414, R = 0.3699, F1 = 0.2046, Size MAE = 7.47
+    - $t_{\text{hh}} = 2.0$: P = 0.1418, R = 0.3697, F1 = 0.2050, Size MAE = 7.47
+    - $t_{\text{hh}} = 3.0$: P = 0.1408, R = 0.3682, F1 = 0.2038, Size MAE = 7.48
+    - $t_{\text{hh}} = 4.0$: P = 0.1358, R = 0.3570, F1 = 0.1968, Size MAE = 7.50
+    - **$t_{\text{hh}} = 5.0$: P = 0.6460, R = 0.3415, F1 = 0.4468, Size MAE = 2.09 (SELECTED $t_{\text{hh}}^* = 5.0$)**
+    - $t_{\text{hh}} = 6.0$: P = 0.6426, R = 0.3360, F1 = 0.4412, Size MAE = 2.08
+    - $t_{\text{hh}} = 7.0$: P = 0.6805, R = 0.3247, F1 = 0.4397, Size MAE = 2.04
+    - $t_{\text{hh}} = 8.0$: P = 0.6322, R = 0.2086, F1 = 0.3137, Size MAE = 1.94
+  - *Mechanism*: At $t_{\text{hh}} \le 4.0$, single-channel $E_1$ (weight 4) links any person in the village sharing a common roster name, causing massive chaining. At $t_{\text{hh}} = 5.0$, multi-channel evidence is strictly required (e.g. $E_1 + E_5$ or $E_1 + E_2$), producing a sharp precision jump ($0.14 \to 0.65$) and dropping Size MAE from 7.50 to 2.09.
+- **Pre-Registered Holdout Confirmation (`holdout_5` .. `holdout_9`)**:
+  - **`holdout_5..9` were used for household inference for the first time with no revisions.**
+  - Frozen operating point: $t_{\text{hh}}^* = 5.0$.
+  - Evaluation results across 5 seeds (`mean +/- sd`):
+
+| Pipeline / Configuration | Record Pairwise F1 | Record Precision | Record Recall | Unit B-cubed F1 | HH Reached Error % | Household Size MAE |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Champion Pipeline (splink_k_resolved + Household) | **0.4592 +/- 0.0049** | 0.6848 +/- 0.0147 | 0.3455 +/- 0.0042 | 0.7528 +/- 0.0017 | +59.13% +/- 1.15% | 2.07 +/- 0.06 |
+| Oracle Persons + Household Inference | **0.6062 +/- 0.0109** | 0.7147 +/- 0.0210 | 0.5264 +/- 0.0066 | 0.8102 +/- 0.0042 | +38.74% +/- 0.93% | 2.01 +/- 0.08 |
+| Ablation: Drop E1 (listed_member, w=0) | 0.3149 +/- 0.0096 | 0.9983 +/- 0.0019 | 0.1869 +/- 0.0067 | 0.7132 +/- 0.0035 | +80.67% +/- 1.34% | 1.69 +/- 0.03 |
+| Ablation: Drop E2 (husband_link, w=0) | 0.4760 +/- 0.0077 | 0.9332 +/- 0.0152 | 0.3195 +/- 0.0066 | 0.7556 +/- 0.0028 | +66.62% +/- 0.91% | 1.70 +/- 0.04 |
+| Ablation: Drop E3 (father_link, w=0) | 0.4597 +/- 0.0069 | 0.7240 +/- 0.0197 | 0.3369 +/- 0.0046 | 0.7516 +/- 0.0016 | +61.22% +/- 1.21% | 1.99 +/- 0.06 |
+| Ablation: Drop E4 (roster_overlap, w=0) | 0.3411 +/- 0.0083 | 0.6555 +/- 0.0118 | 0.2305 +/- 0.0064 | 0.7178 +/- 0.0034 | +69.57% +/- 1.17% | 2.03 +/- 0.06 |
+| Ablation: Drop E5 (shared_phone, w=0) | 0.4559 +/- 0.0040 | 0.6847 +/- 0.0146 | 0.3418 +/- 0.0042 | 0.7515 +/- 0.0020 | +59.50% +/- 1.19% | 2.06 +/- 0.06 |
+| Weight Robustness: All Weights x0.5 | 0.3069 +/- 0.0086 | 0.9982 +/- 0.0019 | 0.1814 +/- 0.0060 | 0.7105 +/- 0.0033 | +81.52% +/- 1.30% | 1.70 +/- 0.03 |
+| Weight Robustness: All Weights x2.0 | 0.2055 +/- 0.0061 | 0.1435 +/- 0.0046 | 0.3619 +/- 0.0120 | 0.6363 +/- 0.0049 | +3.04% +/- 1.87% | 7.40 +/- 0.15 |
+
+- **Error Decomposition (Person Linkage vs Household Inference)**:
+  - Total Record Pairwise F1 drop from Oracle to Champion K: **$-0.1470 \pm 0.0104$**.
+  - Decomposed by precision and recall:
+    - Precision difference: **$-0.0299 \pm 0.0116$** (minimal drop; household edges formed by K are almost as clean as those formed by Oracle).
+    - Recall difference: **$-0.1810 \pm 0.0098$** (the dominant driver; when person linkage splits a person across records, household evidence bridges fail to aggregate, fragmenting households).
+  - Unit B-cubed F1 drop: $-0.0575 \pm 0.0034$.
+  - Household Size MAE Delta: $+0.06 \pm 0.02$ (negligible difference in estimated household size error).
+  - *Intrinsic vs Inherited Error*: Oracle persons reach only F1 0.61 (0.6062 +/- 0.0109) and +38.74% +/- 0.93% households-reached error, so most household error is intrinsic to household inference. Inherited person-linkage error accounts for about 0.15 F1 (-0.1470 +/- 0.0104, predominantly lost recall).
+- **Ablation Findings & Consumption of Holdouts**:
+  - Dropping E2 (`husband_link`) raises F1 (0.459 -> 0.476; precision 0.68 -> 0.93), indicating husband-name skeleton matching causes false household merges.
+  - Dropping E3 (`father_link`) has no measurable effect (F1 0.4597 +/- 0.0069 vs 0.4592 +/- 0.0049).
+  - *Protocol Constraint*: Do not re-tune; holdout_5..9 are consumed for household decisions.
+- **Graph Partitioning & Max-Size Split Behavior**:
+  - At $t_{\text{hh}} = 5.0$, the max-size split fired on only 2 components across all 5 seeds in `holdout_5..9`: `holdout_5` had 1 component of size 15 (cut weight 6.0), and `holdout_9` had 1 component of size 13 (cut weight 7.0), while `holdout_6`, `holdout_7`, and `holdout_8` had 0 oversize components.
+  - Both components ($\le 25$ nodes) were partitioned via exact Stoer-Wagner min-cut.
+  - *Heuristic Note*: The sorted-bisection fallback (which splits components $> 25$ nodes by arbitrary node index) is a heuristic, not a min-cut.
+- **Administrative Stratification (Indirect Reach & Coverage)**:
+  - Stratum (a) (Households with $\ge 1$ attached roster, **65.5%** of predicted households):
+    - Indirect Reach Error: **$+13.71\% \pm 1.59\%$** (Oracle: $+16.51\% \pm 1.76\%$).
+    - Household Size MAE: **$1.35 \pm 0.09$** (Oracle: $1.36 \pm 0.12$).
+  - Stratum (b) (Households with no roster, **34.5%** of predicted households):
+    - Indirect reach estimator is **structurally zero** because no roster was collected for any member.
+    - Coverage: accurately documented that 34.5% of households lack roster data and cannot estimate indirect reach without imputation.
+- **Weight Robustness Analysis**:
+  - Scaling weights by $0.5\times$ causes F1 to collapse to $0.3069$ (under-merging due to insufficient multi-channel accumulation).
+  - Scaling weights by $2.0\times$ causes F1 to collapse to $0.2055$ (single-channel edges exceed threshold, causing over-merging with Size MAE ballooning to 7.40).
+  - Results are highly sensitive to the a-priori weights (F1 0.46 -> 0.31 at x0.5, 0.21 at x2). The operating point depends on the threshold sitting just above the E1 weight, so single-channel E1 links are excluded and multi-channel links are kept. This is a fragility, not a robustness result.
+- **Future Work**:
+  - Corroborate E1 with roster age_raw (+/- 5 years vs unit birth_year) and relation_raw consistency (e.g. spouse <-> inferred sex), plus stricter E2 (require E2 + same village + age plausibility).
+  - Must be validated on fresh seeds holdout_10..14 under a new pre-registration.
+- **Artifacts Generated**:
+  - `results/holdout_confirm/household_table.md`: Comprehensive confirmation report.
+  - `results/holdout_5/household/household_graph.json`: Complete interactive visualization graph for `holdout_5` (4,136 nodes, 13,237 candidate edges).
+  - Per-seed results in `results/<run>/household/`: `household_clusters.parquet`, `household_golden.parquet`, `household_metrics.json`, `household_log.parquet`.
+
+
 
 
 

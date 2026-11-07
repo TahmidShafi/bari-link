@@ -550,9 +550,7 @@ def test_kinship_bug_check_on_dev():
     """Verify bug check runs on dev and identifies cuts."""
     from barilink.evaluate.bug_check import run_kinship_bug_check
 
-    v31_res = run_kinship_bug_check(
-        method="splink_v3_1", resolved_method="splink_v3_1_resolved"
-    )
+    v31_res = run_kinship_bug_check(method="splink_v3_1", resolved_method="splink_v3_1_resolved")
     assert v31_res["true_pairs_listed_fired_count"] == 2
     assert v31_res["same_person_cuts_count"] == 3
 
@@ -622,6 +620,3 @@ def test_stress_table_contains_requested_variants():
     assert "splink_k_resolved" in content
     assert "splink_v3_no_kinship" in content
     assert "Matched-Recall Doppelganger False-Merge Comparison" in content
-
-
-

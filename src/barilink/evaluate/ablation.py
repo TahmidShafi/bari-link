@@ -148,10 +148,7 @@ def generate_ablation_table(
             "Doppelganger FM Pooled Rate [Wilson 95% CI] | "
             "Reach Error % (mean ± sd) |"
         ),
-        (
-            "| :--- | :--- | :--- | :--- | :--- | :--- | "
-            ":--- | :--- | :--- | :--- | :--- | :--- |"
-        ),
+        ("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"),
     ]
 
     for method in methods:
@@ -169,9 +166,7 @@ def generate_ablation_table(
         f1_s = float(np.std(d["f1"], ddof=1)) if len(d["f1"]) > 1 else 0.0
         reach_m = float(np.mean(d["reach_error_pct"]))
         reach_s = (
-            float(np.std(d["reach_error_pct"], ddof=1))
-            if len(d["reach_error_pct"]) > 1
-            else 0.0
+            float(np.std(d["reach_error_pct"], ddof=1)) if len(d["reach_error_pct"]) > 1 else 0.0
         )
 
         p_hat, ci_l, ci_u = compute_wilson_ci(d["doppel_merged"], d["doppel_total"])
@@ -371,12 +366,10 @@ def compute_stress_curves(
 
     doppel_df = pd.read_parquet(truth_dir / "doppelganger_person_pairs.parquet")
     nat_pairs = [
-        (r.person_id_1, r.person_id_2)
-        for _, r in doppel_df[~doppel_df["is_injected"]].iterrows()
+        (r.person_id_1, r.person_id_2) for _, r in doppel_df[~doppel_df["is_injected"]].iterrows()
     ]
     inj_pairs = [
-        (r.person_id_1, r.person_id_2)
-        for _, r in doppel_df[doppel_df["is_injected"]].iterrows()
+        (r.person_id_1, r.person_id_2) for _, r in doppel_df[doppel_df["is_injected"]].iterrows()
     ]
     n_nat = len(nat_pairs)
     n_inj = len(inj_pairs)
@@ -396,9 +389,7 @@ def compute_stress_curves(
             features_df = pd.read_parquet(feat_p) if feat_p.exists() else None
             preds_df = pd.read_parquet(base_preds_p)
             apply_listed = (
-                "v3" in method
-                or "k" in method.lower().split("_")
-                or "splink_k" in method
+                "v3" in method or "k" in method.lower().split("_") or "splink_k" in method
             )
             sel_path = Path(base_results_dir) / method / "selected_thresholds.json"
             t_bridge_val = 8.0
@@ -797,8 +788,7 @@ def generate_stress_table(
                 uf.union(row["record_id_l"], row["record_id_r"])
             cluster_map = {r: uf.find(r) for r in records}
             t_str = (
-                f"$w={op.get('t_cost_weight', t_w):.2f}$ "
-                f"($p={op.get('t_cost_prob', 0.99):.4f}$)"
+                f"$w={op.get('t_cost_weight', t_w):.2f}$ ($p={op.get('t_cost_prob', 0.99):.4f}$)"
             )
 
         person_clusters = defaultdict(set)
@@ -944,9 +934,7 @@ def generate_stress_table(
                 "Pooled FM @ R=0.50 | Natural FM @ R=0.50 | Injected FM @ R=0.50 | "
                 "Pooled FM @ R=0.60 | Natural FM @ R=0.60 | Injected FM @ R=0.60 |"
             ),
-            (
-                "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"
-            ),
+            ("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"),
         ]
     )
 

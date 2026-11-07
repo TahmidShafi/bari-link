@@ -555,4 +555,3 @@ def test_listed_as_other_member_cannot_link_cut():
     k2 = clusters_kept[clusters_kept["record_id"] == "r2"]["cluster_id"].iloc[0]
     assert k1 == k2, "r1 and r2 must remain merged when apply_listed_as_other_member=False"
     assert len(log_kept) == 0
-

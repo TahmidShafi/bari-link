@@ -1138,9 +1138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
     )
     bat_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
-    bat_parser.add_argument(
-        "--threads", type=int, default=1, help="DuckDB execution threads"
-    )
+    bat_parser.add_argument("--threads", type=int, default=1, help="DuckDB execution threads")
 
     # Subcommand: evaluate confirm
     conf_parser = eval_subparsers.add_parser(
@@ -1167,12 +1165,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     conf_parser.add_argument(
         "--data-dir", "-d", type=str, default="data/generated", help="Data directory"
     )
-    conf_parser.add_argument(
-        "--results-dir", type=str, default="results", help="Results directory"
-    )
+    conf_parser.add_argument("--results-dir", type=str, default="results", help="Results directory")
     conf_parser.add_argument(
         "--output", "-o", type=str, default=None, help="Output markdown file path"
     )
+
+    # Subcommand: evaluate household
+    hh_eval_parser = eval_subparsers.add_parser(
+        "household", help="Evaluate household inference on a run"
+    )
+    hh_eval_parser.add_argument("--run-name", "-r", type=str, default="demo", help="Run identifier")
+    hh_eval_parser.add_argument(
+        "--method", "-m", type=str, default="splink_k_resolved", help="Person cluster method"
+    )
+    hh_eval_parser.add_argument(
+        "--threshold", "-t", type=float, default=5.0, help="Household linking threshold t_hh"
+    )
+
+    # Subcommand: evaluate household-confirm
+    hh_conf_parser = eval_subparsers.add_parser(
+        "household-confirm", help="Run Phase 7 household holdout confirmation suite"
+    )
+    hh_conf_parser.add_argument(
+        "--runs",
+        nargs="+",
+        default=["holdout_5", "holdout_6", "holdout_7", "holdout_8", "holdout_9"],
+        help="Runs for holdout confirmation",
+    )
+    hh_conf_parser.add_argument(
+        "--threshold", "-t", type=float, default=5.0, help="Household linking threshold t_hh"
+    )
+    hh_conf_parser.add_argument("--output", "-o", type=str, default=None, help="Output table path")
 
     # Standard evaluate options on eval_parser
     eval_parser.add_argument(
@@ -1383,6 +1406,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Base directory for evaluation results",
     )
 
+    # 11. household
+    hh_top_parser = subparsers.add_parser("household", help="Household inference commands")
+    hh_subparsers = hh_top_parser.add_subparsers(dest="household_subcommand", required=True)
+    hh_inf_parser = hh_subparsers.add_parser("infer", help="Infer households from person clusters")
+    hh_inf_parser.add_argument("--run-name", "-r", type=str, default="demo", help="Run identifier")
+    hh_inf_parser.add_argument(
+        "--method", "-m", type=str, default="splink_k_resolved", help="Person cluster method"
+    )
+    hh_inf_parser.add_argument(
+        "--threshold", "-t", type=float, default=5.0, help="Household linking threshold t_hh"
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "generate":
@@ -1513,6 +1548,45 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output_path=args.output,
             )
             return 0
+        elif getattr(args, "eval_subcommand", None) == "household":
+            from barilink.evaluate.household_eval import run_household_evaluation_on_run
+
+            res_dir = Path("results") / args.run_name / "household"
+            metrics, _, _, _, _ = run_household_evaluation_on_run(
+                run_name=args.run_name,
+                method=args.method,
+                t_hh=args.threshold,
+                output_dir=res_dir,
+            )
+            header_msg = (
+                f"\n--- Household Evaluation for {args.method} on "
+                f"{args.run_name} (t_hh={args.threshold}) ---"
+            )
+            print(header_msg)
+            print(
+                f"Record Pairwise F1: {metrics.record_pairwise_f1:.4f} "
+                f"(P: {metrics.record_pairwise_precision:.4f}, "
+                f"R: {metrics.record_pairwise_recall:.4f})"
+            )
+            print(f"Unit B-cubed F1:    {metrics.unit_bcubed_f1:.4f}")
+            print(f"Households Reached Error %: {metrics.households_reached_error_pct:+.2f}%")
+            print(f"Indirect Reach Error %:     {metrics.indirect_reach_error_pct:+.2f}%")
+            print(f"Household Size MAE:         {metrics.household_size_mae:.2f}")
+            return 0
+        elif getattr(args, "eval_subcommand", None) == "household-confirm":
+            from barilink.evaluate.household_eval import run_household_confirmation
+
+            out_p = (
+                Path(args.output)
+                if args.output
+                else Path("results/holdout_confirm/household_table.md")
+            )
+            run_household_confirmation(
+                t_hh=args.threshold,
+                runs=args.runs,
+                output_table_path=out_p,
+            )
+            return 0
         else:
             if not args.method or not args.mode:
                 print("Error: evaluate requires --method and --mode when not running a subcommand.")
@@ -1559,6 +1633,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_data_dir=args.data_dir,
             base_results_dir=args.results_dir,
         )
+    elif args.command == "household":
+        if getattr(args, "household_subcommand", None) == "infer":
+            from barilink.evaluate.household_eval import run_household_evaluation_on_run
+
+            res_dir = Path("results") / args.run_name / "household"
+            metrics, _, _, _, _ = run_household_evaluation_on_run(
+                run_name=args.run_name,
+                method=args.method,
+                t_hh=args.threshold,
+                output_dir=res_dir,
+            )
+            print(
+                f"Household inference complete for {args.method} on {args.run_name}. "
+                f"Outputs saved to: {res_dir}"
+            )
+            return 0
 
     return 1
 

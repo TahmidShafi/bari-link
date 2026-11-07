@@ -257,9 +257,7 @@ def build_features(
     # Guardian type (inferred from schema)
     raw_types = records_df.get("guardian_type_raw", pd.Series(None, index=records_df.index))
     modules = records_df.get("source_module", pd.Series(None, index=records_df.index))
-    features["guardian_type"] = [
-        infer_guardian_type(str(m), t) for m, t in zip(modules, raw_types)
-    ]
+    features["guardian_type"] = [infer_guardian_type(str(m), t) for m, t in zip(modules, raw_types)]
 
     # Kinship: roster_skels, roster_canons, and v3 filtered variants
     if rosters_df is not None and not rosters_df.empty:
@@ -278,14 +276,10 @@ def build_features(
 
         # Unfiltered (v1 / v2)
         grouped_skels = (
-            roster_work.groupby("record_id")["skel"]
-            .apply(lambda s: sorted(set(s)))
-            .to_dict()
+            roster_work.groupby("record_id")["skel"].apply(lambda s: sorted(set(s))).to_dict()
         )
         grouped_canons = (
-            roster_work.groupby("record_id")["canon"]
-            .apply(lambda s: sorted(set(s)))
-            .to_dict()
+            roster_work.groupby("record_id")["canon"].apply(lambda s: sorted(set(s))).to_dict()
         )
         features["roster_skels"] = features["record_id"].map(grouped_skels)
         features["roster_canons"] = features["record_id"].map(grouped_canons)

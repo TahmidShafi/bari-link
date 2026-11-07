@@ -650,5 +650,3 @@ def test_v3_1_self_roster_skeleton_filtering():
     assert "amnlslmsk" not in r_skels
     # Genuine other member must be retained
     assert "lmsk" in r_skels
-
-

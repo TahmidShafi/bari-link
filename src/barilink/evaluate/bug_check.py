@@ -133,4 +133,3 @@ def run_kinship_bug_check(
         "same_person_cuts": same_person_cuts,
         "examples": examples,
     }
-

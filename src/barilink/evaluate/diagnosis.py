@@ -160,9 +160,7 @@ def run_dev_diagnosis(
     guardian_combo_counts = missed_df["guardian_combo"].value_counts()
 
     # B. Breakdown 2: true guardian switch vs same guardian
-    switched_records = set(
-        clog_df[clog_df["corruption_type"] == "guardian_switch"]["record_id"]
-    )
+    switched_records = set(clog_df[clog_df["corruption_type"] == "guardian_switch"]["record_id"])
     missed_df["switched_l"] = missed_df["record_id_l"].isin(switched_records)
     missed_df["switched_r"] = missed_df["record_id_r"].isin(switched_records)
     missed_df["is_switch"] = missed_df["switched_l"] ^ missed_df["switched_r"]
@@ -190,9 +188,9 @@ def run_dev_diagnosis(
         "district_raw",
     ]
     rec_null_map = rec_df.set_index("record_id")[raw_eval_cols].isna().sum(axis=1).to_dict()
-    missed_df["null_count"] = (
-        missed_df["record_id_l"].map(rec_null_map) + missed_df["record_id_r"].map(rec_null_map)
-    )
+    missed_df["null_count"] = missed_df["record_id_l"].map(rec_null_map) + missed_df[
+        "record_id_r"
+    ].map(rec_null_map)
     null_count_counts = missed_df["null_count"].value_counts().sort_index()
 
     # E. Breakdown 5: damaging Bayes factor
