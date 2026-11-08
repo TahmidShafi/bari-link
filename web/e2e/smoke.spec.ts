@@ -42,7 +42,18 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
     await expect(page.locator('.tiles-grid')).toBeVisible();
 
     // Verify Review-Queue Size and false merge recaptioned tiles
-    await expect(page.locator('.tile', { hasText: 'Review-Queue Size' })).toBeVisible();
+    const reviewQueueTile = page.locator('.tile', { hasText: 'Review-Queue Size' });
+    await expect(reviewQueueTile).toBeVisible();
+    const reviewQueueText = await reviewQueueTile.locator('.tile-value').innerText();
+    const reviewQueueVal = parseInt(reviewQueueText.replace(/,/g, ''), 10);
+    expect(reviewQueueVal).toBeGreaterThan(0);
+
+    // Verify Expected Cost tile shows 784 at default threshold
+    const costTile = page.locator('.tile', { hasText: 'Expected Cost (5:1)' });
+    await expect(costTile).toBeVisible();
+    const costText = await costTile.locator('.tile-value').innerText();
+    expect(costText.trim()).toBe('784');
+
     await expect(page.locator('.tile', { hasText: 'clusters containing > 1 person' })).toBeVisible();
 
     // Precision & Recall Chart assertions
@@ -70,6 +81,14 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
       }
     }
 
+    // Capture Overview screenshot at DEFAULT frozen threshold (t_link = 2.0, constraint ON)
+    if (isDesktop) {
+      await page.screenshot({
+        path: path.join(screenshotsDir, 'overview.png'),
+        fullPage: true,
+      });
+    }
+
     // Verify slider movement and measure latency
     const slider = page.locator('input[type="range"]');
     await expect(slider).toBeVisible();
@@ -93,14 +112,6 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
     const resolvedBtn = page.locator('button', { hasText: 'Resolved (kinship constraint ON)' });
     await resolvedBtn.click();
     await page.waitForTimeout(300);
-
-    // Capture Overview screenshot
-    if (isDesktop) {
-      await page.screenshot({
-        path: path.join(screenshotsDir, 'overview.png'),
-        fullPage: true,
-      });
-    }
 
     // 2. Pair Explorer
     await page.click('a[href="#pairs"]');

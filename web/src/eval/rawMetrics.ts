@@ -22,7 +22,9 @@ export interface RawMetricsResult {
 export function computeRawMetrics(
   clusters: Map<string, string>,
   labelsMap: Map<string, RecordLabel>,
-  doppelgangerPersonPairs?: [string, string][]
+  doppelgangerPersonPairs?: [string, string][],
+  pairs?: Array<{ u: string; v: string; weight: number }>,
+  threshold?: number
 ): RawMetricsResult {
   // Total true pairs in population
   const personDistribution = new Map<string, number>();
@@ -107,8 +109,9 @@ export function computeRawMetrics(
   const f1 =
     precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0.0;
 
-  // Expected operational cost (5:1 penalty)
-  const expectedCost = 5.0 * falseMergeClusters + 1.0 * splitPersons;
+  // Expected operational cost (5:1 penalty: 5 * FP pairs + 1 * FN pairs)
+  const clusterFn = totalTruePairs - clusterTp;
+  const expectedCost = 5.0 * clusterFp + 1.0 * clusterFn;
 
   // Doppelganger false merge rate if pairs provided
   let doppelRate = 0.0;
@@ -131,6 +134,26 @@ export function computeRawMetrics(
     doppelRate = mergedCount / doppelgangerPersonPairs.length;
   }
 
+  let reviewQueueSize = 0;
+  if (pairs && threshold !== undefined) {
+    const windowDelta = 6.0;
+    for (const p of pairs) {
+      if (p.u === p.v) continue;
+      const cu = clusters.get(p.u);
+      const cv = clusters.get(p.v);
+      const sameCluster = cu !== undefined && cv !== undefined && cu === cv;
+      if (
+        !sameCluster &&
+        p.weight >= threshold - windowDelta &&
+        p.weight <= threshold + windowDelta
+      ) {
+        reviewQueueSize++;
+      } else if (sameCluster && p.weight < threshold + windowDelta) {
+        reviewQueueSize++;
+      }
+    }
+  }
+
   return {
     precision,
     recall,
@@ -142,7 +165,7 @@ export function computeRawMetrics(
     true_reach: trueReach,
     naive_reach: naiveReach,
     doppelganger_false_merge_rate: doppelRate,
-    review_queue_size: 0,
+    review_queue_size: reviewQueueSize,
   };
 }
 

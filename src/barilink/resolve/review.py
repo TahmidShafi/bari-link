@@ -39,30 +39,30 @@ def build_review_queue(
 
     # 1. Add all cut edges
     if resolution_log_df is not None and not resolution_log_df.empty:
-        for _, row in resolution_log_df.iterrows():
-            u = str(row["record_id_l"])
-            v = str(row["record_id_r"])
+        for row in resolution_log_df.itertuples(index=False):
+            u = str(getattr(row, "record_id_l"))
+            v = str(getattr(row, "record_id_r"))
             u_s, v_s = min(u, v), max(u, v)
-            w = float(row.get("weight", 0.0))
+            w = float(getattr(row, "weight", 0.0))
             queue_items[(u_s, v_s)] = {
                 "record_id_l": u_s,
                 "record_id_r": v_s,
                 "match_weight": w,
                 "is_cut_edge": True,
-                "cut_action": str(row.get("action", "")),
-                "cut_reason": str(row.get("reason", "")),
+                "cut_action": str(getattr(row, "action", "")),
+                "cut_reason": str(getattr(row, "reason", "")),
                 "is_same_cluster": (rec_cluster_map.get(u_s) == rec_cluster_map.get(v_s)),
             }
 
     # 2. Add candidates from predictions near threshold
     if not predictions_df.empty:
-        for _, row in predictions_df.iterrows():
-            u = str(row["record_id_l"])
-            v = str(row["record_id_r"])
+        for row in predictions_df.itertuples(index=False):
+            u = str(getattr(row, "record_id_l"))
+            v = str(getattr(row, "record_id_r"))
             if u == v:
                 continue
             u_s, v_s = min(u, v), max(u, v)
-            w = float(row.get("match_weight", 0.0))
+            w = float(getattr(row, "match_weight", 0.0))
 
             c_u = rec_cluster_map.get(u_s)
             c_v = rec_cluster_map.get(v_s)

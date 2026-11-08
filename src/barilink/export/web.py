@@ -180,7 +180,7 @@ def export_web_data(
     features_df = pd.read_parquet(feat_path) if feat_path.exists() else None
 
     clusters_by_thresh_path = out_path / "clusters_by_threshold.parquet"
-    clusters_by_thresh_df = precompute_ui_clusters(
+    clusters_by_thresh_df, logs_by_thresh = precompute_ui_clusters(
         predictions_df=preds_df,
         records_df=web_records_df,
         t_bridge=t_bridge,
@@ -188,12 +188,16 @@ def export_web_data(
         max_birth_year_gap=max_birth_year_gap,
         features_df=features_df,
         apply_listed_as_other_member=True,
+        return_resolution_logs=True,
     )
 
     clusters_by_thresh_noconstraint_path = (
         out_path / "clusters_by_threshold_noconstraint.parquet"
     )
-    clusters_by_thresh_noconstraint_df = precompute_ui_clusters(
+    (
+        clusters_by_thresh_noconstraint_df,
+        logs_by_thresh_noconstraint,
+    ) = precompute_ui_clusters(
         predictions_df=preds_df,
         records_df=web_records_df,
         t_bridge=t_bridge,
@@ -201,6 +205,7 @@ def export_web_data(
         max_birth_year_gap=max_birth_year_gap,
         features_df=features_df,
         apply_listed_as_other_member=False,
+        return_resolution_logs=True,
     )
 
     # -------------------------------------------------------------------------
@@ -287,7 +292,9 @@ def export_web_data(
         clusters_by_thresh_df=clusters_by_thresh_df,
         eval_out_dir=eval_path,
         clusters_by_thresh_noconstraint_df=clusters_by_thresh_noconstraint_df,
-        pairs_df=web_pairs_df,
+        pairs_df=preds_df,
+        resolution_logs_by_thresh=logs_by_thresh,
+        resolution_logs_noconstraint_by_thresh=logs_by_thresh_noconstraint,
     )
 
     # -------------------------------------------------------------------------

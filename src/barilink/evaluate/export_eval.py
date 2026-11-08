@@ -10,7 +10,9 @@ import networkx as nx
 import pandas as pd
 
 from barilink.evaluate.clusters import evaluate_clusters
+from barilink.evaluate.costs import compute_expected_cost
 from barilink.evaluate.pairwise import compute_pairwise_metrics_from_counts
+from barilink.resolve.review import build_review_queue
 
 
 def _evaluate_variant_clusters(
@@ -22,6 +24,8 @@ def _evaluate_variant_clusters(
     naive_records_count: int,
     record_person_map: dict[str, str],
     doppel_pairs_df: Optional[pd.DataFrame],
+    pairs_df: Optional[pd.DataFrame] = None,
+    resolution_logs_by_thresh: Optional[dict[float, pd.DataFrame]] = None,
 ) -> list[dict[str, Any]]:
     """Evaluate cluster metrics across threshold groups for a specific variant."""
     rows: list[dict[str, Any]] = []
@@ -59,10 +63,27 @@ def _evaluate_variant_clusters(
             edge_tp=0,
             edge_fp=0,
         )
-        expected_cost = (
-            5.0 * c_metrics.false_merge_clusters + 1.0 * c_metrics.split_persons
+        expected_cost = compute_expected_cost(
+            fp=pw.fp,
+            fn=pw.fn,
+            cost_false_merge=5.0,
+            cost_missed_duplicate=1.0,
         )
         dedup_reach = group_df["cluster_id"].nunique()
+
+        q_size = 0
+        if pairs_df is not None and not pairs_df.empty:
+            res_log = None
+            if resolution_logs_by_thresh is not None:
+                res_log = resolution_logs_by_thresh.get(float(t_val))
+            q_df = build_review_queue(
+                predictions_df=pairs_df,
+                clusters_df=group_df,
+                resolution_log_df=res_log,
+                t_link=float(t_val),
+                window_delta=6.0,
+            )
+            q_size = len(q_df)
 
         rows.append(
             {
@@ -78,7 +99,7 @@ def _evaluate_variant_clusters(
                 "dedup_reach": int(dedup_reach),
                 "true_reach": int(true_person_count),
                 "naive_reach": int(naive_records_count),
-                "review_queue_size": 0,
+                "review_queue_size": int(q_size),
                 "variant": variant_name,
             }
         )
@@ -125,6 +146,8 @@ def build_eval_export_datasets(
     eval_out_dir: Path,
     clusters_by_thresh_noconstraint_df: Optional[pd.DataFrame] = None,
     pairs_df: Optional[pd.DataFrame] = None,
+    resolution_logs_by_thresh: Optional[dict[float, pd.DataFrame]] = None,
+    resolution_logs_noconstraint_by_thresh: Optional[dict[float, pd.DataFrame]] = None,
 ) -> None:
     """Precompute evaluation files (threshold table and record labels) for web UI."""
     eval_out_dir.mkdir(parents=True, exist_ok=True)
@@ -164,6 +187,8 @@ def build_eval_export_datasets(
         naive_records_count=naive_records_count,
         record_person_map=record_person_map,
         doppel_pairs_df=doppel_pairs_df,
+        pairs_df=pairs_df,
+        resolution_logs_by_thresh=resolution_logs_by_thresh,
     )
     threshold_eval_rows.extend(constraint_rows)
 
@@ -178,6 +203,8 @@ def build_eval_export_datasets(
             naive_records_count=naive_records_count,
             record_person_map=record_person_map,
             doppel_pairs_df=doppel_pairs_df,
+            pairs_df=pairs_df,
+            resolution_logs_by_thresh=resolution_logs_noconstraint_by_thresh,
         )
         threshold_eval_rows.extend(noconstraint_rows)
 
@@ -199,6 +226,8 @@ def build_eval_export_datasets(
             naive_records_count=naive_records_count,
             record_person_map=record_person_map,
             doppel_pairs_df=doppel_pairs_df,
+            pairs_df=pairs_df,
+            resolution_logs_by_thresh=None,
         )
         threshold_eval_rows.extend(raw_rows)
 

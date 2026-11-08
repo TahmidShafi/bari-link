@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -147,3 +148,29 @@ def test_publish_web_export_data_contract():
         pub_web_dir.exists()
     ), "web/public/data does not exist. Run 'pipeline --profile publish' first."
     _verify_web_data_contract(pub_web_dir)
+
+
+@pytest.mark.publish
+def test_publish_threshold_table_constraint_t2_matches_expected_headline():
+    """Assert that eval/threshold_table.parquet, variant=constraint, t_link=2.0
+    has expected_cost == 784 and precision/recall equal to expected_headline.
+    """
+    thresh_p = Path("web/public/data/eval/threshold_table.parquet")
+    assert thresh_p.exists(), "web/public/data/eval/threshold_table.parquet missing"
+
+    df = pd.read_parquet(thresh_p)
+    row = df[(df["variant"] == "constraint") & (np.isclose(df["t_link"], 2.0))]
+    assert len(row) == 1, "Expected exactly 1 row for variant=constraint, t_link=2.0"
+
+    headline_p = Path("results/publish/expected_headline.json")
+    with open(headline_p, "r", encoding="utf-8") as f:
+        headline = json.load(f)["metrics"]["person_linkage"]
+
+    actual_cost = float(row["expected_cost"].values[0])
+    actual_precision = float(row["precision"].values[0])
+    actual_recall = float(row["recall"].values[0])
+
+    assert actual_cost == 784.0
+    assert pytest.approx(headline["cluster_precision"], abs=1e-5) == actual_precision
+    assert pytest.approx(headline["cluster_recall"], abs=1e-5) == actual_recall
+    assert pytest.approx(headline["expected_cost"], abs=1e-5) == actual_cost

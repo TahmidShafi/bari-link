@@ -134,7 +134,7 @@ export const Overview: React.FC = () => {
             setClusterMap(cmap);
 
             const labels = await getRecordLabelsMap();
-            const metrics = computeRawMetrics(cmap, labels);
+            const metrics = computeRawMetrics(cmap, labels, undefined, edges, threshold);
 
             startTransition(() => {
               setActiveMetrics({

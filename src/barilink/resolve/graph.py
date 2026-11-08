@@ -12,6 +12,8 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
+from barilink.evaluate.costs import compute_expected_cost
+
 
 def build_resolved_graph(
     predictions_df: pd.DataFrame,
@@ -348,7 +350,12 @@ def evaluate_resolved_clusters(
     p = cluster_tp / (cluster_tp + cluster_fp) if (cluster_tp + cluster_fp) > 0 else 1.0
     r = cluster_tp / total_true if total_true > 0 else 0.0
     f1 = (2.0 * p * r) / (p + r) if (p + r) > 0 else 0.0
-    expected_cost = cost_false_merge * cluster_fp + cost_missed_duplicate * cluster_fn
+    expected_cost = compute_expected_cost(
+        fp=cluster_fp,
+        fn=cluster_fn,
+        cost_false_merge=cost_false_merge,
+        cost_missed_duplicate=cost_missed_duplicate,
+    )
 
     # Doppelganger false merge rate
     doppel_rate = 0.0
@@ -594,16 +601,18 @@ def precompute_ui_clusters(
     max_birth_year_gap: int = 10,
     features_df: Optional[pd.DataFrame] = None,
     apply_listed_as_other_member: bool = False,
-) -> pd.DataFrame:
+    return_resolution_logs: bool = False,
+) -> pd.DataFrame | tuple[pd.DataFrame, dict[float, pd.DataFrame]]:
     """Precompute resolved clusters on holdout_0 for every t_link at the selected t_bridge.
 
     Output format: resolved_by_threshold.parquet with columns (t_link, record_id, cluster_id).
     """
     t_link_values = [round(x, 1) for x in np.arange(2.0, 14.1, 0.5)]
     all_dfs = []
+    logs_dict: dict[float, pd.DataFrame] = {}
 
     for t_l in t_link_values:
-        clusters_df, _ = build_resolved_graph(
+        clusters_df, res_log_df = build_resolved_graph(
             predictions_df=predictions_df,
             records_df=records_df,
             t_link=t_l,
@@ -614,8 +623,12 @@ def precompute_ui_clusters(
         )
         clusters_df["t_link"] = t_l
         all_dfs.append(clusters_df[["t_link", "record_id", "cluster_id"]])
+        if return_resolution_logs:
+            logs_dict[t_l] = res_log_df
 
     combined_df = pd.concat(all_dfs, ignore_index=True)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     combined_df.to_parquet(output_path, index=False)
+    if return_resolution_logs:
+        return combined_df, logs_dict
     return combined_df
