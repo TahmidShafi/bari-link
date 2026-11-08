@@ -1,0 +1,149 @@
+{
+  "source": "results/summary/untrained_params_audit.json",
+  "model_path": "results\\models\\splink_k\\model.json",
+  "protocol": {
+    "seeds": [
+      "holdout_5",
+      "holdout_6",
+      "holdout_7",
+      "holdout_8",
+      "holdout_9"
+    ],
+    "frozen_t_link": 2.0,
+    "frozen_t_bridge": 4.0,
+    "decision_rule": "Sensitivity analysis only. Frozen model is NOT replaced or retrained."
+  },
+  "untrained_levels": [
+    {
+      "comparison": "phone",
+      "label": "Exact match on phone_last8",
+      "sql_condition": "\"phone_last8_l\" = \"phone_last8_r\"",
+      "comparison_vector_value": 1,
+      "m_estimated_in_model": false,
+      "u_estimated_in_model": true,
+      "m_default_used": 0.025000000000000022,
+      "u_default_used": 3.485498583144826e-06,
+      "bayes_factor_used": 7172.575000000006,
+      "note": "",
+      "candidate_pair_counts": {
+        "total": 9,
+        "holdout_5": 1,
+        "holdout_6": 4,
+        "holdout_7": 0,
+        "holdout_8": 2,
+        "holdout_9": 2
+      }
+    },
+    {
+      "comparison": "village",
+      "label": "Jaro-Winkler distance of village_canon >= 0.88",
+      "sql_condition": "jaro_winkler_similarity(\"village_canon_l\", \"village_canon_r\") >= 0.88",
+      "comparison_vector_value": 1,
+      "m_estimated_in_model": false,
+      "u_estimated_in_model": false,
+      "m_default_used": 0.025000000000000022,
+      "u_default_used": 0.0031250000000000028,
+      "bayes_factor_used": 8.0,
+      "note": "",
+      "candidate_pair_counts": {
+        "total": 0,
+        "holdout_5": 0,
+        "holdout_6": 0,
+        "holdout_7": 0,
+        "holdout_8": 0,
+        "holdout_9": 0
+      }
+    },
+    {
+      "comparison": "village",
+      "label": "All other comparisons",
+      "sql_condition": "ELSE",
+      "comparison_vector_value": 0,
+      "m_estimated_in_model": false,
+      "u_estimated_in_model": true,
+      "m_default_used": 0.025000000000000022,
+      "u_default_used": 0.7493570351232776,
+      "bayes_factor_used": 0.03336193406910131,
+      "note": "",
+      "candidate_pair_counts": {
+        "total": 20000,
+        "holdout_5": 4157,
+        "holdout_6": 3892,
+        "holdout_7": 3945,
+        "holdout_8": 3994,
+        "holdout_9": 4012
+      }
+    }
+  ],
+  "sex_raw_audit": {
+    "status": "INERT",
+    "null_candidate_pairs": 230640,
+    "non_null_candidate_pairs": 0,
+    "records_null_rate": 1.0,
+    "finding": "not estimated; every candidate pair is null; inert; recommended for removal",
+    "recommendation": "Remove sex_raw comparison from future Splink model configurations to avoid predict-time warnings."
+  },
+  "sensitivity_analysis": {
+    "baseline": {
+      "description": "Frozen splink_k model without changes",
+      "cost_mean": 812.2,
+      "cost_sd": 29.2,
+      "delta_cost_mean": 0.0,
+      "delta_cost_sd": 0.0,
+      "precision_mean": 0.9656,
+      "precision_sd": 0.0106,
+      "recall_mean": 0.5277,
+      "recall_sd": 0.0172,
+      "f1_mean": 0.6823,
+      "f1_sd": 0.0137,
+      "delta_f1_mean": 0.0,
+      "delta_f1_sd": 0.0
+    },
+    "neutralize_phone_last8": {
+      "description": "Phone last8 Bayes factor set to 1.0",
+      "cost_mean": 811.6,
+      "cost_sd": 30.3,
+      "delta_cost_mean": -0.6,
+      "delta_cost_sd": 2.5,
+      "precision_mean": 0.9658,
+      "precision_sd": 0.0106,
+      "recall_mean": 0.5275,
+      "recall_sd": 0.0174,
+      "f1_mean": 0.6821,
+      "f1_sd": 0.0139,
+      "delta_f1_mean": -0.0002,
+      "delta_f1_sd": 0.0004
+    },
+    "neutralize_village_else": {
+      "description": "Village ELSE Bayes factor set to 1.0",
+      "cost_mean": 812.2,
+      "cost_sd": 29.2,
+      "delta_cost_mean": 0.0,
+      "delta_cost_sd": 0.0,
+      "precision_mean": 0.9656,
+      "precision_sd": 0.0106,
+      "recall_mean": 0.5277,
+      "recall_sd": 0.0172,
+      "f1_mean": 0.6823,
+      "f1_sd": 0.0137,
+      "delta_f1_mean": 0.0,
+      "delta_f1_sd": 0.0
+    },
+    "neutralize_all_untrained": {
+      "description": "All untrained Bayes factors set to 1.0",
+      "cost_mean": 811.6,
+      "cost_sd": 30.3,
+      "delta_cost_mean": -0.6,
+      "delta_cost_sd": 2.5,
+      "precision_mean": 0.9658,
+      "precision_sd": 0.0106,
+      "recall_mean": 0.5275,
+      "recall_sd": 0.0174,
+      "f1_mean": 0.6821,
+      "f1_sd": 0.0139,
+      "delta_f1_mean": -0.0002,
+      "delta_f1_sd": 0.0004
+    }
+  },
+  "overall_conclusion": "The champion pipeline's operational cost and cluster metrics are insensitive to setting the untrained levels to neutral (Bayes factor 1). Setting untrained levels to neutral Bayes factor 1.0 shifts 5-seed mean cost by -0.6 cost points (from 812.2 to 811.6) and shifts F1 by -0.0002."
+}

@@ -1,0 +1,47 @@
+{
+  "source": "results/summary/preregistration.json",
+  "description": "Git-verified commit SHAs for pre-registered hypotheses and data leakage remediation",
+  "leakage": {
+    "title": "Ground-Truth Data Leakage Discovery & Remediation",
+    "commit": "2477c5c",
+    "full_sha": "2477c5c19176c49707a166b8262f68785770b262",
+    "date": "2026-11-07 17:29:06 +0600",
+    "subject": "Leakage fix (guardian_type/sex), dev diagnosis, pre-register H1 and H2"
+  },
+  "h1": {
+    "title": "H1: Guardian Type Disambiguation (Model v2)",
+    "prereg_commit": "135d7f2",
+    "prereg_full_sha": "135d7f2268e510b096038e9dfb6eeb912de8a607",
+    "prereg_date": "2026-11-07 17:14:19 +0600",
+    "prereg_subject": "Pre-register H1 (guardian-type-aware comparison) and decision rule before training v2",
+    "outcome_commit": "b40ef4f",
+    "outcome_full_sha": "b40ef4fca23964aeb7b376dcb07fbcfae52f902c",
+    "outcome_date": "2026-11-07 18:20:37 +0600",
+    "outcome_subject": "Phase 6: H1 and H2 supported (dev), ablations, stress test (interpretation pending review)",
+    "precedes_outcome": true
+  },
+  "h2": {
+    "title": "H2: Household vs Individual Kinship Disambiguation (Model v3)",
+    "prereg_commit": "2477c5c",
+    "prereg_full_sha": "2477c5c19176c49707a166b8262f68785770b262",
+    "prereg_date": "2026-11-07 17:29:06 +0600",
+    "prereg_subject": "Leakage fix (guardian_type/sex), dev diagnosis, pre-register H1 and H2",
+    "outcome_commit": "b40ef4f",
+    "outcome_full_sha": "b40ef4fca23964aeb7b376dcb07fbcfae52f902c",
+    "outcome_date": "2026-11-07 18:20:37 +0600",
+    "outcome_subject": "Phase 6: H1 and H2 supported (dev), ablations, stress test (interpretation pending review)",
+    "precedes_outcome": true
+  },
+  "h3": {
+    "title": "H3: Kinship as Deterministic Constraint (Pipeline K)",
+    "prereg_commit": "3a22c32",
+    "prereg_full_sha": "3a22c3219a6cec6aab3047ee69c94049e4362306",
+    "prereg_date": "2026-11-07 18:48:38 +0600",
+    "prereg_subject": "Bug check, cost-based ablation, pre-register H3; build fresh holdout_5..9",
+    "outcome_commit": "1ec10a4",
+    "outcome_full_sha": "1ec10a415a56b01a965b3694fae000ac55ec971a",
+    "outcome_date": "2026-11-07 19:31:25 +0600",
+    "outcome_subject": "Phase 6b: H3 confirmed on fresh holdout_5..9 (5/5 seeds); corrected claims and cost-ratio sensitivity",
+    "precedes_outcome": true
+  }
+}
