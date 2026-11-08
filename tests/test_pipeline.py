@@ -175,3 +175,27 @@ def test_verify_pipeline_detects_mismatch(tmp_path: Path):
         is False
     )
 
+
+@pytest.mark.artifacts
+def test_tamper_real_expected_headline_verify_fails(tmp_path: Path):
+    """Tamper with a copy of real committed expected_headline in tmp_path; verify must fail."""
+    real_exp_path = Path("results/publish/expected_headline.json")
+    assert real_exp_path.exists(), f"Missing committed headline: {real_exp_path}"
+
+    with open(real_exp_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Tamper with precision
+    data["metrics"]["person_linkage"]["cluster_precision"] -= 0.05
+    tampered_file = tmp_path / "tampered_expected_headline.json"
+    with open(tampered_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+    assert (
+        verify_pipeline(
+            run_name="publish_holdout_5",
+            expected_path=str(tampered_file),
+        )
+        is False
+    )
+

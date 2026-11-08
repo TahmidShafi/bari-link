@@ -119,6 +119,46 @@ def export_test_fixtures(
         json.dump(pairs_100, f, default=str, indent=2)
     print(f"Exported 100-pair labels fixture to {labels_100_out}")
 
+    # 4. Deterministic E2E target fixture: highest-weight true-match pair whose names differ
+    true_pairs_path = truth_dir / "true_pairs.parquet"
+    if true_pairs_path.exists() and pairs_path.exists() and records_path.exists():
+        q_target = f"""
+        SELECT
+            p.record_id_l,
+            p.record_id_r,
+            p.match_weight,
+            r1.full_name_raw as name_l,
+            r2.full_name_raw as name_r
+        FROM '{records_path}' r1
+        JOIN '{records_path}' r2 ON r1.record_id < r2.record_id
+        JOIN '{true_pairs_path}' tp
+          ON tp.record_id_1 = r1.record_id AND tp.record_id_2 = r2.record_id
+        JOIN '{pairs_path}' p
+          ON (p.record_id_l = r1.record_id AND p.record_id_r = r2.record_id)
+          OR (p.record_id_l = r2.record_id AND p.record_id_r = r1.record_id)
+        WHERE r1.full_name_raw != r2.full_name_raw
+        ORDER BY p.match_weight DESC
+        LIMIT 1
+        """
+        target_df = con.execute(q_target).df()
+        if not target_df.empty:
+            row = target_df.iloc[0]
+            target_data = {
+                "record_id_l": str(row["record_id_l"]),
+                "record_id_r": str(row["record_id_r"]),
+                "name_l": str(row["name_l"]),
+                "name_r": str(row["name_r"]),
+                "match_weight": float(row["match_weight"]),
+            }
+            e2e_target_path = output_dir / "e2e_target.json"
+            with open(e2e_target_path, "w", encoding="utf-8") as f:
+                json.dump(target_data, f, indent=2)
+            print(
+                f"Exported deterministic E2E target to {e2e_target_path}: "
+                f"{target_data['record_id_l']} ('{target_data['name_l']}') <-> "
+                f"{target_data['record_id_r']} ('{target_data['name_r']}')"
+            )
+
 
 if __name__ == "__main__":
     export_test_fixtures()

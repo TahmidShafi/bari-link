@@ -586,6 +586,48 @@ This section records all architectural, demographic, and technical design decisi
   - `household_eval.py` writes 5-seed confirmation results directly to `results/holdout_confirm/household_table.json`. `summary.py` reads this JSON directly, completely removing markdown table parsing (`parse_household_table_md` deleted).
   - Added test `test_publish_pipeline_household_metrics_match_holdout_5_in_confirm_json` asserting that `publish_holdout_5` household metrics equal the `holdout_5` values in the 5-seed confirmation JSON exactly.
 
+---
+
+### Phase 10: Final Hardening, Audits, and Documentation
+
+#### Execution Log Entry 014: Production Hardening, Verification Integrity, and README
+- **Decision 14.1: Self-Referential Verify Remediation & Pipeline Integrity**:
+  - Changed pipeline verification contract: `barilink pipeline --profile publish` NEVER writes or overwrites `expected_headline.json` unless the explicit flag `--write-expected` is provided.
+  - `--verify` compares run metrics strictly against the committed `expected_headline.json`.
+  - Added tamper regression test `test_tamper_real_expected_headline_verify_fails` verifying that any discrepancy in `expected_headline.json` causes verification failure.
+  - Extended pipeline verification cross-checks to compare `publish_holdout_5` household metrics against `results/holdout_confirm/household_table.json` (`per_seed["holdout_5"]`) for exact match, and asserted identical record contents between `publish_holdout_5` and `holdout_5`.
+  - Documented record ID generation: Does record ID generation depend on `run_name`? **No.** Record ID generation in `src/barilink/corrupt/registry.py` is driven strictly by `seed = config.seed + seed_offset` (`rng.bytes(5).hex()`). Comparing `holdout_5` and `publish_holdout_5` confirms that both share identical row counts (4,841 rows), 100% shared record IDs (4,841 identical IDs), and identical multisets of record contents across all fields. Deterministic E2E test target fixture exported to `web/src/tests/fixtures/e2e_target.json`.
+- **Decision 14.2: Algorithmic Determinism Regression Gate (CI)**:
+  - Added `tests/test_pipeline_determinism.py` which executes the CI-profile pipeline in two independent subprocesses with contrasting hash seeds: `PYTHONHASHSEED=1` versus `PYTHONHASHSEED=999`.
+  - Asserts identical person cluster IDs, household cluster IDs, and all evaluation metrics across processes. Test executes in ~19 seconds, safely within the CI timeout budget.
+- **Decision 14.3: Programmatic Audit of Untrained Splink Parameters**:
+  - Built `src/barilink/evaluate/audit_untrained.py` to programmatically extract default $m$ and $u$ probabilities from Splink comparison objects without human transcription.
+  - Identified unestimated levels in frozen `splink_k`:
+    - `phone_last8` exact match: default $m = 0.025$, estimated $u = 3.49 \times 10^{-6}$ ($BF = 7172.6$). Observed in 9 candidate pairs across holdout seeds 5–9.
+    - `village_canon` fuzzy match ($JW \ge 0.88$): default $m = 0.025$, default $u = 0.003125$ ($BF = 8.0$). Observed in 0 candidate pairs.
+    - `village_canon` ELSE: default $m = 0.025$, estimated $u = 0.7494$ ($BF = 0.033$). Observed in exactly 20,000 candidate pairs across holdout seeds 5–9.
+    - `sex_raw`: not estimated; every candidate pair is null (230,640 null pairs across holdout seeds 5–9); inert; recommended for removal.
+  - Added assertion in `audit_untrained.py` verifying that every reported $m$ and $u$ value is a valid probability lying strictly in $[0, 1]$.
+  - Performed sensitivity analysis on holdout seeds 5–9 by setting untrained levels to neutral Bayes factor ($BF = 1.0$) while keeping frozen thresholds ($t_{\text{link}} = 2.0, t_{\text{bridge}} = 4.0$). Mean cost shifted by only $-0.6$ points ($-0.07\%$, from $812.2$ to $811.6$) and F1 shifted by $-0.0002$.
+  - Results compiled programmatically to `results/summary/untrained_params_audit.json`.
+- **Decision 14.4: Qualitative Claims Verification under Corrected Household Numbers**:
+  - Re-evaluated all qualitative claims against `results/summary/household_table.json`:
+    1. Dropping E2 raises F1 ($0.4601 \to 0.4760$) and precision ($0.6886 \to 0.9332$): **CONFIRMED**.
+    2. Scaling weights by $\times 0.5$ and $\times 2.0$ reduces F1 ($0.3069$ and $0.2127$ vs base $0.4601$): **CONFIRMED**.
+    3. Oracle F1 ($0.6066$) exceeds Champion K F1 ($0.4601$): **CONFIRMED**.
+    4. E1 weight ($4.0$) sits strictly below $t_{\text{hh}} = 5.0$ (from `publish_spec.json` and `results/household/selected_thresholds.json`), requiring multi-channel evidence: **CONFIRMED**.
+  - Documented corrected values resulting from the deterministic tie-breaking fix:
+    - $\times 2$ F1: $0.2055 \to 0.2127$; MAE: $7.40 \to 7.26$.
+    - Oracle F1: $0.6062 \to 0.6066$.
+    - Champion Base F1: $0.4592 \to 0.4601$.
+- **Decision 14.5: Reproducible Documentation Architecture & Machine-Rendered Results**:
+  - Rewrote `README.md` to adhere to strict technical guidelines ($\le 250$ lines, technical recruiter & data engineer audience).
+  - Implemented `scripts/render_readme.py` which reads strictly from `results/summary/*.json` and populates the `<!-- results:start -->` ... `<!-- results:end -->` block. Tested with `tests/test_readme_render.py` in CI.
+  - Pre-registration provenance: git commit SHAs queried and verified via `scripts/generate_preregistration_json.py` to `results/summary/preregistration.json`.
+  - Moved detailed data generation, corruption, and algorithmic specifications to `docs/METHODS.md`, explicitly labelling demographic choices as `[Assumed]` and verifying bibliographic citations.
+  - Added MIT `LICENSE` (2026 Tahmid Jawad Shafi) and `.gitattributes` for LF line endings.
+
+
 
 
 

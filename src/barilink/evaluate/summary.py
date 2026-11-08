@@ -400,8 +400,11 @@ def generate_confirm_summary(results_dir: Path, data_dir: Path) -> dict[str, Any
     ref_costs, k_costs, deltas = [], [], []
     ref_precs, ref_recs, ref_f1s = [], [], []
     k_precs, k_recs, k_f1s = [], [], []
+    base_costs, base_precs, base_recs, base_f1s, base_reach_errors = [], [], [], [], []
+    base_dp_rates = []
     k_doppel_merged, k_doppel_total = 0, 0
     ref_doppel_merged, ref_doppel_total = 0, 0
+    base_doppel_merged, base_doppel_total = 0, 0
 
     ref_pairwise_fp_fn = []
     k_pairwise_fp_fn = []
@@ -409,6 +412,7 @@ def generate_confirm_summary(results_dir: Path, data_dir: Path) -> dict[str, Any
     for seed in seeds:
         r_p = results_dir / seed / "splink_v3_1_resolved" / "metrics.json"
         k_p = results_dir / seed / "splink_k_resolved" / "metrics.json"
+        b_p = results_dir / seed / "exact_or_phone" / "metrics.json"
         truth_p = data_dir / seed / "truth" / "doppelganger_person_pairs.parquet"
         rec_truth_p = data_dir / seed / "truth" / "record_truth.parquet"
         n_doppel = len(pd.read_parquet(truth_p)) if truth_p.exists() else 0
@@ -417,6 +421,19 @@ def generate_confirm_summary(results_dir: Path, data_dir: Path) -> dict[str, Any
             rd = json.load(f)
         with open(k_p, "r", encoding="utf-8") as f:
             kd = json.load(f)
+        if b_p.exists():
+            with open(b_p, "r", encoding="utf-8") as bf:
+                bd = json.load(bf)
+            bh = bd.get("headline_metrics_at_t_cost", {})
+            base_costs.append(float(bh.get("expected_cost", 0.0)))
+            base_precs.append(float(bh.get("cluster_precision", 0.0)))
+            base_recs.append(float(bh.get("cluster_recall", 0.0)))
+            base_f1s.append(float(bh.get("cluster_f1", 0.0)))
+            base_reach_errors.append(float(bh.get("reach_error_pct", 0.0)))
+            base_fm = float(bh.get("doppelganger_false_merge_rate", 0.0))
+            base_dp_rates.append(base_fm)
+            base_doppel_merged += round(base_fm * n_doppel)
+            base_doppel_total += n_doppel
 
         rc = float(rd["headline_metrics_at_t_cost"]["expected_cost"])
         kc = float(kd["headline_metrics_at_t_cost"]["expected_cost"])
@@ -461,6 +478,9 @@ def generate_confirm_summary(results_dir: Path, data_dir: Path) -> dict[str, Any
     )
     ref_dp_rate = (
         round(ref_doppel_merged / ref_doppel_total, 4) if ref_doppel_total > 0 else 0.0
+    )
+    base_dp_rate = (
+        round(base_doppel_merged / base_doppel_total, 4) if base_doppel_total > 0 else 0.0
     )
 
     # 3. Cost-ratio sensitivity analysis across holdout_5..9:
@@ -567,6 +587,37 @@ def generate_confirm_summary(results_dir: Path, data_dir: Path) -> dict[str, Any
             "pipeline_k_f1_sd": round(float(np.std(k_f1s, ddof=1)), 4),
             "doppelganger_fm_rate_pipeline_k": k_dp_rate,
             "doppelganger_fm_rate_reference": ref_dp_rate,
+            "baseline_exact_or_phone": {
+                "cost_mean": (round(float(np.mean(base_costs)), 1) if base_costs else None),
+                "cost_sd": (
+                    round(float(np.std(base_costs, ddof=1)), 1) if len(base_costs) > 1 else None
+                ),
+                "precision_mean": (
+                    round(float(np.mean(base_precs)), 4) if base_precs else None
+                ),
+                "precision_sd": (
+                    round(float(np.std(base_precs, ddof=1)), 4) if len(base_precs) > 1 else None
+                ),
+                "recall_mean": (
+                    round(float(np.mean(base_recs)), 4) if base_recs else None
+                ),
+                "recall_sd": (
+                    round(float(np.std(base_recs, ddof=1)), 4) if len(base_recs) > 1 else None
+                ),
+                "f1_mean": (round(float(np.mean(base_f1s)), 4) if base_f1s else None),
+                "f1_sd": (
+                    round(float(np.std(base_f1s, ddof=1)), 4) if len(base_f1s) > 1 else None
+                ),
+                "reach_error_mean": (
+                    round(float(np.mean(base_reach_errors)), 2) if base_reach_errors else None
+                ),
+                "reach_error_sd": (
+                    round(float(np.std(base_reach_errors, ddof=1)), 2)
+                    if len(base_reach_errors) > 1
+                    else None
+                ),
+                "doppelganger_fm_rate": base_dp_rate,
+            },
             "verdict": "CONFIRMED",
         },
         "cost_ratio_sensitivity": cost_ratios_data,
@@ -817,3 +868,7 @@ def summarize_all(
         print(f"  - {name}: {p}")
 
     return outputs
+
+
+if __name__ == "__main__":
+    summarize_all()

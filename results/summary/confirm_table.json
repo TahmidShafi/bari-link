@@ -47,6 +47,19 @@
     "pipeline_k_f1_sd": 0.0137,
     "doppelganger_fm_rate_pipeline_k": 0.0132,
     "doppelganger_fm_rate_reference": 0.0158,
+    "baseline_exact_or_phone": {
+      "cost_mean": 1398.4,
+      "cost_sd": 42.2,
+      "precision_mean": 0.8535,
+      "precision_sd": 0.0395,
+      "recall_mean": 0.1775,
+      "recall_sd": 0.0155,
+      "f1_mean": 0.2936,
+      "f1_sd": 0.0219,
+      "reach_error_mean": 23.87,
+      "reach_error_sd": 1.24,
+      "doppelganger_fm_rate": 0.0553
+    },
     "verdict": "CONFIRMED"
   },
   "cost_ratio_sensitivity": [

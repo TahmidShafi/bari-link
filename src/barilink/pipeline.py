@@ -83,7 +83,8 @@ def run_pipeline(
     config_path: Optional[str] = None,
     base_data_dir: str = "data/generated",
     base_results_dir: str = "results",
-    web_dir: str = "web/public/data",
+    web_dir: Optional[str] = None,
+    write_expected: bool = False,
 ) -> dict[str, Any]:
     """Execute the complete reproducible end-to-end pipeline.
 
@@ -271,10 +272,19 @@ def run_pipeline(
     # -------------------------------------------------------------------------
     # 8. Web Export: Bundle all model-visible and evaluation assets
     # -------------------------------------------------------------------------
-    print(f"\n[Step 8/8] Exporting web assets -> {web_dir}")
+    effective_web_dir = (
+        web_dir
+        if web_dir is not None
+        else (
+            "web/public/data"
+            if profile == "publish"
+            else str(Path(base_results_dir) / selected_run_name / "web_data")
+        )
+    )
+    print(f"\n[Step 8/8] Exporting web assets -> {effective_web_dir}")
     manifest = export_web_data(
         run_name=selected_run_name,
-        output_dir=web_dir,
+        output_dir=effective_web_dir,
         data_dir=base_data_dir,
         results_dir=base_results_dir,
         model_path=spec["model_path"],
@@ -310,57 +320,135 @@ def run_pipeline(
             )
         print("  ✓ Person linkage expected cost matches confirm_table (784.0)")
 
-        # Write results/publish/expected_headline.json from pipeline output
-        expected_headline = {
-            "schema_version": "1.0",
-            "run_name": selected_run_name,
-            "role": role,
-            "seed_offset": seed_offset,
-            "operating_points": {
-                "person_linkage": {
-                    "method": "splink_k_resolved",
-                    "t_link": t_link,
-                    "t_bridge": t_bridge,
-                },
-                "household_inference": {
-                    "t_hh": t_hh,
-                },
-            },
-            "metrics": {
-                "person_linkage": {
-                    "cluster_precision": summary["person_linkage"]["cluster_precision"],
-                    "cluster_recall": summary["person_linkage"]["cluster_recall"],
-                    "cluster_f1": summary["person_linkage"]["cluster_f1"],
-                    "expected_cost": summary["person_linkage"]["expected_cost"],
-                    "false_merge_clusters": summary["person_linkage"]["false_merge_clusters"],
-                    "split_persons": summary["person_linkage"]["split_persons"],
-                    "dedup_reach": summary["person_linkage"]["dedup_reach"],
-                    "doppelganger_false_merge_rate": summary["person_linkage"][
-                        "doppelganger_false_merge_rate"
-                    ],
-                },
-                "household_inference": {
-                    "record_pairwise_precision": hh_metrics.record_pairwise_precision,
-                    "record_pairwise_recall": hh_metrics.record_pairwise_recall,
-                    "record_pairwise_f1": hh_metrics.record_pairwise_f1,
-                    "unit_bcubed_f1": hh_metrics.unit_bcubed_f1,
-                    "households_reached_error_pct": hh_metrics.households_reached_error_pct,
-                    "household_size_mae": hh_metrics.household_size_mae,
-                    "n_inferred_households": hh_metrics.n_inferred_households,
-                },
-            },
-            "determinism_note": (
-                "File hashes are not used for cross-OS validation because DuckDB/Arrow parquet "
-                "encodings, floating-point LSBs in Splink EM, and platform newlines vary between "
-                "Windows and Linux. Determinism is asserted via semantic equivalence within "
-                "0.005 tolerance."
+        # Verify household metrics match results/holdout_confirm/household_table.json exactly
+        confirm_table_path = Path("results/holdout_confirm/household_table.json")
+        if not confirm_table_path.exists():
+            raise FileNotFoundError(
+                f"Holdout confirm table missing: {confirm_table_path}"
+            )
+        with open(confirm_table_path, "r", encoding="utf-8") as f:
+            confirm_data = json.load(f)
+        h5_confirm = confirm_data["champion"]["per_seed"]["holdout_5"]
+
+        hh_checks = {
+            "record_pairwise_precision": (
+                hh_metrics.record_pairwise_precision,
+                h5_confirm["record_pairwise_precision"],
+            ),
+            "record_pairwise_recall": (
+                hh_metrics.record_pairwise_recall,
+                h5_confirm["record_pairwise_recall"],
+            ),
+            "record_pairwise_f1": (
+                hh_metrics.record_pairwise_f1,
+                h5_confirm["record_pairwise_f1"],
+            ),
+            "unit_bcubed_f1": (
+                hh_metrics.unit_bcubed_f1,
+                h5_confirm["unit_bcubed_f1"],
+            ),
+            "households_reached_error_pct": (
+                hh_metrics.households_reached_error_pct,
+                h5_confirm["households_reached_error_pct"],
+            ),
+            "household_size_mae": (
+                hh_metrics.household_size_mae,
+                h5_confirm["household_size_mae"],
+            ),
+            "n_inferred_households": (
+                hh_metrics.n_inferred_households,
+                h5_confirm["n_inferred_households"],
+            ),
+            "n_cannot_household_cuts": (
+                hh_metrics.n_cannot_household_cuts,
+                h5_confirm["n_cannot_household_cuts"],
+            ),
+            "n_max_size_cuts": (
+                hh_metrics.n_max_size_cuts,
+                h5_confirm["n_max_size_cuts"],
             ),
         }
-        exp_path = Path("results/publish/expected_headline.json")
-        exp_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(exp_path, "w", encoding="utf-8") as f:
-            json.dump(expected_headline, f, indent=2)
-        print(f"Written verified expected headline to: {exp_path}")
+        for metric_name, (act_val, exp_val) in hh_checks.items():
+            if act_val != exp_val:
+                raise ValueError(
+                    f"Cross-check failed for household {metric_name}: "
+                    f"actual {act_val} != confirmed {exp_val}"
+                )
+        print("  ✓ Household metrics match holdout_confirm per_seed['holdout_5'] exactly")
+
+        # Verify record contents match holdout_5 exactly
+        h5_records_path = Path(base_data_dir) / "holdout_5" / "registry" / "records.parquet"
+        if h5_records_path.exists():
+            h5_rec_df = pd.read_parquet(h5_records_path)
+            pub_rec_df = pd.read_parquet(
+                Path(base_data_dir) / selected_run_name / "registry" / "records.parquet"
+            )
+            content_cols = [c for c in h5_rec_df.columns if c != "record_id"]
+            h5_sorted = h5_rec_df.sort_values(by=content_cols).reset_index(drop=True)
+            pub_sorted = pub_rec_df.sort_values(by=content_cols).reset_index(drop=True)
+            for col in content_cols:
+                s1, s2 = h5_sorted[col], pub_sorted[col]
+                mismatch = (s1 != s2) & ~(s1.isna() & s2.isna())
+                if mismatch.any():
+                    raise ValueError(
+                        f"Cross-check failed: record content column '{col}' differs from holdout_5"
+                    )
+            print("  ✓ Record contents match holdout_5 exactly")
+
+        # Write results/publish/expected_headline.json ONLY if explicitly requested
+        if write_expected:
+            expected_headline = {
+                "schema_version": "1.0",
+                "run_name": selected_run_name,
+                "role": role,
+                "seed_offset": seed_offset,
+                "operating_points": {
+                    "person_linkage": {
+                        "method": "splink_k_resolved",
+                        "t_link": t_link,
+                        "t_bridge": t_bridge,
+                    },
+                    "household_inference": {
+                        "t_hh": t_hh,
+                    },
+                },
+                "metrics": {
+                    "person_linkage": {
+                        "cluster_precision": summary["person_linkage"]["cluster_precision"],
+                        "cluster_recall": summary["person_linkage"]["cluster_recall"],
+                        "cluster_f1": summary["person_linkage"]["cluster_f1"],
+                        "expected_cost": summary["person_linkage"]["expected_cost"],
+                        "false_merge_clusters": summary["person_linkage"]["false_merge_clusters"],
+                        "split_persons": summary["person_linkage"]["split_persons"],
+                        "dedup_reach": summary["person_linkage"]["dedup_reach"],
+                        "doppelganger_false_merge_rate": summary["person_linkage"][
+                            "doppelganger_false_merge_rate"
+                        ],
+                    },
+                    "household_inference": {
+                        "record_pairwise_precision": hh_metrics.record_pairwise_precision,
+                        "record_pairwise_recall": hh_metrics.record_pairwise_recall,
+                        "record_pairwise_f1": hh_metrics.record_pairwise_f1,
+                        "unit_bcubed_f1": hh_metrics.unit_bcubed_f1,
+                        "households_reached_error_pct": hh_metrics.households_reached_error_pct,
+                        "household_size_mae": hh_metrics.household_size_mae,
+                        "n_inferred_households": hh_metrics.n_inferred_households,
+                    },
+                },
+                "determinism_note": (
+                    "File hashes are not used for cross-OS validation because DuckDB/Arrow "
+                    "parquet encodings, floating-point LSBs in Splink EM, and platform newlines "
+                    "vary between Windows and Linux. Determinism is asserted via semantic "
+                    "equivalence within 0.005 tolerance."
+                ),
+            }
+            exp_path = Path("results/publish/expected_headline.json")
+            exp_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(exp_path, "w", encoding="utf-8") as f:
+                json.dump(expected_headline, f, indent=2)
+            print(f"Written verified expected headline to: {exp_path}")
+        else:
+            print("  (Skipping expected_headline.json update; use --write-expected to write)")
 
     print("\n" + "=" * 70)
     print("PIPELINE COMPLETED SUCCESSFULLY")

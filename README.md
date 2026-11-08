@@ -1,57 +1,172 @@
-# bari-link
+# Bari-Link: Kinship-Constrained Entity Resolution
 
-Kinship-aware probabilistic deduplication of NGO beneficiary registries in rural Bangladesh where national identification numbers are unavailable.
+[![CI](https://github.com/tahmidshafi/bari-link/actions/workflows/ci.yml/badge.svg)](https://github.com/tahmidshafi/bari-link/actions/workflows/ci.yml)
+[![Pages](https://github.com/tahmidshafi/bari-link/actions/workflows/pages.yml/badge.svg)](https://github.com/tahmidshafi/bari-link/actions/workflows/pages.yml)
 
-## Overview
-In rural Bangladesh, humanitarian cash and voucher delivery programs face significant deduplication challenges due to the absence of universal digital IDs, prevalent phonetic spelling variations, and high name collision rates. `bari-link` jointly resolves individuals and households across independent enrolment modules by treating household co-residence and kinship networks (paternal and spousal relationships) as primary linkage evidence.
+Kinship-aware probabilistic deduplication and household inference for multi-module NGO beneficiary registries that share no identifier, evaluated on a synthetic population modelled on rural Bangladesh.
 
-For detailed architecture, hard rules, and design rationale, see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
+> **All data in this repository and the demo are synthetic. No real person is represented.**
 
-## Quickstart
+**Live Interactive Demo:** [https://tahmidshafi.github.io/bari-link/](https://tahmidshafi.github.io/bari-link/)
 
-### Prerequisites
-- Python 3.11+
-- Virtual environment (`.venv`)
+![Bari-Link Overview](docs/screenshots/overview.png)
 
-### Installation
+---
+
+## The Problem
+
+NGO programmes often enrol the same people through separate modules (here: adolescent clubs, ultra-poor graduation, microfinance groups and livelihood support) with no identifier shared across them. Bangla names are romanised inconsistently (Rahima / Rohima), a woman may be recorded with her father's name in one register and her husband's in another, and phones are often shared within a household. Unlinked duplicates inflate reported reach; wrong merges can deny a person a transfer. This project measures both errors explicitly, under an assumed cost of 5:1 for a false merge versus a missed duplicate.
+
+---
+
+## What This Project Does
+
+Bari-Link evaluates record linkage under an asymmetric operational cost (5:1 for false merge vs. missed duplicate) and incorporates deterministic kinship cannot-link constraints alongside Fellegi-Sunter log-odds models to jointly resolve individuals and infer households.
+
+```mermaid
+flowchart LR
+    A["Synthetic Population Engine"] --> B["Noise & Corruption Model"]
+    B --> C["Romanised-Name Normalisation"]
+    C --> D["Splink Fellegi-Sunter Model"]
+    D --> E["Kinship Cannot-Link Resolution (Pipeline K)"]
+    E --> F["Golden Person Profiles"]
+    F --> G["Multi-Channel Household Inference"]
+    G --> H["Static DuckDB-Wasm Demo"]
+```
+
+---
+
+## Key Results
+
+<!-- results:start -->
+### Person Resolution Performance (Holdout Seeds 5–9, 5:1 Cost Ratio)
+
+| Model / Pipeline | Operational Cost (5:1) | Cluster-Level Precision | Cluster-Level Recall | Cluster-Level F1 | Doppelgänger FM Rate |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Deterministic Baseline** (Exact Name/Phone) | 1398.4 ± 42.2 | 0.8535 ± 0.0395 | 0.1775 ± 0.0155 | 0.2936 ± 0.0219 | 0.0553 |
+| **Reference Splink v3.1** (Resolved) | 888.2 ± 51.2 | 0.9457 ± 0.0127 | 0.5334 ± 0.0202 | 0.6819 ± 0.0174 | 0.0158 |
+| **Champion Pipeline K** (Resolved + Kinship Constraint) | **812.2 ± 29.2** | **0.9656 ± 0.0106** | 0.5277 ± 0.0172 | **0.6823 ± 0.0137** | 0.0132 |
+
+> **Confirmation Verdict:** CONFIRMED — 5/5 seeds; one-sided sign test p = 0.031 (two-sided 0.0625) (paired cost delta: -76.0 ± 27.3, -8.56% relative reduction).
+
+### Cost-Ratio Sensitivity Analysis
+
+| Cost Ratio (FP:FN) | Operating Label | Reference Cost | Pipeline K Cost | Paired Δ Cost (K - Ref) | Seeds Won | Sensitivity Verdict |
+| :---: | :--- | :---: | :---: | :---: | :---: | :--- |
+| 1:1 | Balanced | 713.0 ± 34.7 | 704.2 ± 26.6 | -8.8 ± 11.8 | 3/5 seeds | No clear difference (3/5 seeds) |
+| 2:1 | 2:1 | 756.8 ± 35.7 | 731.2 ± 23.1 | -25.6 ± 13.6 | 5/5 seeds | K better (5/5 seeds) |
+| 5:1 | Pre-Registered (5:1) | 888.2 ± 51.2 | 812.2 ± 29.2 | -76.0 ± 27.3 | 5/5 seeds | K better (5/5 seeds) |
+| 10:1 | Heavy FP Penalty (10:1) | 1107.2 ± 93.0 | 947.2 ± 64.5 | -160.0 ± 55.5 | 5/5 seeds | K better (5/5 seeds) |
+
+> **Sensitivity Summary:** K is preferred when false merges cost at least 2x missed duplicates.
+
+### Household Entity Resolution & Oracle Comparison (Holdout Seeds 5–9, t_hh = 5.0)
+
+| Pipeline Configuration | Record Pairwise F1 | Precision | Recall | Unit B-cubed F1 | Size MAE | Reach Error % |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Champion Pipeline K + Household** | 0.4601 ± 0.0063 | 0.6886 ± 0.0166 | 0.3455 ± 0.0042 | 0.7528 ± 0.0018 | 2.06 ± 0.07 | 59.1% ± 1.1% |
+| **Oracle Persons + Household** | 0.6066 ± 0.0116 | 0.7155 ± 0.0222 | 0.5265 ± 0.0068 | 0.8103 ± 0.0043 | 2.01 ± 0.08 | 38.7% ± 0.9% |
+| **Drop E2 (Husband Link)** | 0.4760 ± 0.0077 | 0.9332 ± 0.0152 | 0.3195 ± 0.0066 | 0.7556 ± 0.0028 | 1.70 ± 0.04 | 66.6% ± 0.9% |
+| **Halved Weights (0.5x)** | 0.3069 | — | — | — | 1.70 | — |
+| **Doubled Weights (2.0x)** | 0.2127 | — | — | — | 7.26 | — |
+
+> **Error Attribution:** Most household error is intrinsic to household inference (Oracle reaches F1 0.61). Inherited person-linkage error accounts for about 0.15 F1, predominantly lost recall.
+
+### Pre-Registered Hypotheses & Provenance
+
+| Pre-Registration / Hypothesis | Pre-Reg Commit | Pre-Reg Date | Outcome Commit | Precedes Outcome? | Verdict |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **H1: Guardian Type Disambiguation** | `135d7f2` | 2026-11-07 | `b40ef4f` | Yes | SUPPORTED (Dev) |
+| **H2: Kinship Disambiguation (v3)** | `2477c5c` | 2026-11-07 | `b40ef4f` | Yes | SUPPORTED (Dev) |
+| **H3: Kinship as Constraint (Pipeline K)** | `3a22c32` | 2026-11-07 | `1ec10a4` | Yes | CONFIRMED (Holdout) |
+
+### Untrained Splink Parameters Sensitivity Audit
+
+> **Audit Summary:** The champion pipeline's operational cost and cluster metrics are insensitive to setting the untrained levels to neutral (Bayes factor 1). Setting untrained levels to neutral Bayes factor 1.0 shifts 5-seed mean cost by -0.6 cost points (from 812.2 to 811.6) and shifts F1 by -0.0002.
+> `sex_raw`: not estimated; every candidate pair is null; inert; recommended for removal (230,640 null candidate pairs).
+<!-- results:end -->
+
+---
+
+## What I Learned (Including What Failed)
+
+1. **A leak inflated my first results.** The generator filled fields (guardian type, sex) that the module forms never collect, so the model saw ground truth. A schema audit found it; after the fix, v1 cluster precision on the holdouts fell from 0.94 to 0.61, and all earlier model numbers were discarded.
+2. **Kinship works better as a rule than as evidence, with a trade-off.** Roster overlap signals "same household", not "same person", which breaks the Fellegi-Sunter independence assumption. Using it only as a cannot-link rule (Pipeline K) lowered cost against the probabilistic-kinship reference on 5/5 fresh seeds (mean -76.0 points; one-sided sign test p = 0.031), but only when false merges cost at least 2x missed duplicates (tie at 1:1). In a namesake stress test at matched recall 0.50, K let through more cross-household namesakes (62.1% vs 52.3%).
+3. **Pre-registration constrained me.** Hypotheses were committed before their results (table above). H3 was suggested by earlier holdout results, so it was confirmed only on five new seeds.
+4. **An early negative result was an artefact.** Weak-bridge splitting first looked useless; after the leak was fixed it was selected on dev data (t_bridge 4.0 above t_link 2.0).
+5. **Household inference is the weakest part.** Record-level F1 is 0.46 with a-priori evidence weights; halving or doubling the weights drops it to 0.31 or 0.21, and even perfect person linkage only reaches 0.61. Dropping the husband-name link raises precision from 0.69 to 0.93, indicating that matching husbands by name skeleton creates false household merges.
+6. **Bugs the verification gates caught:** non-deterministic household cuts (hash-order tie-breaking; corrected values are reported), waterfall labels shown for the wrong match level (looked up by list position instead of Splink's comparison-vector value; the weights themselves were correct), a publish step that silently overwrote confirmed results, and summary numbers an AI agent reported without computing them.
+
+---
+
+## Limitations
+
+- Synthetic data only; not validated on any real registry.
+- Corruption, phone-sharing and guardian-switch rates are assumptions (configs/default.yaml), not calibrated to real data.
+- The 5:1 cost ratio is an assumption. K beats the probabilistic-kinship reference only at >= 2:1.
+- Recall is modest (0.53): about half of true duplicate pairs stay unlinked at the chosen operating point.
+- K's selected link threshold lies on the lower edge of the tested grid; it was not re-tuned, to protect the confirmation.
+- Some Splink levels use default parameters (phone last-8, village); setting them to neutral changes mean cost by -0.6 points.
+- Household inference uses a-priori weights and is fragile; 34.5% of households have no roster, so indirect reach cannot be estimated for them.
+- No module records sex; the sex comparison is inert.
+- Splink is pinned to 4.x.
+
+---
+
+## How This Was Built
+
+Implementation was written by an AI coding agent (Antigravity IDE); planning, design suggestions and review used a second AI assistant (Claude). I set the scope, chose between options, committed the pre-registrations, ran every step and checked results against the raw outputs, and accepted only work that passed automated gates: a fresh-clone CI proof, regression tests against pre-registered reference values, a determinism test across hash seeds, and a README render check. Those gates caught several AI-introduced errors (item 6 above).
+
+---
+
+## Reproduce
+
 ```bash
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
-
+# Environment setup
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .[dev]
+
+# Provenance generation & documentation check
+python scripts/generate_preregistration_json.py
+python scripts/render_readme.py --check
+python scripts/check_links.py
+
+# Run full pipeline to generate and resolve publish dataset
+python -m barilink.cli pipeline --profile publish
+
+# Verify pipeline output against committed headline metrics
+python -m barilink.cli pipeline --verify
+
+# Run test suites
+pytest -q -m "not publish and not artifacts"  # CI unit & determinism tests
+pytest -q -m artifacts                        # Golden metric & leakage gates
+pytest -q -m publish                          # Full dataset verification
+
+# Static web app build & test
+cd web && npm ci && npm test && npm run build && npx playwright test
 ```
 
-### Generating Synthetic Ground-Truth Data
-```bash
-python -m barilink.cli generate --config configs/default.yaml --run-name demo
+The artifacts tests need the full local experiment runs (dev, holdout and stress seeds); see [docs/METHODS.md > Reproducing the experiments](docs/METHODS.md#8-reproducing-the-experiments).
+
+---
+
+## Repository Map
+
+```
+├── configs/             # Pipeline & data generation configurations
+├── docs/                # Detailed methodology (METHODS.md), audits, screenshots
+├── results/             # Committed evaluation summaries, models, and headline benchmarks
+├── scripts/             # Reproducibility scripts (render_readme.py, check_links.py)
+├── src/barilink/        # Core Python package (generation, linkage, household, eval)
+├── tests/               # Pytest suite (determinism, leakage, regression, pipelines)
+└── web/                 # Static DuckDB-Wasm application (React, TypeScript, Vite)
 ```
 
-Outputs will be generated in `data/generated/demo/`:
-- `persons.parquet` and `persons.csv`
-- `households.parquet` and `households.csv`
-- `manifest.json`
+---
 
-### Running Tests and Linting
-```bash
-pytest -q -m "not publish and not artifacts"
-ruff check .
-```
+## References
 
-### Static Web Application & Offline Fixtures
-The browser application in `web/` runs client-side on DuckDB-Wasm and deploys to GitHub Pages:
-```bash
-# Regenerate Vitest fixtures from published web data
-python scripts/export_fixture.py
-
-# Web development & test suite
-npm ci --prefix web
-npm run lint --prefix web
-npm test --prefix web
-npm run build --prefix web
-npm run test:e2e --prefix web
-npm run perf --prefix web  # Standalone performance audit via web/scripts/measure_perf.cjs
-```
-
+- Fellegi, I. P., & Sunter, A. B. (1969). A Theory for Record Linkage. *Journal of the American Statistical Association*, 64(328), 1183–1210.
+- Linacre, R. et al. (2022). Splink: Free software for probabilistic record linkage at scale. *International Journal of Population Data Science*.
+- Bagga, A., & Baldwin, B. (1998). Algorithms for Scoring Coreference Chains. *The First International Conference on Language Resources and Evaluation Workshop on Linguistics Coreference*.
+- Additional methodology and design rationale: see [docs/METHODS.md](docs/METHODS.md) and [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).

@@ -1464,6 +1464,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Verify current metrics against committed expected headline",
     )
     pip_parser.add_argument(
+        "--write-expected",
+        action="store_true",
+        help="Write/update results/publish/expected_headline.json from pipeline output",
+    )
+    pip_parser.add_argument(
         "--config", "-c", type=str, default=None, help="Optional config path override"
     )
     pip_parser.add_argument(
@@ -1482,8 +1487,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     pip_parser.add_argument(
         "--web-dir",
         type=str,
-        default="web/public/data",
-        help="Base directory for web data export",
+        default=None,
+        help=(
+            "Base directory for web data export "
+            "(defaults to web/public/data for publish, results/ci/web_data for ci)"
+        ),
     )
 
     # 13. export
@@ -1516,6 +1524,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=str,
         default="results",
         help="Base directory for results",
+    )
+
+    # 14. audit
+    audit_parser = subparsers.add_parser("audit", help="Run model and pipeline audits")
+    audit_subparsers = audit_parser.add_subparsers(dest="audit_subcommand", required=True)
+    audit_subparsers.add_parser(
+        "untrained", help="Audit untrained Splink parameters and perform sensitivity analysis"
     )
 
     args = parser.parse_args(argv)
@@ -1775,6 +1790,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 base_data_dir=args.data_dir,
                 base_results_dir=args.results_dir,
                 web_dir=args.web_dir,
+                write_expected=args.write_expected,
             )
             return 0
     elif args.command == "export":
@@ -1788,6 +1804,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 results_dir=args.results_dir,
             )
             print(f"Web assets exported successfully to: {args.output_dir}")
+            return 0
+    elif args.command == "audit":
+        if getattr(args, "audit_subcommand", None) == "untrained":
+            from barilink.evaluate.audit_untrained import run_untrained_parameter_audit
+
+            run_untrained_parameter_audit()
             return 0
 
     return 1

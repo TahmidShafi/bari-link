@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const e2eTarget = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../src/tests/fixtures/e2e_target.json'), 'utf-8')
+);
 
 test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
   const screenshotsDir = path.resolve(__dirname, '../../docs/screenshots');
@@ -103,13 +107,14 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
     await page.waitForURL('**/#pairs**');
     await expect(page.locator('h2', { hasText: 'Candidate Pair' })).toBeVisible();
 
-    // Search for a record known to have candidate pairs
+    // Search for a record known to have candidate pairs (from deterministic e2e_target fixture)
+    const targetRecordId = e2eTarget.record_id_l;
     const pairSearchInput = page.locator('input[placeholder*="Search by full name"]');
-    await pairSearchInput.fill('4ac1788f1d');
+    await pairSearchInput.fill(targetRecordId);
     await page.waitForTimeout(500);
 
     // Click the matching record button
-    const recordBtn = page.locator('.card button', { hasText: '4ac1788f1d' }).first();
+    const recordBtn = page.locator('.card button', { hasText: targetRecordId }).first();
     await recordBtn.waitFor({ state: 'visible', timeout: 15000 });
     await recordBtn.click();
 
