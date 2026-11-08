@@ -80,6 +80,9 @@ npm test --prefix web
 npm run build --prefix web
 npm run test:e2e --prefix web
 npm run perf --prefix web  # Or node web/scripts/measure_perf.cjs
+
+# 9. Release Procedure (automated script: runs ruff, git commit, prove_ci.py clean-clone proof, and push)
+powershell scripts/ship.ps1 -Message "<commit-message>"
 ```
 
 ---

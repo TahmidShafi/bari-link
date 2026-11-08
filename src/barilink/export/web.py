@@ -43,6 +43,56 @@ def get_git_info() -> tuple[str, bool]:
         return "unknown", False
 
 
+def build_model_summary(
+    settings_creator: Any,
+    settings_obj: Any | None = None,
+) -> dict[str, Any]:
+    """Build model summary dictionary with comparison level maps from Splink settings."""
+    if settings_obj is None:
+        settings_obj = settings_creator.get_settings("duckdb")
+
+    prior = getattr(settings_creator, "probability_two_random_records_match", 0.001)
+
+    model_summary: dict[str, Any] = {
+        "prior": prior,
+        "comparisons": [],
+    }
+    for comp in settings_obj.comparisons:
+        levels_by_cvv = {}
+        levels_list = []
+        for cl in comp.comparison_levels:
+            m = None if cl.is_null_level else cl.m_probability
+            u = None if cl.is_null_level else cl.u_probability
+            bf = (
+                (m / u)
+                if (m is not None and u is not None and u > 0)
+                else (1.0 if cl.is_null_level else None)
+            )
+            cvv = cl.comparison_vector_value
+            level_dict = {
+                "label": cl.label_for_charts,
+                "label_for_charts": cl.label_for_charts,
+                "m_probability": m,
+                "m": m,
+                "u_probability": u,
+                "u": u,
+                "bayes_factor": bf,
+                "bf": bf,
+                "comparison_vector_value": cvv,
+            }
+            levels_by_cvv[str(cvv)] = level_dict
+            levels_list.append(level_dict)
+
+        comp_summary = {
+            "name": comp.output_column_name,
+            "levels_by_cvv": levels_by_cvv,
+            "level_map": levels_by_cvv,
+            "levels": levels_list,
+        }
+        model_summary["comparisons"].append(comp_summary)
+    return model_summary
+
+
 def export_web_data(
     run_name: str = "publish_holdout_5",
     output_dir: Path | str = "web/public/data",
@@ -223,44 +273,7 @@ def export_web_data(
 
     settings_creator = SettingsCreator.from_path_or_dict(model_file)
     settings_obj = settings_creator.get_settings("duckdb")
-
-    model_summary = {
-        "prior": settings_creator.probability_two_random_records_match,
-        "comparisons": [],
-    }
-    for comp in settings_obj.comparisons:
-        levels_by_cvv = {}
-        levels_list = []
-        for cl in comp.comparison_levels:
-            m = None if cl.is_null_level else cl.m_probability
-            u = None if cl.is_null_level else cl.u_probability
-            bf = (
-                (m / u)
-                if (m is not None and u is not None and u > 0)
-                else (1.0 if cl.is_null_level else None)
-            )
-            cvv = cl.comparison_vector_value
-            level_dict = {
-                "label": cl.label_for_charts,
-                "label_for_charts": cl.label_for_charts,
-                "m_probability": m,
-                "m": m,
-                "u_probability": u,
-                "u": u,
-                "bayes_factor": bf,
-                "bf": bf,
-                "comparison_vector_value": cvv,
-            }
-            levels_by_cvv[str(cvv)] = level_dict
-            levels_list.append(level_dict)
-
-        comp_summary = {
-            "name": comp.output_column_name,
-            "levels_by_cvv": levels_by_cvv,
-            "level_map": levels_by_cvv,
-            "levels": levels_list,
-        }
-        model_summary["comparisons"].append(comp_summary)
+    model_summary = build_model_summary(settings_creator, settings_obj)
 
     web_model_summary_path = out_path / "model_summary.json"
     with open(web_model_summary_path, "w", encoding="utf-8") as f:
