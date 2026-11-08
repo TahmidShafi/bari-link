@@ -74,8 +74,34 @@ def test_ci_pipeline_end_to_end(tmp_path: Path):
 
 @pytest.mark.publish
 def test_verify_pipeline_passes():
-    """Verify that pipeline --verify passes against current holdout_5 outputs."""
-    assert verify_pipeline(run_name="holdout_5") is True
+    """Verify that pipeline --verify passes against current publish_holdout_5 outputs."""
+    assert verify_pipeline(run_name="publish_holdout_5") is True
+
+
+def test_pipeline_refuses_to_overwrite_confirmation_holdout(tmp_path: Path):
+    """Verify that pipeline refuses to write into a run directory with role 'holdout'
+    and existing confirmation results."""
+    data_dir = tmp_path / "data"
+    results_dir = tmp_path / "results"
+
+    run_name = "test_holdout_run"
+    run_data_dir = data_dir / run_name
+    run_data_dir.mkdir(parents=True, exist_ok=True)
+    with open(run_data_dir / "manifest.json", "w", encoding="utf-8") as f:
+        json.dump({"role": "holdout", "seed_offset": 1005}, f)
+
+    run_res_dir = results_dir / run_name / "splink_k_resolved"
+    run_res_dir.mkdir(parents=True, exist_ok=True)
+    with open(run_res_dir / "metrics.json", "w", encoding="utf-8") as f:
+        json.dump({"dummy": 1}, f)
+
+    with pytest.raises(RuntimeError, match="Refusing to overwrite confirmation run"):
+        run_pipeline(
+            profile="publish",
+            run_name=run_name,
+            base_data_dir=str(data_dir),
+            base_results_dir=str(results_dir),
+        )
 
 
 def test_verify_pipeline_detects_mismatch(tmp_path: Path):

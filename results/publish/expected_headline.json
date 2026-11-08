@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
-  "run_name": "holdout_5",
-  "role": "holdout",
+  "run_name": "publish_holdout_5",
+  "role": "publish",
   "seed_offset": 1005,
   "operating_points": {
     "person_linkage": {

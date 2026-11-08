@@ -107,8 +107,16 @@ def main() -> None:
             os.path.join(tmp_dir, "results", "holdout_5", "splink_k_resolved", "metrics.json")
         ) and not os.path.exists(
             os.path.join(tmp_dir, "results", "holdout_5", "household")
-        ), "Assertion failed: results/holdout_5/ experiment data exists in clean clone!"
-        print("  ✓ Asserted absence of data/generated/ and results/holdout_5/ experiment data")
+        ) and not os.path.exists(
+            os.path.join(tmp_dir, "results", "publish_holdout_5")
+        ), (
+            "Assertion failed: results/holdout_5/ or publish_holdout_5 "
+            "experiment data exists in clean clone!"
+        )
+        print(
+            "  ✓ Asserted absence of data/generated/, results/holdout_5/, "
+            "and results/publish_holdout_5/ experiment data"
+        )
 
         # 4. Create fresh virtual environment inside the clone
         venv_dir = os.path.join(tmp_dir, ".fresh_venv")

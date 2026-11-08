@@ -1,9 +1,10 @@
-"""Test that exported model_summary.json comparison level_map matches Splink's own level assignments."""
+"""Test that exported model_summary.json comparison level_map
+matches Splink's own level assignments."""
 
 import json
 from pathlib import Path
+
 import pandas as pd
-import pytest
 from splink import SettingsCreator
 
 
@@ -32,13 +33,18 @@ def test_exported_level_map_matches_splink_levels():
             cvv_str = str(cl.comparison_vector_value)
             assert cvv_str in level_map, f"Level {cvv_str} not in exported map for {name}"
             exported_level = level_map[cvv_str]
+            expected_chart_label = cl.label_for_charts
             assert (
-                exported_level["label"] == cl.label_for_charts
-            ), f"Label mismatch for {name} level {cvv_str}: {exported_level['label']} vs {cl.label_for_charts}"
+                exported_level["label"] == expected_chart_label
+            ), (
+                f"Label mismatch for {name} level {cvv_str}: "
+                f"{exported_level['label']} vs {expected_chart_label}"
+            )
 
 
 def test_exported_level_map_on_real_pairs():
-    """Verify that applying exported level_map to gamma columns on real pairs yields correct labels."""
+    """Verify that applying exported level_map to gamma columns on real pairs
+    yields correct labels."""
     summary_path = Path("web/public/data/model_summary.json")
     pairs_path = Path("web/public/data/pairs.parquet")
     assert pairs_path.exists()

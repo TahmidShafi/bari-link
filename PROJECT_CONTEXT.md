@@ -566,15 +566,22 @@ This section records all architectural, demographic, and technical design decisi
   - Dual-job pipeline: `publish-data` (Python 3.11, `pipeline --verify`, data-contract tests, upload `web-data` artifact) $\to$ `build-and-deploy` (Node 22, `npm ci`, ESLint, Vitest, build with `VITE_BASE_PATH=/bari-link/`, Playwright smoke test, GitHub Pages deployment).
   - Permissions: `pages: write`, `id-token: write`, `contents: read`. Concurrency group: `pages` (`cancel-in-progress: false`).
   - Required one-time manual repository configuration: **Settings -> Pages -> Build and deployment -> Source = GitHub Actions**.
-- **Decision 13.5: Canonical Benchmark Reconciliation for Household Confirmation**:
-  - Reconciled an internal discrepancy in `results/summary/household_table.json` where `champion` reported F1 $0.4601$ (Precision $0.6886$) while the base-weight ($1.0\times$) robustness row reported $0.4592$ (Precision $0.6848$).
-  - **Root Cause & Provenance**:
-    - During Phase 7, the 5-seed confirmation benchmark (`run_household_confirmation` at frozen $t_{\text{hh}} = 5.0$) evaluated `holdout_5..9`, yielding headline champion and base-weight metrics: Record F1 $= 0.4592 \pm 0.0049$, Precision $= 0.6848 \pm 0.0147$, Recall $= 0.3455 \pm 0.0042$, committed into `results/holdout_confirm/household_table.md`.
-    - In Phase 8, running `pipeline --profile publish` executed end-to-end stages exclusively on `holdout_5` to prepare static demo assets and single-seed verification targets (`results/publish/expected_headline.json`). This execution overwrote `results/holdout_5/household/household_metrics.json` with single-run values (F1 $0.4694$, Precision $0.7027$, within $\pm 0.005$ cross-OS determinism tolerance), while `holdout_6..9` remained untouched.
-    - Dynamically averaging the post-Phase 8 `holdout_5` file with the untouched Phase 7 `holdout_6..9` files produced F1 $0.4601$ and Precision $0.6886$ in `summary.py`.
-  - **Canonical Value & Resolution**:
-    - The Phase 7 confirmation benchmark table `results/holdout_confirm/household_table.md` (Record F1 $= \mathbf{0.4592}$, Precision $= \mathbf{0.6848}$) is the sole canonical reference for the 5-seed confirmation benchmark, matching all error decompositions ($-0.1470$ delta vs Oracle F1 $0.6062$), evidence ablations, and weight robustness rows.
-    - Refactored `src/barilink/evaluate/summary.py` so both `champion` and `weight_robustness.base_1_0x` parse directly from this single canonical markdown source of truth.
+- **Decision 13.5: Algorithmic Determinism & Household Confirmation Correction**:
+  - Identified and resolved the root cause of the $0.6836 \to 0.7027$ precision discrepancy on `holdout_5`:
+    - In `infer_households` (`src/barilink/household/infer.py`), components were iterated over arbitrary Python set order from `nx.connected_components(G)`, making NetworkX Stoer-Wagner min-cut on the oversize component (size 15, cut weight 6.0) non-deterministic due to ties between two valid min-cuts (`c_a85c4c768fc4 - c_afca018cf5ab` vs `c_aa00c8a96261 - c_04ed562fa6a2`).
+    - In the cannot-household constraint loop, `curr_comp = list(nx.node_connected_component(H, w1))` abandoned the `w2` subcomponent, leaving conflicting wives unseparated unless `PYTHONHASHSEED` flipped the order of `(w1, w2)`.
+    - Under the Phase 7 hash order, Cut B was selected and 6 cannot-household cuts were made (Precision $0.6836$, F1 $0.4650$). Under the Phase 8 hash order, Cut A was selected and 7 cannot-household cuts were made (Precision $0.7027$, F1 $0.4694$).
+  - **Resolution**:
+    - Refactored `infer_households` for strict determinism: sorted node additions, sorted edge capacity assignment, deterministic tie-breaking on Stoer-Wagner min-cuts, and a complete worklist queue ensuring all subcomponents are evaluated until zero conflicting wives remain in any component.
+    - Re-evaluated the 5-seed household confirmation benchmark (`holdout_5..9`) with the correct, deterministic algorithm at frozen $t_{\text{hh}} = 5.0$ and weights (no re-tuning):
+      - Record F1: **$0.4601 \pm 0.0063$** (Precision: **$0.6886 \pm 0.0166$**, Recall: **$0.3455 \pm 0.0042$**).
+      - Weight Robustness ($1.0\times$ base): Record F1 $= \mathbf{0.4601 \pm 0.0063}$, Precision $= \mathbf{0.6886 \pm 0.0166}$ (strictly identical to champion).
+      - Regenerated `results/holdout_confirm/household_table.md` and direct machine-readable export `results/holdout_confirm/household_table.json`.
+- **Decision 13.6: Publication Pipeline Namespace Isolation & Data Provenance**:
+  - Isolated the publication pipeline profile (`publish`) to its own distinct run namespace: `data/generated/publish_holdout_5/` and `results/publish_holdout_5/` (seed offset 1005, role `publish`). The confirmation run `results/holdout_5/` is permanently preserved and read-only.
+  - Implemented an immutable guard in `src/barilink/pipeline.py`: the pipeline raises a `RuntimeError` if invoked on any directory whose manifest role is `"holdout"` and which already holds confirmation results.
+  - `household_eval.py` writes 5-seed confirmation results directly to `results/holdout_confirm/household_table.json`. `summary.py` reads this JSON directly, completely removing markdown table parsing (`parse_household_table_md` deleted).
+  - Added test `test_publish_pipeline_household_metrics_match_holdout_5_in_confirm_json` asserting that `publish_holdout_5` household metrics equal the `holdout_5` values in the 5-seed confirmation JSON exactly.
 
 
 

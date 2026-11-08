@@ -32,7 +32,9 @@ results/**
 !results/**/model.json
 !results/publish/**
 !results/summary/**
+!results/holdout_confirm/**
 results/ci/**
+results/publish_holdout_5/**
 
 # Web build artifacts
 web/node_modules/

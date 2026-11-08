@@ -3,11 +3,15 @@
 Regenerates:
 1. web/src/tests/fixtures/pairs_sample.json (200 real pairs for waterfall testing)
 2. web/src/tests/fixtures/raw_eval_fixture.json (full holdout_5 evaluation fixture)
-3. web/src/tests/fixtures/pair_labels_100.json (100 real pairs with Splink-derived comparison labels)
+3. web/src/tests/fixtures/pair_labels_100.json
+   (100 real pairs with Splink-derived comparison labels)
 """
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 import duckdb
 from splink import SettingsCreator
@@ -16,9 +20,15 @@ from splink import SettingsCreator
 def export_test_fixtures(
     web_data_dir: Path = Path("web/public/data"),
     output_dir: Path = Path("web/src/tests/fixtures"),
-    truth_dir: Path = Path("data/generated/holdout_5/truth"),
+    truth_dir: Optional[Path] = None,
     model_path: Path = Path("results/models/splink_k/model.json"),
 ) -> None:
+    if truth_dir is None:
+        truth_dir = (
+            Path("data/generated/publish_holdout_5/truth")
+            if Path("data/generated/publish_holdout_5/truth").exists()
+            else Path("data/generated/holdout_5/truth")
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
 
@@ -93,9 +103,13 @@ def export_test_fixtures(
             if gamma_key in pair_dict:
                 gamma_val = int(pair_dict[gamma_key])
                 expected_labels[comp_name] = cvv_map.get(gamma_val, f"Level {gamma_val}")
+        clean_pair = {
+            k: (str(v) if not isinstance(v, (int, float)) else v)
+            for k, v in pair_dict.items()
+        }
         pairs_100.append(
             {
-                "pair": {k: (str(v) if not isinstance(v, (int, float)) else v) for k, v in pair_dict.items()},
+                "pair": clean_pair,
                 "expected_labels": expected_labels,
             }
         )

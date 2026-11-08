@@ -1,0 +1,34 @@
+{
+  "commit": "f0b89983447dce012c0ed981c1e479695acb5037",
+  "path": "results/holdout/baseline_comparison.md",
+  "description": "Pre-fix baseline comparison values from Phase 5 (prior to leakage fix in 2477c5c)",
+  "methods": {
+    "splink_v1_pre_fix": {
+      "status": "Pre-Fix (Leaked)",
+      "cluster_precision_mean": 0.9404,
+      "cluster_precision_sd": 0.0081,
+      "cluster_recall_mean": 0.4741,
+      "cluster_recall_sd": 0.0122,
+      "cluster_f1_mean": 0.6303,
+      "cluster_f1_sd": 0.0105,
+      "doppelganger_fm_rate": 0.0189,
+      "reach_error_pct_mean": 14.85,
+      "reach_error_pct_sd": 0.69,
+      "threshold": "w=9.00 (p=0.9981)"
+    },
+    "splink_v1_resolved_pre_fix": {
+      "status": "Pre-Fix (Leaked)",
+      "cluster_precision_mean": 0.9484,
+      "cluster_precision_sd": 0.0067,
+      "cluster_recall_mean": 0.474,
+      "cluster_recall_sd": 0.0123,
+      "cluster_f1_mean": 0.632,
+      "cluster_f1_sd": 0.0107,
+      "doppelganger_fm_rate": 0.0189,
+      "reach_error_pct_mean": 14.97,
+      "reach_error_pct_sd": 0.69,
+      "threshold": "t_link=9.0, t_bridge=9.0"
+    }
+  }
+}
+

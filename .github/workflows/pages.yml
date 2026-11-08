@@ -35,7 +35,7 @@ jobs:
           pip install -e .[dev]
 
       - name: Run publish pipeline
-        run: python -m barilink.cli pipeline --run-name holdout_5 --profile publish
+        run: python -m barilink.cli pipeline --profile publish
 
       - name: Verify determinism against expected headline
         run: python -m barilink.cli pipeline --verify

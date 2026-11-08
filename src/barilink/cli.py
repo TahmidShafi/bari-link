@@ -1456,7 +1456,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=str,
         choices=["publish", "ci"],
         default="publish",
-        help="Pipeline profile (publish: full holdout_5 run; ci: fast smoke-test)",
+        help="Pipeline profile (publish: full publish_holdout_5 run; ci: fast smoke-test)",
     )
     pip_parser.add_argument(
         "--verify",
@@ -1494,7 +1494,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--run-name",
         "-r",
         type=str,
-        default="holdout_5",
+        default="publish_holdout_5",
         help="Run identifier name",
     )
     web_exp_parser.add_argument(

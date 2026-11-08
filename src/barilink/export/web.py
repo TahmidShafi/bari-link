@@ -44,7 +44,7 @@ def get_git_info() -> tuple[str, bool]:
 
 
 def export_web_data(
-    run_name: str = "holdout_5",
+    run_name: str = "publish_holdout_5",
     output_dir: Path | str = "web/public/data",
     data_dir: Path | str = "data/generated",
     results_dir: Path | str = "results",

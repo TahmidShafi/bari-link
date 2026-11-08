@@ -783,5 +783,126 @@ def run_household_confirmation(
     with open(output_table_path, "w", encoding="utf-8") as f:
         f.write("\n".join(md))
 
+    # Write machine-readable 5-seed confirmation JSON directly
+    variant_stats = {}
+    for v in variants:
+        m_list = all_metrics[v]
+        def _m(vals: list[float]) -> float:
+            return float(np.mean(vals)) if vals else 0.0
+
+        def _s(vals: list[float]) -> float:
+            return float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
+
+        variant_stats[v] = {
+            "record_pairwise_f1_mean": _m([m.record_pairwise_f1 for m in m_list]),
+            "record_pairwise_f1_sd": _s([m.record_pairwise_f1 for m in m_list]),
+            "record_precision_mean": _m([m.record_pairwise_precision for m in m_list]),
+            "record_precision_sd": _s([m.record_pairwise_precision for m in m_list]),
+            "record_recall_mean": _m([m.record_pairwise_recall for m in m_list]),
+            "record_recall_sd": _s([m.record_pairwise_recall for m in m_list]),
+            "unit_bcubed_f1_mean": _m([m.unit_bcubed_f1 for m in m_list]),
+            "unit_bcubed_f1_sd": _s([m.unit_bcubed_f1 for m in m_list]),
+            "hh_reached_error_pct_mean": _m([m.households_reached_error_pct for m in m_list]),
+            "hh_reached_error_pct_sd": _s([m.households_reached_error_pct for m in m_list]),
+            "household_size_mae_mean": _m([m.household_size_mae for m in m_list]),
+            "household_size_mae_sd": _s([m.household_size_mae for m in m_list]),
+        }
+
+    champion_per_seed = {}
+    for r_name, m in zip(runs, all_metrics["splink_k_resolved"]):
+        champion_per_seed[r_name] = asdict(m)
+
+    k_stats = variant_stats["splink_k_resolved"]
+    x05_stats = variant_stats["robustness_weights_x0_5"]
+    x20_stats = variant_stats["robustness_weights_x2_0"]
+
+    household_json_data = {
+        "source": str(output_table_path).replace("\\", "/"),
+        "protocol": {
+            "t_hh": t_hh,
+            "runs": list(runs),
+        },
+        "champion": {
+            **k_stats,
+            "per_seed": champion_per_seed,
+        },
+        "oracle": variant_stats["oracle"],
+        "ablations": {
+            "drop_e1": variant_stats["ablation_no_e1"],
+            "drop_e2": variant_stats["ablation_no_e2"],
+            "drop_e3": variant_stats["ablation_no_e3"],
+            "drop_e4": variant_stats["ablation_no_e4"],
+            "drop_e5": variant_stats["ablation_no_e5"],
+        },
+        "weight_robustness": {
+            "base_1_0x": {
+                "record_pairwise_f1_mean": k_stats["record_pairwise_f1_mean"],
+                "record_pairwise_f1_sd": k_stats["record_pairwise_f1_sd"],
+                "record_precision_mean": k_stats["record_precision_mean"],
+                "record_precision_sd": k_stats["record_precision_sd"],
+                "record_recall_mean": k_stats["record_recall_mean"],
+                "record_recall_sd": k_stats["record_recall_sd"],
+            },
+            "halved_0_5x": {
+                "record_pairwise_f1": x05_stats["record_pairwise_f1_mean"],
+                "household_size_mae": x05_stats["household_size_mae_mean"],
+            },
+            "doubled_2_0x": {
+                "record_pairwise_f1": x20_stats["record_pairwise_f1_mean"],
+                "household_size_mae": x20_stats["household_size_mae_mean"],
+            },
+        },
+        "error_decomposition": {
+            "record_pairwise_f1_diff": _m(diff_f1),
+            "record_pairwise_f1_diff_sd": _s(diff_f1),
+            "record_precision_diff": _m(diff_p),
+            "record_precision_diff_sd": _s(diff_p),
+            "record_recall_diff": _m(diff_r),
+            "record_recall_diff_sd": _s(diff_r),
+            "unit_bcubed_f1_diff": _m(diff_b3),
+            "unit_bcubed_f1_diff_sd": _s(diff_b3),
+            "hh_reached_error_pct_delta": _m(diff_hh_err),
+            "hh_reached_error_pct_delta_sd": _s(diff_hh_err),
+            "household_size_mae_delta": _m(diff_mae),
+            "household_size_mae_delta_sd": _s(diff_mae),
+        },
+        "roster_strata": {
+            "stratum_a_with_roster": {
+                "coverage_pct_mean": _m(
+                    [m.stratum_roster_coverage * 100 for m in all_metrics["splink_k_resolved"]]
+                ),
+                "coverage_pct_sd": _s(
+                    [m.stratum_roster_coverage * 100 for m in all_metrics["splink_k_resolved"]]
+                ),
+                "indirect_reach_error_pct_mean": _m(
+                    [m.stratum_roster_indirect_error_pct for m in all_metrics["splink_k_resolved"]]
+                ),
+                "indirect_reach_error_pct_sd": _s(
+                    [m.stratum_roster_indirect_error_pct for m in all_metrics["splink_k_resolved"]]
+                ),
+                "household_size_mae_mean": _m(
+                    [m.stratum_roster_size_mae for m in all_metrics["splink_k_resolved"]]
+                ),
+                "household_size_mae_sd": _s(
+                    [m.stratum_roster_size_mae for m in all_metrics["splink_k_resolved"]]
+                ),
+            },
+            "stratum_b_no_roster": {
+                "coverage_pct_mean": _m(
+                    [m.stratum_no_roster_coverage * 100 for m in all_metrics["splink_k_resolved"]]
+                ),
+                "coverage_pct_sd": _s(
+                    [m.stratum_no_roster_coverage * 100 for m in all_metrics["splink_k_resolved"]]
+                ),
+                "note": "Structurally zero indirect reach (no roster collected)",
+            },
+        },
+    }
+
+    output_json_path = output_table_path.with_suffix(".json")
+    with open(output_json_path, "w", encoding="utf-8") as f:
+        json.dump(household_json_data, f, indent=2)
+
     print(f"Household confirmation table written to: {output_table_path}")
+    print(f"Household confirmation JSON written to: {output_json_path}")
     return summary_df

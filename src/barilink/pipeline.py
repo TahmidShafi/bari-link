@@ -88,7 +88,7 @@ def run_pipeline(
     """Execute the complete reproducible end-to-end pipeline.
 
     Profiles:
-      - publish: Full run on holdout_5 using strictly frozen published artifacts.
+      - publish: Full run on publish_holdout_5 using strictly frozen published artifacts.
       - ci: Fast smoke-test on configs/ci.yaml (500 households, seed offset 9000).
     """
     if profile not in ("publish", "ci"):
@@ -98,15 +98,30 @@ def run_pipeline(
     spec = _validate_publish_spec(spec_path)
 
     if profile == "publish":
-        selected_run_name = run_name or "holdout_5"
+        selected_run_name = run_name or "publish_holdout_5"
         selected_config = config_path or "configs/default.yaml"
         seed_offset = 1005
-        role = "holdout"
+        role = "publish"
     else:  # profile == "ci"
         selected_run_name = run_name or "ci"
         selected_config = config_path or "configs/ci.yaml"
         seed_offset = 9000
         role = "holdout"
+
+    # Guard against overwriting confirmation holdout directories
+    target_data_manifest = Path(base_data_dir) / selected_run_name / "manifest.json"
+    target_results_dir = Path(base_results_dir) / selected_run_name
+    if target_data_manifest.exists():
+        with open(target_data_manifest, "r", encoding="utf-8") as mf:
+            manifest_obj = json.load(mf)
+        if manifest_obj.get("role") == "holdout":
+            k_res_path = target_results_dir / "splink_k_resolved" / "metrics.json"
+            hh_res_path = target_results_dir / "household" / "household_metrics.json"
+            if k_res_path.exists() or hh_res_path.exists():
+                raise RuntimeError(
+                    f"Refusing to overwrite confirmation run '{selected_run_name}' "
+                    f"with role 'holdout' containing existing confirmation results."
+                )
 
     print("\n" + "=" * 70)
     print(f"RUNNING REPRODUCIBLE PIPELINE (Profile: {profile.upper()})")
@@ -286,7 +301,7 @@ def run_pipeline(
     # -------------------------------------------------------------------------
     # Cross-Check & Baseline Generation (Amendment 2)
     # -------------------------------------------------------------------------
-    if profile == "publish" and selected_run_name == "holdout_5":
+    if profile == "publish" and selected_run_name == "publish_holdout_5":
         print("\n--- Verifying cross-check against confirmed holdout_5 metrics ---")
         p_cost = summary["person_linkage"]["expected_cost"]
         if abs(p_cost - 784.0) > 0.5:
@@ -359,7 +374,7 @@ def verify_pipeline(
     expected_path: Optional[str] = None,
 ) -> bool:
     """Verify that current run metrics match committed results/publish/expected_headline.json."""
-    selected_run_name = run_name or "holdout_5"
+    selected_run_name = run_name or "publish_holdout_5"
     exp_file = (
         Path(expected_path)
         if expected_path
