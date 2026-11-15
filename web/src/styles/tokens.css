@@ -1,0 +1,62 @@
+/* ==========================================================================
+   bari-link: Design Tokens
+   Warm paper & ink editorial palette, single deep-teal accent, single muted red.
+   ========================================================================== */
+
+:root {
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --text-xs: 0.75rem;      /* 12px: uppercase labels, captions */
+  --text-sm: 0.875rem;     /* 14px: body, table cells, controls */
+  --text-md: 1.0625rem;    /* 17px: card titles, section headings */
+  --text-lg: 1.5rem;       /* 24px: KPI numerals */
+
+  /* Paper & Ink Neutrals */
+  --bg-app: #FAF8F5;             /* Warm off-white paper */
+  --bg-surface: #FFFFFF;         /* Card & table surface */
+  --bg-surface-subtle: #F3F0EA;  /* Recessed surface / table headers */
+  --bg-surface-hover: #EAE5DC;   /* Interactive hover */
+  --bg-banner: #1C1B19;          /* Synthetic-data banner (16.24:1 with #FAF8F5) */
+
+  --border-subtle: #E2DDD3;      /* 1px hairline rule */
+  --border-strong: #C9C2B6;      /* 1px emphasised rule / input border */
+  --border-focus: #0F766E;       /* Accessible focus outline */
+
+  --text-main: #18181B;          /* Near-black ink (16.71:1 on paper, 17.72:1 on surface) */
+  --text-muted: #525257;         /* Muted ink (7.54:1 on paper, 7.99:1 on surface) */
+  --text-inverse: #FAF8F5;
+
+  /* Single Good / Interactive Accent: Deep Teal */
+  --accent: #0F766E;             /* 5.16:1 on paper, 5.47:1 on surface */
+  --accent-hover: #115E59;
+  --accent-light: #E6F4F1;
+  --accent-border: #99D5CB;
+  --accent-text: #0D5C56;        /* 6.92:1 on --accent-light */
+
+  /* Single Bad / Error Status: Muted Crimson */
+  --danger-bg: #FEF2F2;
+  --danger-border: #E5B4B4;
+  --danger-text: #991B1B;        /* 7.60:1 on --danger-bg */
+  --danger-line: #B91C1C;
+
+  /* Spacing & Layout */
+  --max-width: 1160px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  /* Editorial Radii (2-4px max, no heavy shadows) */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --shadow-none: none;
+
+  /* Motion (150-220ms ease-out; zeroed under prefers-reduced-motion) */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 150ms;
+  --dur-med: 200ms;
+}

@@ -39,7 +39,7 @@ export const PairWaterfall: React.FC<PairWaterfallProps> = ({ waterfall }) => {
             {/* Prior Step */}
             <tr style={{ backgroundColor: 'var(--bg-surface-subtle)', fontWeight: 600 }}>
               <td>Prior Log-Odds</td>
-              <td style={{ color: 'var(--text-subtle)' }}>
+              <td style={{ color: 'var(--text-muted)' }}>
                 Baseline matching odds: P(match) = {waterfall.priorProbability.toExponential(3)}
               </td>
               <td style={{ textAlign: 'right' }} className="num font-mono">
@@ -56,9 +56,9 @@ export const PairWaterfall: React.FC<PairWaterfallProps> = ({ waterfall }) => {
             {/* Individual Evidence Steps */}
             {waterfall.steps.map((step, idx) => {
               const isPositive = step.log2_bf >= 0;
-              const bfBadgeColor = isPositive ? 'var(--success-text)' : 'var(--danger-text)';
-              const bfBadgeBg = isPositive ? 'var(--success-bg)' : 'var(--danger-bg)';
-              const bfBorder = isPositive ? 'var(--success-border)' : 'var(--danger-border)';
+              const bfBadgeColor = isPositive ? 'var(--accent-text)' : 'var(--danger-text)';
+              const bfBadgeBg = isPositive ? 'var(--accent-light)' : 'var(--danger-bg)';
+              const bfBorder = isPositive ? 'var(--accent-border)' : 'var(--danger-border)';
 
               return (
                 <tr key={idx}>

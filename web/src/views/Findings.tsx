@@ -6,7 +6,6 @@ import {
   formatRate,
   formatNum,
   formatDelta,
-  FORMAT_DECIMALS_THOUSANDTH,
   FORMAT_DECIMALS_HUNDREDTH,
   ZERO,
 } from '../eval/formatters';
@@ -107,7 +106,7 @@ export const Findings: React.FC = () => {
                     <tr key={key}>
                       <td>
                         <strong>{key}</strong>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                           {item.threshold}
                         </div>
                       </td>
@@ -139,7 +138,7 @@ export const Findings: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-line)' }}>
           <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: leakage_before_after</p>
         </div>
       )}
@@ -190,13 +189,13 @@ export const Findings: React.FC = () => {
               <div><strong>Cost Reduction:</strong> {formatDelta(h1.cost_reduction_points)} pts ({formatRawPct(h1.cost_reduction_pct)})</div>
               <div><strong>Decision Threshold:</strong> w ≥ {formatNum(h1.decision_threshold)}</div>
               <div><strong>Precision / Recall:</strong> {formatRate(h1.precision)} / {formatRate(h1.recall)} (F1: {formatRate(h1.f1)})</div>
-              <div style={{ marginTop: '0.25rem', color: 'var(--success-text)', fontWeight: 'bold' }}>
+              <div style={{ marginTop: '0.25rem', color: 'var(--accent-text)', fontWeight: 'bold' }}>
                 Outcome: {h1.outcome} — Exceeded pre-registered cost reduction requirement.
               </div>
             </div>
           </div>
         ) : (
-          <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+          <div className="card" style={{ borderLeft: '4px solid var(--danger-line)' }}>
             <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: h1</p>
           </div>
         )}
@@ -245,13 +244,13 @@ export const Findings: React.FC = () => {
               <div><strong>Cost Reduction:</strong> {formatDelta(h2.cost_reduction_points)} pts ({formatRawPct(h2.cost_reduction_pct)})</div>
               <div><strong>False Merges (Same-HH):</strong> {h2.same_hh_false_merges_before} → {h2.same_hh_false_merges_after}</div>
               <div><strong>Total False Merges:</strong> {h2.total_false_merges_before} → {h2.total_false_merges_after}</div>
-              <div style={{ marginTop: '0.25rem', color: 'var(--success-text)', fontWeight: 'bold' }}>
+              <div style={{ marginTop: '0.25rem', color: 'var(--accent-text)', fontWeight: 'bold' }}>
                 Outcome: {h2.outcome} — Co-resident roster disambiguation confirmed.
               </div>
             </div>
           </div>
         ) : (
-          <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+          <div className="card" style={{ borderLeft: '4px solid var(--danger-line)' }}>
             <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: h2</p>
           </div>
         )}
@@ -301,11 +300,11 @@ export const Findings: React.FC = () => {
 
             <div className="tile">
               <span className="tile-title">Paired Delta Cost</span>
-              <span className="tile-value num" style={{ color: 'var(--success-text)' }}>
+              <span className="tile-value num" style={{ color: 'var(--accent-text)' }}>
                 {formatDelta(h3.holdout_confirmation?.paired_delta_cost)}
               </span>
               <span className="tile-sub">
-                p = {formatNum(h3.holdout_confirmation?.sign_test_p_value, FORMAT_DECIMALS_THOUSANDTH)} ({h3.holdout_confirmation?.direction_consistency})
+                {h3.holdout_confirmation?.direction_consistency}
               </span>
             </div>
 
@@ -329,7 +328,7 @@ export const Findings: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-line)' }}>
           <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: h3</p>
         </div>
       )}
@@ -391,7 +390,7 @@ export const Findings: React.FC = () => {
                       <td
                         style={{
                           textAlign: 'right',
-                          color: isWon ? 'var(--success-text)' : 'inherit',
+                          color: isWon ? 'var(--accent-text)' : 'inherit',
                           fontWeight: 'bold',
                         }}
                         className="num font-mono"
@@ -414,7 +413,7 @@ export const Findings: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-line)' }}>
           <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: cost_ratio_sensitivity</p>
         </div>
       )}
@@ -459,7 +458,7 @@ export const Findings: React.FC = () => {
               </p>
               <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', fontSize: '0.8125rem' }}>
                 <div>Full Pipeline Precision: <strong className="num font-mono">{formatRate(household.champion?.record_precision_mean)}</strong></div>
-                <div>Dropping E2 Precision: <strong className="num font-mono" style={{ color: 'var(--success-text)' }}>{formatRate(household.ablations.drop_e2_husband_link.record_precision_mean)}</strong></div>
+                <div>Dropping E2 Precision: <strong className="num font-mono" style={{ color: 'var(--accent-text)' }}>{formatRate(household.ablations.drop_e2_husband_link.record_precision_mean)}</strong></div>
                 <div>F1 Delta: <strong className="num font-mono">{formatRate(household.ablations.drop_e2_husband_link.record_pairwise_f1_mean)}</strong> vs {formatRate(household.champion?.record_pairwise_f1_mean)}</div>
               </div>
             </div>
@@ -494,11 +493,11 @@ export const Findings: React.FC = () => {
                       return (
                         <tr key={scaleKey}>
                           <td><strong>{item.scale}</strong></td>
-                          <td style={{ textAlign: 'right' }} className="num font-mono">{formatRate(item.record_pairwise_f1_mean)}</td>
+                          <td style={{ textAlign: 'right' }} className="num font-mono">{formatRate(item.record_pairwise_f1_mean ?? item.record_pairwise_f1)}</td>
                           <td style={{ textAlign: 'right' }} className="num font-mono">{formatRate(item.record_precision_mean)}</td>
                           <td style={{ textAlign: 'right' }} className="num font-mono">{formatRate(item.record_recall_mean)}</td>
                           <td style={{ textAlign: 'right' }} className="num font-mono">{formatRawPct(item.hh_reached_error_pct_mean)}</td>
-                          <td style={{ textAlign: 'right' }} className="num font-mono">{formatNum(item.household_size_mae_mean)}</td>
+                          <td style={{ textAlign: 'right' }} className="num font-mono">{formatNum(item.household_size_mae_mean ?? item.household_size_mae)}</td>
                         </tr>
                       );
                     })}
@@ -515,7 +514,7 @@ export const Findings: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
                 <div className="record-box">
                   <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Stratum A (With Roster)</h4>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>{household.roster_strata.stratum_a_with_roster?.description}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{household.roster_strata.stratum_a_with_roster?.description}</p>
                   <div style={{ fontSize: '0.8125rem', marginTop: '0.5rem' }}>
                     <div>Share: <strong className="num">{formatRawPct(household.roster_strata.stratum_a_with_roster?.share_pct_mean)}</strong></div>
                     <div>Indirect Reach Error: <strong className="num">{formatRawPct(household.roster_strata.stratum_a_with_roster?.indirect_reach_error_pct_mean)}</strong></div>
@@ -525,10 +524,10 @@ export const Findings: React.FC = () => {
 
                 <div className="record-box">
                   <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Stratum B (No Roster)</h4>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>{household.roster_strata.stratum_b_no_roster?.description}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{household.roster_strata.stratum_b_no_roster?.description}</p>
                   <div style={{ fontSize: '0.8125rem', marginTop: '0.5rem' }}>
                     <div>Share: <strong className="num">{formatRawPct(household.roster_strata.stratum_b_no_roster?.share_pct_mean)}</strong></div>
-                    <div style={{ color: 'var(--text-subtle)', marginTop: '0.25rem' }}>
+                    <div style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                       {household.roster_strata.stratum_b_no_roster?.note}
                     </div>
                   </div>
@@ -538,13 +537,13 @@ export const Findings: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="card" style={{ borderLeft: '4px solid var(--danger-color)' }}>
+        <div className="card" style={{ borderLeft: '4px solid var(--danger-line)' }}>
           <p style={{ color: 'var(--danger-text)', fontWeight: 'bold' }}>data missing: household</p>
         </div>
       )}
 
       {/* Footer Note */}
-      <div className="card findings-footer" style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-subtle)', fontSize: '0.8125rem' }}>
+      <div className="card findings-footer" style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
         <em>All results are on synthetic data; not validated on real registries.</em>
       </div>
     </div>

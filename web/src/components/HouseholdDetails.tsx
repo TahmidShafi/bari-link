@@ -162,7 +162,7 @@ export const HouseholdDetails: React.FC<HouseholdDetailsProps> = ({ golden }) =>
             Enrolled Household Members ({members.length})
           </h4>
           {members.length === 0 ? (
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-subtle)' }}>None recorded.</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>None recorded.</p>
           ) : (
             <ul style={{ paddingLeft: '1.25rem', fontSize: '0.8125rem' }}>
               {members.map((m, idx) => (
@@ -175,11 +175,14 @@ export const HouseholdDetails: React.FC<HouseholdDetailsProps> = ({ golden }) =>
         </div>
 
         <div className="record-box">
-          <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+          <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.25rem' }}>
             Unenrolled Roster Names ({rosterUnenrolled.length})
           </h4>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 0, marginBottom: '0.5rem' }}>
+            normalised name skeletons, as used for matching
+          </p>
           {rosterUnenrolled.length === 0 ? (
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-subtle)' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
               No additional roster names listed in surveys.
             </p>
           ) : (
@@ -195,7 +198,7 @@ export const HouseholdDetails: React.FC<HouseholdDetailsProps> = ({ golden }) =>
       </div>
 
       {lineageRows.length > 0 && (
-        <details style={{ marginTop: '1.25rem', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.625rem 0.875rem' }}>
+        <details style={{ marginTop: '1.25rem', border: '1px solid var(--border-subtle)', borderRadius: '4px', padding: '0.625rem 0.875rem' }}>
           <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem' }}>
             Evidence Lineage ({lineageRows.length} attributes resolved)
           </summary>

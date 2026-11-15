@@ -36,9 +36,9 @@ export const TruthChip: React.FC<TruthChipProps> = ({ recordIdL, recordIdR }) =>
         <span
           className="chip"
           style={{
-            backgroundColor: 'var(--success-bg)',
-            color: 'var(--success-text)',
-            borderColor: 'var(--success-border)',
+            backgroundColor: 'var(--accent-light)',
+            color: 'var(--accent-text)',
+            borderColor: 'var(--accent-border)',
             fontWeight: 600,
           }}
           title={`Ground Truth Match: Same individual (${truth.personIdL})`}
@@ -63,9 +63,9 @@ export const TruthChip: React.FC<TruthChipProps> = ({ recordIdL, recordIdR }) =>
         <span
           className="chip"
           style={{
-            backgroundColor: 'var(--warning-bg)',
-            color: 'var(--warning-text)',
-            borderColor: 'var(--warning-border)',
+            backgroundColor: 'var(--bg-surface-subtle)',
+            color: 'var(--text-muted)',
+            borderColor: 'var(--border-strong)',
           }}
         >
           Same Household Co-Residents

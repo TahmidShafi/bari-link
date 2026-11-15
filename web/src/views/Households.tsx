@@ -105,7 +105,7 @@ export const Households: React.FC = () => {
             style={{
               flex: 1,
               padding: '0.625rem 0.875rem',
-              border: '1px solid var(--border-color)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '4px',
               fontSize: '0.875rem',
               outline: 'none',
@@ -150,7 +150,7 @@ export const Households: React.FC = () => {
                         : 'var(--bg-surface-subtle)',
                       border: isSelected
                         ? '2px solid var(--accent)'
-                        : '1px solid var(--border-color)',
+                        : '1px solid var(--border-subtle)',
                       borderRadius: '4px',
                       cursor: 'pointer',
                     }}
@@ -163,7 +163,7 @@ export const Households: React.FC = () => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         fontSize: '0.75rem',
-                        color: 'var(--text-subtle)',
+                        color: 'var(--text-muted)',
                         marginTop: '0.25rem',
                       }}
                     >

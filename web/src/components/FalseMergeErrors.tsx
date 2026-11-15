@@ -114,7 +114,7 @@ export const FalseMergeErrors: React.FC<FalseMergeErrorsProps> = ({
             </div>
           ) : errorClusters.length === 0 ? (
             <div className="state-box" style={{ padding: '1.5rem' }}>
-              <p style={{ color: 'var(--success-text)', fontWeight: 600 }}>
+              <p style={{ color: 'var(--accent-text)', fontWeight: 600 }}>
                 ✓ Zero false-merge clusters found at this operating threshold!
               </p>
             </div>

@@ -9,6 +9,12 @@ import { Findings } from './views/Findings';
 
 export const App: React.FC = () => {
   const { tab } = useHashRoute();
+  const [initialEnter, setInitialEnter] = React.useState(true);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setInitialEnter(false), 350);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const renderActiveView = (activeTab: RouteTab) => {
     switch (activeTab) {
@@ -32,25 +38,29 @@ export const App: React.FC = () => {
 
       {/* Main Navigation Header */}
       <header className="app-header">
-        <Navigation currentTab={tab} />
+        <div className="header-inner">
+          <div className="brand-bar">
+            <h1 className="brand-title">Bari-Link</h1>
+            <p className="brand-subtitle">
+              Entity Resolution and Household Inference under Non-Standard Administrative Topologies.
+            </p>
+          </div>
+          <Navigation currentTab={tab} />
+        </div>
       </header>
 
       {/* Dynamic View Content */}
-      <main id="main-content" className="app-main" role="main" tabIndex={-1}>
+      <main
+        id="main-content"
+        className={`app-main${initialEnter ? ' initial-enter' : ''}`}
+        role="main"
+        tabIndex={-1}
+      >
         {renderActiveView(tab)}
       </main>
 
       {/* Footer */}
-      <footer
-        style={{
-          marginTop: '3rem',
-          padding: '1.5rem 0',
-          borderTop: '1px solid var(--border-color)',
-          textAlign: 'center',
-          fontSize: '0.75rem',
-          color: 'var(--text-subtle)',
-        }}
-      >
+      <footer className="app-footer">
         <p>
           Bari-Link: Entity Resolution and Household Inference under Non-Standard Administrative Topologies.
         </p>

@@ -54,7 +54,7 @@ export const HeaderFacts: React.FC = () => {
 
       <div className="fact-item">
         <span className="fact-label">Duplicate Inflation</span>
-        <span className="fact-value num" style={{ color: 'var(--accent)' }}>
+        <span className="fact-value num" style={{ color: 'var(--danger-text)' }}>
           +{facts.duplicateInflationPct.toFixed(1)}%
         </span>
       </div>
