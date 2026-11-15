@@ -209,7 +209,9 @@ def main() -> int:
         ]
     )
 
-    # 4. Deterministic baselines: all four on demo (select) and holdout_0..4 (report); exact_or_phone on holdout_5..9 (report)    for method in ("exact", "exact_or_phone", "phone", "no_link"):
+    # 4. Deterministic baselines: all four on demo (select) and holdout_0..4 (report);
+    #    exact_or_phone on holdout_5..9 (report)
+    for method in ("exact", "exact_or_phone", "phone", "no_link"):
         run_cmd(["-m", "barilink.cli", "baseline", "--method", method, "--run-name", "demo"])
         run_cmd(
             [
