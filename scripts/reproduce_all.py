@@ -197,6 +197,8 @@ def main() -> int:
             "splink_v1_resolved",
             "splink_v2",
             "splink_v3",
+            "splink_v3_no_kinship",
+            "splink_v3_no_tf",
             "splink_v3_resolved",
             "splink_v3_1",
             "splink_v3_1_resolved",
@@ -207,7 +209,40 @@ def main() -> int:
         ]
     )
 
-    # 4. Deterministic baseline on holdout_5..9
+    # 4. Deterministic baselines on demo (select) and holdout_0..9 (report)
+    for method in ("exact", "exact_or_phone", "phone", "no_link"):
+        run_cmd(["-m", "barilink.cli", "baseline", "--method", method, "--run-name", "demo"])
+        run_cmd(
+            [
+                "-m",
+                "barilink.cli",
+                "evaluate",
+                "--run-name",
+                "demo",
+                "--method",
+                method,
+                "--mode",
+                "select",
+            ]
+        )
+    for i in range(5):
+        for method in ("exact", "exact_or_phone", "phone", "no_link"):
+            run_cmd(
+                ["-m", "barilink.cli", "baseline", "--method", method, "--run-name", f"holdout_{i}"]
+            )
+            run_cmd(
+                [
+                    "-m",
+                    "barilink.cli",
+                    "evaluate",
+                    "--run-name",
+                    f"holdout_{i}",
+                    "--method",
+                    method,
+                    "--mode",
+                    "report",
+                ]
+            )
     for i in range(5, 10):
         run_cmd(
             [
@@ -246,6 +281,11 @@ def main() -> int:
             "--methods",
             "splink_v1",
             "splink_v1_resolved",
+            "splink_v2",
+            "splink_v3",
+            "splink_v3_no_kinship",
+            "splink_v3_no_tf",
+            "splink_v3_resolved",
             "--threads",
             "1",
         ]
@@ -282,10 +322,75 @@ def main() -> int:
             "splink_v3_no_tf",
             "splink_v3_no_kinship",
             "splink_v3_resolved",
+            "splink_v3_1",
             "splink_v3_1_resolved",
+            "splink_k",
             "splink_k_resolved",
             "--threads",
             "1",
+        ]
+    )
+
+    # 5b. Diagnostics, blocking, golden records, and clerical review simulation
+    run_cmd(
+        [
+            "-m",
+            "barilink.cli",
+            "evaluate",
+            "diagnose",
+            "--run-name",
+            "demo",
+            "--method",
+            "splink_v1",
+        ]
+    )
+    run_cmd(
+        ["-m", "barilink.cli", "link", "diagnose", "--run-name", "demo", "--model", "splink_v1"]
+    )
+    run_cmd(
+        [
+            "-m",
+            "barilink.cli",
+            "evaluate",
+            "blocking",
+            "--run-name",
+            "holdout_0",
+            "--method",
+            "splink_v1",
+        ]
+    )
+    run_cmd(
+        [
+            "-m",
+            "barilink.cli",
+            "link",
+            "diagnose",
+            "--run-name",
+            "holdout_0",
+            "--model",
+            "splink_v1",
+        ]
+    )
+    run_cmd(
+        [
+            "-m",
+            "barilink.cli",
+            "golden",
+            "--run-name",
+            "holdout_0",
+            "--method",
+            "splink_v1_resolved",
+        ]
+    )
+    run_cmd(
+        [
+            "-m",
+            "barilink.cli",
+            "review",
+            "--run-name",
+            "holdout_0",
+            "--method",
+            "splink_v1_resolved",
         ]
     )
 
