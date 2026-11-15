@@ -122,6 +122,7 @@ def test_household_2x_determinism_across_hashseeds(tmp_path):
     script = tmp_path / "run_hh_2x.py"
     script.write_text(
         """
+import random
 import sys
 from pathlib import Path
 import pandas as pd
@@ -172,6 +173,59 @@ hh_df, log_df = infer_households(profiles, edges_df, t_hh=5.0)
 edges_df.to_parquet(out_dir / "edges.parquet", index=False)
 hh_df.to_parquet(out_dir / "hh.parquet", index=False)
 log_df.to_parquet(out_dir / "log.parquet", index=False)
+
+# Sparse 30-node component with tied min-cuts after BFS split (catches infer.py hash-order bug)
+rng = random.Random(3)
+tie_profiles = {
+    f"c_{i:02d}": UnitProfile(
+        cluster_id=f"c_{i:02d}",
+        record_ids=[f"tr_{i}"],
+        village_canon="v2",
+        village_raw="v2",
+        union_raw="u2",
+        display_name=f"tn_{i}",
+        display_name_skeleton=f"tn_{i}",
+        name_skels={f"tn_{i}"},
+        roster_skels=set(),
+        husband_name=None,
+        husband_skeleton=None,
+        has_husband=False,
+        father_name=None,
+        father_skeleton=None,
+        inferred_sex="M",
+        birth_year=1990,
+        age=35.0,
+        phones=set(),
+        phone_sources={},
+        modules={"upg_enrolment"},
+        first_enrolment="2025-01-01",
+        last_enrolment="2025-01-01",
+    )
+    for i in range(30)
+}
+tie_edges = {(f"c_{i:02d}", f"c_{i+1:02d}") for i in range(29)}
+for _ in range(35):
+    a, b = rng.sample(range(30), 2)
+    tie_edges.add((f"c_{min(a, b):02d}", f"c_{max(a, b):02d}"))
+tie_ev = pd.DataFrame(
+    [
+        {
+            "unit_id_l": u,
+            "unit_id_r": v,
+            "score": 8.0,
+            "e1": True,
+            "e2": False,
+            "e3": False,
+            "e4": False,
+            "e5": False,
+            "evidence_lineage": "{}",
+        }
+        for u, v in sorted(tie_edges)
+    ]
+)
+tie_hh, tie_log = infer_households(tie_profiles, tie_ev, t_hh=5.0)
+tie_hh.to_parquet(out_dir / "tie_hh.parquet", index=False)
+tie_log.to_parquet(out_dir / "tie_log.parquet", index=False)
 """,
         encoding="utf-8",
     )
@@ -188,7 +242,13 @@ log_df.to_parquet(out_dir / "log.parquet", index=False)
         )
         assert proc.returncode == 0, f"PYTHONHASHSEED={seed} failed:\n{proc.stderr}"
 
-    for fname in ("edges.parquet", "hh.parquet", "log.parquet"):
+    for fname in (
+        "edges.parquet",
+        "hh.parquet",
+        "log.parquet",
+        "tie_hh.parquet",
+        "tie_log.parquet",
+    ):
         df0 = pd.read_parquet(tmp_path / "seed_0" / fname)
         df1 = pd.read_parquet(tmp_path / "seed_12345" / fname)
         pd.testing.assert_frame_equal(df0, df1, check_like=False)
