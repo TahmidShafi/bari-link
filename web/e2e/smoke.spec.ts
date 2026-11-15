@@ -8,6 +8,12 @@ const __dirname = path.dirname(__filename);
 const e2eTarget = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../src/tests/fixtures/e2e_target.json'), 'utf-8')
 );
+const headlineData = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../public/data/eval/headline.json'), 'utf-8')
+);
+const expectedHeadline = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '../../results/publish/expected_headline.json'), 'utf-8')
+);
 
 test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
   const screenshotsDir = path.resolve(__dirname, '../../docs/screenshots');
@@ -48,11 +54,11 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
     const reviewQueueVal = parseInt(reviewQueueText.replace(/,/g, ''), 10);
     expect(reviewQueueVal).toBeGreaterThan(0);
 
-    // Verify Expected Cost tile shows 784 at default threshold
+    // Verify Expected Cost tile shows expected publish cost at default threshold
     const costTile = page.locator('.tile', { hasText: 'Expected Cost (5:1)' });
     await expect(costTile).toBeVisible();
     const costText = await costTile.locator('.tile-value').innerText();
-    expect(costText.trim()).toBe('784');
+    expect(costText.trim()).toBe(String(Math.round(expectedHeadline.metrics.person_linkage.expected_cost)));
 
     await expect(page.locator('.tile', { hasText: 'clusters containing > 1 person' })).toBeVisible();
 
@@ -188,18 +194,20 @@ test.describe('Bari-Link Static Web App E2E Smoke Tests', () => {
     await expect(page.locator('.card-title', { hasText: 'Cost-Ratio Sensitivity' })).toBeVisible();
     await expect(page.locator('.card-title', { hasText: 'Household Limitations' })).toBeVisible();
 
-    // Assert bound wording in cards
+    // Assert bound wording in cards computed from exported headline.json
+    const v1PrePrec = headlineData.leakage_before_after.methods.splink_v1_pre_fix.cluster_precision_mean.toFixed(2);
+    const v1PostPrec = headlineData.leakage_before_after.methods.splink_v1_post_fix.cluster_precision_mean.toFixed(2);
     await expect(page.locator('.card', { hasText: 'Ground-Truth Data Leakage' })).toContainText(
-      'Leaked ground-truth fields (guardian type, sex) inflated precision; after removing them, v1 precision fell from 0.94 to 0.61 on the synthetic holdouts.'
+      `Leaked ground-truth fields (guardian type, sex) inflated precision; after removing them, v1 precision fell from ${v1PrePrec} to ${v1PostPrec} on the synthetic holdouts.`
     );
     await expect(page.locator('.card', { hasText: 'Cost-Ratio Sensitivity' })).toContainText(
-      'K is preferred when false merges cost at least 2x missed duplicates'
+      headlineData.h3.cost_ratio_summary_verdict
     );
     await expect(page.locator('.card', { hasText: 'Cost-Ratio Sensitivity' })).toContainText(
-      'No clear difference (3/5 seeds)'
+      headlineData.cost_ratio_sensitivity.ratios[0].verdict
     );
     await expect(page.locator('.card', { hasText: 'H3: Kinship as Deterministic Constraint' })).toContainText(
-      '5/5 seeds; one-sided sign test p = 0.031 (two-sided 0.0625)'
+      headlineData.h3.holdout_confirmation.direction_consistency
     );
     await expect(page.locator('.card', { hasText: 'Household Limitations' })).toContainText('indicating');
 

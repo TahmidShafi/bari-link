@@ -336,9 +336,10 @@ def export_web_data(
     confirm_src = required_summary_files["confirm"]
     hh_src = required_summary_files["household"]
 
-    h_conf = confirm_data.get("holdout_confirmation", {})
-    hh_champ = hh_data.get("champion", {})
-    hh_strata_a = hh_data.get("roster_strata", {}).get("stratum_a_with_roster", {})
+    h_conf = confirm_data["holdout_confirmation"]
+    hh_champ = hh_data["champion"]
+    hh_strata_a = hh_data["roster_strata"]["stratum_a_with_roster"]
+    hh_oracle = hh_data["oracle"]
 
     headline_data = {
         "schema_version": "1.0",
@@ -353,56 +354,46 @@ def export_web_data(
             "method": "splink_k_resolved",
             "operating_thresholds": {"t_link": 2.0, "t_bridge": 4.0},
             "holdout_5_to_9": {
-                "expected_cost_mean": h_conf.get("pipeline_k_cost_mean", 812.2),
-                "expected_cost_sd": h_conf.get("pipeline_k_cost_sd", 29.2),
-                "cluster_precision_mean": h_conf.get("pipeline_k_precision_mean", 0.9656),
-                "cluster_precision_sd": h_conf.get("pipeline_k_precision_sd", 0.0106),
-                "cluster_recall_mean": h_conf.get("pipeline_k_recall_mean", 0.5277),
-                "cluster_recall_sd": h_conf.get("pipeline_k_recall_sd", 0.0172),
-                "cluster_f1_mean": h_conf.get("pipeline_k_f1_mean", 0.6823),
-                "cluster_f1_sd": h_conf.get("pipeline_k_f1_sd", 0.0137),
-                "doppelganger_fm_rate": h_conf.get("doppelganger_fm_rate_pipeline_k", 0.0132),
-                "paired_delta_cost_vs_ref": h_conf.get("paired_delta_cost", -76.0),
-                "paired_delta_cost_sd": h_conf.get("paired_delta_cost_sd", 27.3),
+                "expected_cost_mean": h_conf["pipeline_k_cost_mean"],
+                "expected_cost_sd": h_conf["pipeline_k_cost_sd"],
+                "cluster_precision_mean": h_conf["pipeline_k_precision_mean"],
+                "cluster_precision_sd": h_conf["pipeline_k_precision_sd"],
+                "cluster_recall_mean": h_conf["pipeline_k_recall_mean"],
+                "cluster_recall_sd": h_conf["pipeline_k_recall_sd"],
+                "cluster_f1_mean": h_conf["pipeline_k_f1_mean"],
+                "cluster_f1_sd": h_conf["pipeline_k_f1_sd"],
+                "doppelganger_fm_rate": h_conf["doppelganger_fm_rate_pipeline_k"],
+                "paired_delta_cost_vs_ref": h_conf["paired_delta_cost"],
+                "paired_delta_cost_sd": h_conf["paired_delta_cost_sd"],
             },
         },
         "household_inference_champion": {
             "method": "household_graph_cuts",
             "operating_threshold": {"t_hh": 5.0},
             "holdout_5_to_9": {
-                "record_pairwise_f1_mean": hh_champ.get("record_pairwise_f1_mean", 0.4592),
-                "record_pairwise_f1_sd": hh_champ.get("record_pairwise_f1_sd", 0.0049),
-                "record_precision_mean": hh_champ.get("record_precision_mean", 0.6848),
-                "record_precision_sd": hh_champ.get("record_precision_sd", 0.0147),
-                "record_recall_mean": hh_champ.get("record_recall_mean", 0.3455),
-                "record_recall_sd": hh_champ.get("record_recall_sd", 0.0042),
-                "unit_bcubed_f1_mean": hh_champ.get("unit_bcubed_f1_mean", 0.7528),
-                "unit_bcubed_f1_sd": hh_champ.get("unit_bcubed_f1_sd", 0.0017),
-                "hh_reached_error_pct_mean": hh_champ.get("hh_reached_error_pct_mean", 59.13),
-                "hh_reached_error_pct_sd": hh_champ.get("hh_reached_error_pct_sd", 1.15),
-                "household_size_mae_mean": hh_champ.get("household_size_mae_mean", 2.07),
-                "household_size_mae_sd": hh_champ.get("household_size_mae_sd", 0.06),
+                "record_pairwise_f1_mean": hh_champ["record_pairwise_f1_mean"],
+                "record_pairwise_f1_sd": hh_champ["record_pairwise_f1_sd"],
+                "record_precision_mean": hh_champ["record_precision_mean"],
+                "record_precision_sd": hh_champ["record_precision_sd"],
+                "record_recall_mean": hh_champ["record_recall_mean"],
+                "record_recall_sd": hh_champ["record_recall_sd"],
+                "unit_bcubed_f1_mean": hh_champ["unit_bcubed_f1_mean"],
+                "unit_bcubed_f1_sd": hh_champ["unit_bcubed_f1_sd"],
+                "hh_reached_error_pct_mean": hh_champ["hh_reached_error_pct_mean"],
+                "hh_reached_error_pct_sd": hh_champ["hh_reached_error_pct_sd"],
+                "household_size_mae_mean": hh_champ["household_size_mae_mean"],
+                "household_size_mae_sd": hh_champ["household_size_mae_sd"],
                 "stratum_roster_indirect_error_pct_mean": (
-                    hh_strata_a.get("indirect_reach_error_pct_mean", 13.71)
+                    hh_strata_a["indirect_reach_error_pct_mean"]
                 ),
-                "stratum_roster_size_mae_mean": hh_strata_a.get(
-                    "household_size_mae_mean", 1.35
-                ),
+                "stratum_roster_size_mae_mean": hh_strata_a["household_size_mae_mean"],
             },
         },
         "oracle_comparison": {
-            "record_pairwise_f1_mean": hh_data.get("oracle", {}).get(
-                "record_pairwise_f1_mean", 0.6062
-            ),
-            "record_pairwise_f1_sd": hh_data.get("oracle", {}).get(
-                "record_pairwise_f1_sd", 0.0109
-            ),
-            "hh_reached_error_pct_mean": hh_data.get("oracle", {}).get(
-                "hh_reached_error_pct_mean", 38.74
-            ),
-            "household_size_mae_mean": hh_data.get("oracle", {}).get(
-                "household_size_mae_mean", 2.01
-            ),
+            "record_pairwise_f1_mean": hh_oracle["record_pairwise_f1_mean"],
+            "record_pairwise_f1_sd": hh_oracle["record_pairwise_f1_sd"],
+            "hh_reached_error_pct_mean": hh_oracle["hh_reached_error_pct_mean"],
+            "household_size_mae_mean": hh_oracle["household_size_mae_mean"],
         },
         "leakage_before_after": leakage_data,
         "h1": h1_data,
