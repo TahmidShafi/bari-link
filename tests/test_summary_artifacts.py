@@ -62,12 +62,12 @@ def test_summary_matches_authoritative_reference_values():
     assert pytest.approx(937.0, abs=0.5) == h1["candidate_dev_cost"]
     assert pytest.approx(9.25, abs=0.01) == h1["decision_threshold"]
 
-    # 2. H2 reference dev costs: splink_v3 = 875 at w = 8.0,
+    # 2. H2 reference dev costs: splink_v3 = 876 at w = 8.0,
     # splink_v3_1_resolved = 828, splink_k_resolved = 782
     with open(summary_dir / "h2_dev_outcome.json", "r", encoding="utf-8") as f:
         h2 = json.load(f)
     assert pytest.approx(937.0, abs=0.5) == h2["baseline_dev_cost"]
-    assert pytest.approx(875.0, abs=0.5) == h2["candidate_dev_cost"]
+    assert pytest.approx(876.0, abs=0.5) == h2["candidate_dev_cost"]
     assert pytest.approx(8.00, abs=0.01) == h2["decision_threshold"]
 
     with open(summary_dir / "confirm_table.json", "r", encoding="utf-8") as f:
@@ -94,7 +94,7 @@ def test_summary_matches_authoritative_reference_values():
     assert cost_ratios["10:1"]["seeds_won"] == "5/5 seeds"
 
     # 4. Household weight robustness:
-    # x2 -> F1 0.2055, size MAE 7.40; x0.5 -> F1 0.3069, size MAE 1.70
+    # x2 -> F1 0.2129, size MAE 7.21; x0.5 -> F1 0.3069, size MAE 1.70
     with open(summary_dir / "household_table.json", "r", encoding="utf-8") as f:
         hh = json.load(f)
     champ = hh["champion"]
@@ -106,8 +106,8 @@ def test_summary_matches_authoritative_reference_values():
     assert pytest.approx(0.4601, abs=0.0005) == champ["record_pairwise_f1_mean"]
     assert pytest.approx(0.6886, abs=0.0005) == champ["record_precision_mean"]
 
-    assert pytest.approx(0.2055, abs=0.01) == wr["doubled_2_0x"]["record_pairwise_f1"]
-    assert pytest.approx(7.40, abs=0.5) == wr["doubled_2_0x"]["household_size_mae"]
+    assert pytest.approx(0.2129, abs=0.0005) == wr["doubled_2_0x"]["record_pairwise_f1"]
+    assert pytest.approx(7.21, abs=0.01) == wr["doubled_2_0x"]["household_size_mae"]
 
     assert pytest.approx(0.3069, abs=0.0005) == wr["halved_0_5x"]["record_pairwise_f1"]
     assert pytest.approx(1.70, abs=0.5) == wr["halved_0_5x"]["household_size_mae"]

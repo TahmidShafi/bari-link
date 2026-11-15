@@ -65,7 +65,9 @@ Because doppelganger discrimination operates at different selected score scales,
 
 | Method | Description | Pooled FM @ R=0.40 | Injected FM @ R=0.40 | Pooled FM @ R=0.50 | Injected FM @ R=0.50 | Pooled FM @ R=0.60 | Injected FM @ R=0.60 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `splink_v3_no_kinship` | Unresolved Baseline (No Kinship Evidence) | 54.5% | 61.1% | 61.6% | 68.8% | 66.5% | 73.7% |
+| `splink_v3_1_resolved` | Reference (Probabilistic Kinship + Resolution) | 41.1% | 47.4% | 49.0% | 56.3% | 56.2% | 64.6% |
+| `splink_k_resolved` | Pipeline K (Deterministic Cannot-Links Only) | 50.2% | 57.9% | 55.6% | 63.9% | 60.3% | 69.1% |
+| `splink_v3_no_kinship` | Unresolved Baseline (No Kinship Evidence) | 50.2% | 57.8% | 55.1% | 63.5% | 60.7% | 69.5% |
 
 **Analysis of Secondary Outcome (a)**:
 - As anticipated in the pre-registration, Pipeline K exhibits higher doppelganger false-merge rates on cross-household collisions at matched recall (62.1% vs 52.3% at $R=0.50$, a gap of +9.8 pp).

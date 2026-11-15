@@ -1,8 +1,10 @@
 # Evaluation Report: splink_v3 (demo)
 
 - **Dataset Role**: `dev`
-- **Evaluation Mode**: `select`
+- **Evaluation Mode**: `report`
 - **Threshold Grid**: `weight`
+- **Threshold Source Run**: `demo`
+- **Thresholds SHA-256**: `5b19102078e953a8...`
 - **Selected $t_{\text{cost}}$**: `Weight = 8.00 (p = 0.996109)`
 - **Selected $t_{p99}$**: `Weight = 20.00 (p = 0.999999)`
 
@@ -11,23 +13,23 @@
 | Metric | Cluster-Level (Headline) | Edge-Level (Diagnostic) | B-cubed |
 | :--- | :--- | :--- | :--- |
 | **Precision** | **0.9642** | 0.9679 | 0.9954 |
-| **Recall** | **0.4733** | 0.4452 | 0.8745 |
-| **F1 Score** | **0.6350** | 0.6099 | **0.9310** |
+| **Recall** | **0.4726** | 0.4445 | 0.8743 |
+| **F1 Score** | **0.6343** | 0.6092 | **0.9309** |
 
 | Safety & Cluster Entity Resolution Metrics | Value |
 | :--- | :--- |
 | **Doppelganger False-Merge Rate** | **0.00%** |
 | **False-Merge Clusters** | 21 |
 | **False-Merged Records (Minority)** | 21 |
-| **Split Persons** | 509 |
-| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 875.0 |
-| **Clerical Review Load (per 10k records)** | 1891.4 |
+| **Split Persons** | 510 |
+| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 876.0 |
+| **Clerical Review Load (per 10k records)** | 1885.1 |
 
 ## Deduplicated Beneficiary Reach
 
 | Administrative Scope | Naive Records | De-duplicated Reach | True Beneficiaries | Reach Error % |
 | :--- | :--- | :--- | :--- | :--- |
-| **Overall Population** | **4,806** | **4,207** | **3,667** | **+14.73%** |
+| **Overall Population** | **4,806** | **4,208** | **3,667** | **+14.75%** |
 | `club_formation` | 365 | 364 | 353 | +3.12% |
 | `livelihood_support` | 2,179 | 2,112 | 2,109 | +0.14% |
 | `microfinance_group` | 1,709 | 1,698 | 1,659 | +2.35% |

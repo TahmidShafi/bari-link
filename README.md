@@ -68,7 +68,7 @@ flowchart LR
 | **Oracle Persons + Household** | 0.6066 ± 0.0116 | 0.7155 ± 0.0222 | 0.5265 ± 0.0068 | 0.8103 ± 0.0043 | 2.01 ± 0.08 | 38.7% ± 0.9% |
 | **Drop E2 (Husband Link)** | 0.4760 ± 0.0077 | 0.9332 ± 0.0152 | 0.3195 ± 0.0066 | 0.7556 ± 0.0028 | 1.70 ± 0.04 | 66.6% ± 0.9% |
 | **Halved Weights (0.5x)** | 0.3069 | — | — | — | 1.70 | — |
-| **Doubled Weights (2.0x)** | 0.2127 | — | — | — | 7.26 | — |
+| **Doubled Weights (2.0x)** | 0.2129 | — | — | — | 7.21 | — |
 
 > **Error Attribution:** Most household error is intrinsic to household inference (Oracle reaches F1 0.61). Inherited person-linkage error accounts for about 0.15 F1, predominantly lost recall.
 
@@ -90,12 +90,12 @@ flowchart LR
 
 ## What I Learned (Including What Failed)
 
-1. **A leak inflated my first results.** The generator filled fields (guardian type, sex) that the module forms never collect, so the model saw ground truth. A schema audit found it; after the fix, v1 cluster precision on the holdouts fell from 0.94 to 0.61, and all earlier model numbers were discarded.
-2. **Kinship works better as a rule than as evidence, with a trade-off.** Roster overlap signals "same household", not "same person", which breaks the Fellegi-Sunter independence assumption. Using it only as a cannot-link rule (Pipeline K) lowered cost against the probabilistic-kinship reference on 5/5 fresh seeds (mean -76.0 points; one-sided sign test p = 0.031), but only when false merges cost at least 2x missed duplicates (tie at 1:1). In a namesake stress test at matched recall 0.50, K let through more cross-household namesakes (62.1% vs 52.3%).
+1. **A leak inflated my first results slightly.** The generator filled fields (guardian type, sex) that the module forms never collect, so the model saw ground truth. A schema audit found it; after the fix, `splink_v1` on clean rebuilds of `holdout_0..4` moved slightly in cluster precision (`0.9404 → 0.9243`) and recall (`0.4741 → 0.4408`). An earlier figure of `0.61` (`0.6068`) came from holdout outputs that a clean rebuild could not reproduce, and it was corrected after a fresh-clone reproducibility check.
+2. **Kinship works better as a rule than as evidence, with a trade-off.** Roster overlap signals "same household", not "same person", which breaks the Fellegi-Sunter independence assumption. Using it only as a cannot-link rule (Pipeline K) lowered cost against the probabilistic-kinship reference on 5/5 fresh seeds (mean -76.0 points; one-sided sign test p = 0.031), but only when false merges cost at least 2x missed duplicates (tie at 1:1). In a namesake stress test (`stress_0`, `--seed-offset 0`) at matched recall 0.50, K let through more cross-household namesakes (55.6% vs 49.0%).
 3. **Pre-registration constrained me.** Hypotheses were committed before their results (table above). H3 was suggested by earlier holdout results, so it was confirmed only on five new seeds.
 4. **An early negative result was an artefact.** Weak-bridge splitting first looked useless; after the leak was fixed it was selected on dev data (t_bridge 4.0 above t_link 2.0).
 5. **Household inference is the weakest part.** Record-level F1 is 0.46 with a-priori evidence weights; halving or doubling the weights drops it to 0.31 or 0.21, and even perfect person linkage only reaches 0.61. Dropping the husband-name link raises precision from 0.69 to 0.93, indicating that matching husbands by name skeleton creates false household merges.
-6. **Bugs the verification gates caught:** non-deterministic household cuts (hash-order tie-breaking; corrected values are reported), waterfall labels shown for the wrong match level (looked up by list position instead of Splink's comparison-vector value; the weights themselves were correct), a publish step that silently overwrote confirmed results, and summary numbers an AI agent reported without computing them.
+6. **Bugs the verification gates caught:** non-deterministic household cuts (first: `cannot-household` worklist order; second: tied min-cuts at 2.0x weights from `PYTHONHASHSEED`-dependent subgraph edge iteration order in `infer.py`, fixed in commit `897b32e` with the regression test added in the follow-up commit), waterfall labels shown for the wrong match level (looked up by list position instead of Splink's comparison-vector value; the weights themselves were correct), a publish step that silently overwrote confirmed results, and summary numbers an AI agent reported without computing them.
 
 ---
 
@@ -122,9 +122,13 @@ Implementation was written by an AI coding agent (Antigravity IDE); planning, de
 ## Reproduce
 
 ```bash
-# Environment setup
+# Environment setup (Python 3.14; lock requires >=3.12)
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .[dev]
+pip install -r requirements-lock.txt
+pip install -e . --no-deps
+
+# Re-run full multi-seed experiment sweep from scratch
+python scripts/reproduce_all.py
 
 # Provenance generation & documentation check
 python scripts/generate_preregistration_json.py
@@ -146,7 +150,21 @@ pytest -q -m publish                          # Full dataset verification
 cd web && npm ci && npm test && npm run build && npx playwright test
 ```
 
-The artifacts tests need the full local experiment runs (dev, holdout and stress seeds); see [docs/METHODS.md > Reproducing the experiments](docs/METHODS.md#8-reproducing-the-experiments).
+The artifacts tests need the full local experiment runs (dev, holdout and stress seeds), which `python scripts/reproduce_all.py` generates; see [docs/METHODS.md > Reproducing the experiments](docs/METHODS.md#8-reproducing-the-experiments).
+
+---
+
+## Change Log
+
+- **2026-11-15 — Household `2.0x` determinism fix (`897b32e` + follow-up test):** Sorted subgraph edges before `nx.stoer_wagner` / `nx.minimum_cut` in `src/barilink/household/infer.py` and set intersections in `evidence_lineage` in `src/barilink/household/evidence.py`, eliminating `PYTHONHASHSEED`-dependent tie-breaking; added a 30-node tied-min-cut regression test in `tests/test_pipeline_determinism.py`.
+- **2026-11-15 — Clean re-baseline via `scripts/reproduce_all.py`:** Regenerated all `demo`, `holdout_0..9`, `stress_0`, and summary JSONs from one script in one locked environment:
+  - `leakage_comparison.json` (`splink_v1_post_fix` precision `0.6068 → 0.9243`, recall `0.7564 → 0.4408`; `splink_v1_resolved_post_fix` precision `0.6303 → 0.9188`, recall `0.7615 → 0.4500`): replaced non-reproducible earlier `holdout_0..4` outputs with clean `demo`-trained rebuilds.
+  - `confirm_table.json` (`stress_0` at `--seed-offset 0`, recall `0.50`: Pipeline K `0.621 → 0.556`, Reference `0.523 → 0.490`, gap `9.8 → 6.6` pp): updated from explicit `--seed-offset 0` run.
+  - `h2_dev_outcome.json` (`splink_v3` dev cost `875.0 → 876.0`, recall `0.4733 → 0.4726`, F1 `0.6350 → 0.6343`): updated from clean `demo` rebuild and `--threads 1` retrain.
+  - `household_table.json` (`doubled_2_0x` F1 `0.2127 → 0.2129`, Size MAE `7.2555 → 7.2092`): deterministic output after the `infer.py` tie-breaking fix; all other household, H3, Reference, Pipeline K, cost-ratio, and baseline numbers are unchanged.
+  - `tests/test_summary_artifacts.py`: updated `h2_dev_outcome` reference `875.0 → 876.0` and `doubled_2_0x` reference `0.2055 / 7.40 → 0.2129 / 7.21` with tightened tolerances (`abs=0.0005` and `abs=0.01`).
+- **2026-11-15 — Environment lock (`requirements-lock.txt`):** Pinned all 29 dependencies from Python 3.14.6; updated `pyproject.toml` (`requires-python = ">=3.12"`) and CI/Pages workflows to Python `3.14`.
+- **2026-11-15 — Run provenance & `METHODS.md` Section 8:** Added deterministic `results/<run>/provenance.json` (git commit, dirty flag, platform, CLI args, `seed_offset`, config SHA-256, Python/package versions; no timestamps) and replaced `docs/METHODS.md` Section 8 with a pointer to `scripts/reproduce_all.py` and corrected manual commands.
 
 ---
 

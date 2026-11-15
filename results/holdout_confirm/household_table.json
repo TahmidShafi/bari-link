@@ -256,8 +256,8 @@
       "household_size_mae": 1.7003921955989802
     },
     "doubled_2_0x": {
-      "record_pairwise_f1": 0.2127006165840279,
-      "household_size_mae": 7.2555295552246495
+      "record_pairwise_f1": 0.21286773143357296,
+      "household_size_mae": 7.209225024006526
     }
   },
   "error_decomposition": {

@@ -9,16 +9,16 @@
 
 | Metric | Cluster-Level (Headline) | B-cubed |
 | :--- | :--- | :--- |
-| **Precision** | **0.6347** | 0.9403 |
-| **Recall** | **0.5734** | 0.9047 |
-| **F1 Score** | **0.6025** | 0.9221 |
+| **Precision** | **0.6376** | 0.9412 |
+| **Recall** | **0.5485** | 0.8984 |
+| **F1 Score** | **0.5897** | 0.9193 |
 
 | Safety & Cluster Entity Resolution Metrics | Value |
 | :--- | :--- |
-| **Doppelganger False-Merge Rate** | **57.07%** |
-| **False-Merge Clusters** | 248 |
-| **False-Merged Records (Minority)** | 252 |
-| **Split Persons** | 423 |
-| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 2,970.0 |
-| **Deduplicated Reach** | 4,289 (Error: +5.15%) |
-| **Pair Completeness (Recall Ceiling)** | 89.04% |
+| **Doppelganger False-Merge Rate** | **52.61%** |
+| **False-Merge Clusters** | 243 |
+| **False-Merged Records (Minority)** | 250 |
+| **Split Persons** | 443 |
+| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 2,863.0 |
+| **Deduplicated Reach** | 4,244 (Error: +6.02%) |
+| **Pair Completeness (Recall Ceiling)** | 89.54% |

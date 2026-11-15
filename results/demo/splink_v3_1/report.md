@@ -1,8 +1,10 @@
 # Evaluation Report: splink_v3_1 (demo)
 
 - **Dataset Role**: `dev`
-- **Evaluation Mode**: `select`
+- **Evaluation Mode**: `report`
 - **Threshold Grid**: `weight`
+- **Threshold Source Run**: `demo`
+- **Thresholds SHA-256**: `899e42fd581546ea...`
 - **Selected $t_{\text{cost}}$**: `Weight = 8.00 (p = 0.996109)`
 - **Selected $t_{p99}$**: `Weight = 20.00 (p = 0.999999)`
 

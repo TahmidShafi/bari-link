@@ -1,6 +1,6 @@
 {
   "source": "results/summary/preregistration.json",
-  "description": "Git-verified commit SHAs for pre-registered hypotheses and data leakage remediation",
+  "description": "Git-verified commit SHAs for pre-registered hypotheses and data leakage",
   "leakage": {
     "title": "Ground-Truth Data Leakage Discovery & Remediation",
     "commit": "2477c5c",

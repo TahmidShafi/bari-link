@@ -277,12 +277,12 @@
     },
     "doubled_2_0x": {
       "scale": "Doubled Weights (2.0x)",
-      "record_pairwise_f1": 0.2127006165840279,
-      "household_size_mae": 7.2555295552246495
+      "record_pairwise_f1": 0.21286773143357296,
+      "household_size_mae": 7.209225024006526
     },
     "base_weights_1_0x": 0.4600658178670818,
     "halved_weights_0_5x": 0.30692419466794785,
-    "doubled_weights_2_0x": 0.2127006165840279,
+    "doubled_weights_2_0x": 0.21286773143357296,
     "fragility_note": "Results are highly sensitive to the a-priori weights (F1 0.46 -> 0.31 at x0.5, 0.21 at x2). The operating point depends on the threshold sitting just above the E1 weight, so single-channel E1 links are excluded and multi-channel links are kept. This is a fragility, not a robustness result.",
     "note": "Sensitive to a-priori weights: F1 drops to 0.31 at 0.5x and 0.21 at 2.0x, indicating fragility of edge thresholding."
   },

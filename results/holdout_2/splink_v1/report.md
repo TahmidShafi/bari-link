@@ -12,28 +12,28 @@
 
 | Metric | Cluster-Level (Headline) | Edge-Level (Diagnostic) | B-cubed |
 | :--- | :--- | :--- | :--- |
-| **Precision** | **0.5828** | 0.6849 | 0.9143 |
-| **Recall** | **0.7620** | 0.7230 | 0.9433 |
-| **F1 Score** | **0.6604** | 0.7035 | **0.9286** |
+| **Precision** | **0.9050** | 0.9239 | 0.9889 |
+| **Recall** | **0.4572** | 0.4141 | 0.8703 |
+| **F1 Score** | **0.6075** | 0.5718 | **0.9258** |
 
 | Safety & Cluster Entity Resolution Metrics | Value |
 | :--- | :--- |
-| **Doppelganger False-Merge Rate** | **20.00%** |
-| **False-Merge Clusters** | 257 |
-| **False-Merged Records (Minority)** | 360 |
-| **Split Persons** | 239 |
-| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 4,262.0 |
-| **Clerical Review Load (per 10k records)** | 6987.3 |
+| **Doppelganger False-Merge Rate** | **0.00%** |
+| **False-Merge Clusters** | 46 |
+| **False-Merged Records (Minority)** | 49 |
+| **Split Persons** | 530 |
+| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 1,125.0 |
+| **Clerical Review Load (per 10k records)** | 2398.3 |
 
 ## Deduplicated Beneficiary Reach
 
 | Administrative Scope | Naive Records | De-duplicated Reach | True Beneficiaries | Reach Error % |
 | :--- | :--- | :--- | :--- | :--- |
-| **Overall Population** | **4,866** | **3,662** | **3,731** | **-1.85%** |
-| `club_formation` | 397 | 386 | 381 | +1.31% |
-| `livelihood_support` | 2,200 | 2,011 | 2,133 | -5.72% |
-| `microfinance_group` | 1,714 | 1,588 | 1,667 | -4.74% |
-| `upg_enrolment` | 555 | 538 | 540 | -0.37% |
+| **Overall Population** | **4,866** | **4,278** | **3,731** | **+14.66%** |
+| `club_formation` | 397 | 397 | 381 | +4.20% |
+| `livelihood_support` | 2,200 | 2,108 | 2,133 | -1.17% |
+| `microfinance_group` | 1,714 | 1,704 | 1,667 | +2.22% |
+| `upg_enrolment` | 555 | 547 | 540 | +1.30% |
 
 ## Candidate Generation & Blocking Performance
 

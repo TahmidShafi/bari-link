@@ -23,7 +23,7 @@
 | **False-Merged Records (Minority)** | 30 |
 | **Split Persons** | 492 |
 | **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 967.0 |
-| **Clerical Review Load (per 10k records)** | 1970.2 |
+| **Clerical Review Load (per 10k records)** | 1974.3 |
 
 ## Deduplicated Beneficiary Reach
 

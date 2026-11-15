@@ -1,0 +1,80 @@
+{
+  "git_commit": "6c0c96dd1d77c9c312ad104dc948d4059acd0c24",
+  "git_dirty": false,
+  "packages": {
+    "duckdb": "2.0.0",
+    "networkx": "3.7",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1",
+    "pyarrow": "26.0.1",
+    "splink": "4.0.17"
+  },
+  "platform": "win32",
+  "python_version": "3.14.6",
+  "stages": [
+    {
+      "cli_args": [
+        "build",
+        "--config",
+        "configs/default.yaml",
+        "--run-name",
+        "holdout_9",
+        "--seed-offset",
+        "1009",
+        "--role",
+        "holdout"
+      ],
+      "command": "build",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 1009
+    },
+    {
+      "cli_args": [
+        "baseline",
+        "--method",
+        "exact_or_phone",
+        "--run-name",
+        "holdout_9"
+      ],
+      "command": "baseline",
+      "config_path": null,
+      "config_sha256": null,
+      "seed_offset": 1009
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "--run-name",
+        "holdout_9",
+        "--method",
+        "exact_or_phone",
+        "--mode",
+        "report"
+      ],
+      "command": "evaluate",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 1009
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "batch",
+        "--runs",
+        "holdout_5..holdout_9",
+        "--methods",
+        "splink_v3_1",
+        "splink_v3_1_resolved",
+        "splink_k",
+        "splink_k_resolved",
+        "--threads",
+        "1"
+      ],
+      "command": "evaluate batch",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 1009
+    }
+  ]
+}

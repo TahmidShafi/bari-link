@@ -1,0 +1,70 @@
+{
+  "git_commit": "6c0c96dd1d77c9c312ad104dc948d4059acd0c24",
+  "git_dirty": false,
+  "packages": {
+    "duckdb": "2.0.0",
+    "networkx": "3.7",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1",
+    "pyarrow": "26.0.1",
+    "splink": "4.0.17"
+  },
+  "platform": "win32",
+  "python_version": "3.14.6",
+  "stages": [
+    {
+      "cli_args": [
+        "build",
+        "--config",
+        "configs/stress.yaml",
+        "--run-name",
+        "stress_0",
+        "--seed-offset",
+        "0",
+        "--role",
+        "stress"
+      ],
+      "command": "build",
+      "config_path": "configs/stress.yaml",
+      "config_sha256": "d14179e24e243e774dcda3fc1c13e13bb9ef8881b149f90ba8545e239a42ccbe",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "batch",
+        "--runs",
+        "stress_0",
+        "--methods",
+        "splink_v1",
+        "splink_v2",
+        "splink_v3",
+        "splink_v3_no_tf",
+        "splink_v3_no_kinship",
+        "splink_v3_resolved",
+        "splink_v3_1",
+        "splink_v3_1_resolved",
+        "splink_k",
+        "splink_k_resolved",
+        "--threads",
+        "1"
+      ],
+      "command": "evaluate batch",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "stress",
+        "--run-name",
+        "stress_0"
+      ],
+      "command": "evaluate stress",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    }
+  ]
+}

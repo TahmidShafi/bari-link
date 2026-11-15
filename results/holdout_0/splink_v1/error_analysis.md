@@ -1,12 +1,12 @@
 # Linkage Error Analysis: splink_v1 (holdout_0)
 
-**Decision Threshold ($t_{cost}$):** `9.00` (weight) / `0.998051` (probability)  
+**Decision Threshold ($t_{cost}$):** `9.25` (weight) / `0.998360` (probability)  
 **Total Ground-Truth True Pairs:** `1,469`  
 **Total Scored Candidate Pairs:** `45,507`  
 **Scored True Pairs:** `1,298`  
 **Unblocked True Pairs (Missed by all rules):** `171` (11.64%)  
-**Total False Merges ($p \ge t_{cost}$):** `28`  
-**Total Candidate False Negatives ($p < t_{cost}$):** `683`  
+**Total False Merges ($p \ge t_{cost}$):** `22`  
+**Total Candidate False Negatives ($p < t_{cost}$):** `732`  
 
 ---
 
@@ -18,19 +18,19 @@ Pairs of records representing different individuals that the model scored above 
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | 1 | `bb5d6b5138` | `c0b06ce130` | 1.0000 | Nargis Akter | Shirin eBgum | Mohammad Habibur Rahman Uddin | Hobibur Rahman Uddin | Majher Char | Majher Char | 01948191641 | 01948191641 | livelihood_support | livelihood_support |
 | 2 | `08881cc322` | `8a5127ca4c` | 1.0000 | Beauty Begum | Fatema Begum | Mohd. Mizanur Rahman Mondal | Mohammad Mizanur Rahman Mondal | Majher Char | Majher Char | 01969450858 | 8801969450858 | livelihood_support | livelihood_support |
-| 3 | `22e743e34a` | `5a73f8298c` | 1.0000 | Kulsum Bibi | Tanjina Bibi | Jashim Uddin Sheikh | Jashim Uddin seikh | Dokkhin Para | Dokkhin Para | +880 1362554395 | 8801362554395 | microfinance_group | livelihood_support |
-| 4 | `1e3ff2c681` | `70eee8307c` | 1.0000 | osma Akter | Mst. Jesmin Akter | Mohd. Jalal Uddin Hossain | Jalal Uddin Hossain | Mondal Para | Mondal Para | 01827137690 | 1827137690 | microfinance_group | livelihood_support |
-| 5 | `b2bcba1e44` | `bccf253d5d` | 1.0000 | Mosammat Rokeya Begum | Mohammad Habibur Rahman Sarkar | Abdul Karim Hossain | Abdul Karim Hossain | Mondol Poro | Mondol Poro | 01977157800 | 01977157800 | upg_enrolment | livelihood_support |
-| 6 | `d6be953e3f` | `ed09d4668c` | 1.0000 | Zahirul Islam Ali | Jalal Uddin Chowdhury | Md. Kola Mia Uddin | Md. Kala Mia ooddin | MondalPara | Mondal Para | 01465291137 | — | livelihood_support | livelihood_support |
-| 7 | `f8aa05bf68` | `fe7f465165` | 1.0000 | Bachchu Mia Hossain | Meherun Bibi | Md. Khurshed Alam Chowdhury | Md. Khurshed Alam Chowdhury | Uttar Para | Uttar Para | 01559118967 | 01559118967 | livelihood_support | microfinance_group |
+| 3 | `b2bcba1e44` | `bccf253d5d` | 1.0000 | Mosammat Rokeya Begum | Mohammad Habibur Rahman Sarkar | Abdul Karim Hossain | Abdul Karim Hossain | Mondol Poro | Mondol Poro | 01977157800 | 01977157800 | upg_enrolment | livelihood_support |
+| 4 | `f8aa05bf68` | `fe7f465165` | 1.0000 | Bachchu Mia Hossain | Meherun Bibi | Md. Khurshed Alam Chowdhury | Md. Khurshed Alam Chowdhury | Uttar Para | Uttar Para | 01559118967 | 01559118967 | livelihood_support | microfinance_group |
+| 5 | `22e743e34a` | `5a73f8298c` | 1.0000 | Kulsum Bibi | Tanjina Bibi | Jashim Uddin Sheikh | Jashim Uddin seikh | Dokkhin Para | Dokkhin Para | +880 1362554395 | 8801362554395 | microfinance_group | livelihood_support |
+| 6 | `1e3ff2c681` | `70eee8307c` | 1.0000 | osma Akter | Mst. Jesmin Akter | Mohd. Jalal Uddin Hossain | Jalal Uddin Hossain | Mondal Para | Mondal Para | 01827137690 | 1827137690 | microfinance_group | livelihood_support |
+| 7 | `d6be953e3f` | `ed09d4668c` | 0.9999 | Zahirul Islam Ali | Jalal Uddin Chowdhury | Md. Kola Mia Uddin | Md. Kala Mia ooddin | MondalPara | Mondal Para | 01465291137 | — | livelihood_support | livelihood_support |
 | 8 | `775cdd6333` | `ef573c67a3` | 0.9999 | Mosammat Jahanara Akter | oleya Bibi | Md. Badsha Mia Mondal | Mohammad Badsha Mia Mondal | Uttar Para | Uttar Para | 01576423410 | +880 1576423410 | microfinance_group | livelihood_support |
-| 9 | `6dd202e22d` | `f813d4b24e` | 0.9999 | Mosammat Bilkis Begum | Faqrida Khaton | bAdul Kareem Mia | Mohammad bAdul Karim Mia | Uttar Para | Uttar Para | — | 01996755162 | livelihood_support | livelihood_support |
-| 10 | `dc74e84c7f` | `edf8d0d88c` | 0.9999 | Mst. Sorkar Maya | Purnimo Rani | Khokon Dey | Mohd. Khokon Diy | Uttar Para | Uttor Poro | — | 019-1621-3104 | livelihood_support | livelihood_support |
-| 11 | `08420952ec` | `40f587923d` | 0.9998 | Ranjit Adhikary | Mohd. Subhash Majumder | Dipak Dey | Md. Dipak Diy | MajherChar | Majher Char | 01713982480 | — | livelihood_support | livelihood_support |
-| 12 | `8243319966` | `cd2d78c4fd` | 0.9996 | Shyamali Rni | Mst. Anjali Biswas | Tapan Dey | Tapan Dey | Uttar Para | Uttar Para | — | 01585854710 | upg_enrolment | livelihood_support |
-| 13 | `251c901041` | `4bb254f2a8` | 0.9995 | Begum Jaheda | Nasima Khatun | Hashem Ali Sheikh | Hashem Ali Sheikh | Mondal Para | Mondal Para | — | — | livelihood_support | livelihood_support |
-| 14 | `328c003ea8` | `facad38da3` | 0.9994 | Khalilur Rahman Mia | Uddin Rustam Ali | Nozrul Islam Mondal | Nazrol Islam Mondal | Uttar Para | Uttar Para | — | 1983061988 | livelihood_support | livelihood_support |
-| 15 | `745b804b78` | `8fe05545ac` | 0.9993 | Mohammad Tofazzal Hossain Sarkar | Abul Kashem Ahmed | Yakub Ali Ali | Yakub Ali Ali | Mondal Para | Mondal para | 01463765731 | — | livelihood_support | livelihood_support |
+| 9 | `7a2a3ce8d3` | `8a2f771bb5` | 0.9999 | Jalal Uddin Sarkar | Kohinoor Akter | Shafiul Alam Sheikh | Shafiul Alam Sheikh | Uttar Para | Uttar Para | 01995334936 | — | livelihood_support | livelihood_support |
+| 10 | `6dd202e22d` | `f813d4b24e` | 0.9998 | Mosammat Bilkis Begum | Faqrida Khaton | bAdul Kareem Mia | Mohammad bAdul Karim Mia | Uttar Para | Uttar Para | — | 01996755162 | livelihood_support | livelihood_support |
+| 11 | `dc74e84c7f` | `edf8d0d88c` | 0.9998 | Mst. Sorkar Maya | Purnimo Rani | Khokon Dey | Mohd. Khokon Diy | Uttar Para | Uttor Poro | — | 019-1621-3104 | livelihood_support | livelihood_support |
+| 12 | `8927259ae6` | `e46810fb55` | 0.9998 | Hasina Bibi | Raifqul Islam Mia | Rafiqul Islam Mia | Md. Harun-or-Rashid Hossain | Mondol Poro | Mondal Para | 01433448999 | 01433448999 | livelihood_support | livelihood_support |
+| 13 | `08420952ec` | `40f587923d` | 0.9997 | Ranjit Adhikary | Mohd. Subhash Majumder | Dipak Dey | Md. Dipak Diy | MajherChar | Majher Char | 01713982480 | — | livelihood_support | livelihood_support |
+| 14 | `38f26644d1` | `99622b4598` | 0.9996 | Mst. Protima Dey | Nirmal Roy | Bishwajit Das | Bishwajit Das | Mondal Para | Mondal Para | — | 1419527618 | livelihood_support | livelihood_support |
+| 15 | `a2a2bf7fd5` | `ed2fd99972` | 0.9995 | Mohammad Rafiqul Islam Sheikh | Koolsum Bibi | Mohd. Maniruzzaman Islam | Mohd. Maniruzzaman Islam | Dokkhin Para | Dokkhin Para | — | — | livelihood_support | livelihood_support |
 
 ---
 
@@ -41,20 +41,20 @@ Pairs of records representing the same individual that were captured by blocking
 | Rank | Record L | Record R | Prob | Name L | Name R | Guardian L | Guardian R | Village L | Village R | Phone L | Phone R | Mod L | Mod R |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | 1 | `8a967e7caf` | `e29e91fc1e` | 0.0000 | Motaz Atker | Momtaz Akter | Zaheerul Islam Mondal | Hamidul Islam Islam | Dokkhin Para | Dokkhin Para | 01481822097 | — | microfinance_group | club_formation |
-| 2 | `55720ad0e3` | `f792d45252` | 0.0001 | Popy Khatun | Poy Ater | Abul-Oashem Mondal | Mohd .Quamrul Hasan Mondal | Mondal Para | Mondal Para | — | — | microfinance_group | livelihood_support |
+| 2 | `55720ad0e3` | `f792d45252` | 0.0000 | Popy Khatun | Poy Ater | Abul-Oashem Mondal | Mohd .Quamrul Hasan Mondal | Mondal Para | Mondal Para | — | — | microfinance_group | livelihood_support |
 | 3 | `38659c057d` | `752f299669` | 0.0001 | Kohinoor Aktir | Kohinoor Khatun | Aminul Islam Mondal | Mohd. Jahangir Alam Ali | Mondal Para | Mondal Para | — | — | livelihood_support | microfinance_group |
 | 4 | `57f42aee19` | `fd329c1177` | 0.0001 | Mst. Nasima Begum | Nasima Begoom | Shahidul Hossain | Shah Alam Miah | Uttar Para | Uttar Para | — | 01664398182 | livelihood_support | microfinance_group |
-| 5 | `754f166428` | `ce217c7600` | 0.0002 | Mst. Rahima Khatun | Mst. Rahima Akter | Mahd. Yunus Ali Sheihk | Abdul Karim Ahmed | Mondal Para | Mondal Para | 01930285865 | 01430258865 | livelihood_support | microfinance_group |
-| 6 | `9fb937c8d8` | `e58cda60eb` | 0.0004 | Mosammat Kulsum Akter | Klsum Begum | Monir Hossain Hsosain | Md. Abul Kashem Islam | Majher Char | MajherChar | — | — | microfinance_group | club_formation |
-| 7 | `970368723c` | `9bcf207963` | 0.0004 | Rahima Akter | Mst. Rahima Begum | Mohammed Abul Kashem Sarkar | Abul Kashem Sarkar | Dokkhin Para | Dokkhin Para | — | — | livelihood_support | microfinance_group |
-| 8 | `63b7834361` | `6a72dd71e3` | 0.0004 | Shahida katun | Most. Shahida Khatun | Waliur Rahman Mondal | Muhammad Waliur Rahman Mondal | Mondal Para | Mondal Para | — | — | microfinance_group | club_formation |
-| 9 | `95d87aeadf` | `f3ab849784` | 0.0004 | SalmaA kter | Most. Salma Akter | Md. Shah Alam sharkar | Shahidul Sarkar | Dokkhin Para | Dokkhin Para | — | 1614595962 | club_formation | microfinance_group |
-| 10 | `147cd7c4d6` | `472428f68c` | 0.0005 | Amena | Amina Begum | Shahidul Mondal | Nurul Islam Sheikh | Uttor Poro | UttarPara | 01553471968 | — | microfinance_group | livelihood_support |
-| 11 | `2d0497a3e0` | `f3f856ff59` | 0.0006 | zesmin Akter | Mst. Jesmin | Mohd. Yunus Ali Sarkar | Jalal Uddeen Hossai | Mondal Para | Mondal Para | — | — | microfinance_group | upg_enrolment |
-| 12 | `d9d41b04b0` | `e5bb6a96d8` | 0.0007 | Nasima Akter | Nasima Akter | Ibrahim Ali Hossain | Altaf Hussain Mondal | MondalPara | Mondal Para | — | — | microfinance_group | livelihood_support |
-| 13 | `6a72dd71e3` | `c45ae61523` | 0.0007 | Most. Shahida Khatun | Mosammat Shahida Khatun | Muhammad Waliur Rahman Mondal | Waliur Rahman Mondal | Mondal Para | Mondal Para | — | — | club_formation | livelihood_support |
-| 14 | `5640b839c8` | `fe1c69d29b` | 0.0007 | Mosammat Ayesha Akter | Ayesha Bibi | Mohammad Anisur Rahman Chowdhury | Jahangir Alam Mondal | Mondal Para | Mondal Para | — | — | microfinance_group | upg_enrolment |
-| 15 | `8e8964b390` | `cd3683de8b` | 0.0008 | Nasima Khatun | Nasima | Nurul Islam Hossazin | Rafiqol Islam Sarkar | — | Majher char | 01987877147 | — | microfinance_group | upg_enrolment |
+| 5 | `754f166428` | `ce217c7600` | 0.0001 | Mst. Rahima Khatun | Mst. Rahima Akter | Mahd. Yunus Ali Sheihk | Abdul Karim Ahmed | Mondal Para | Mondal Para | 01930285865 | 01430258865 | livelihood_support | microfinance_group |
+| 6 | `970368723c` | `9bcf207963` | 0.0002 | Rahima Akter | Mst. Rahima Begum | Mohammed Abul Kashem Sarkar | Abul Kashem Sarkar | Dokkhin Para | Dokkhin Para | — | — | livelihood_support | microfinance_group |
+| 7 | `9fb937c8d8` | `e58cda60eb` | 0.0002 | Mosammat Kulsum Akter | Klsum Begum | Monir Hossain Hsosain | Md. Abul Kashem Islam | Majher Char | MajherChar | — | — | microfinance_group | club_formation |
+| 8 | `63b7834361` | `6a72dd71e3` | 0.0002 | Shahida katun | Most. Shahida Khatun | Waliur Rahman Mondal | Muhammad Waliur Rahman Mondal | Mondal Para | Mondal Para | — | — | microfinance_group | club_formation |
+| 9 | `95d87aeadf` | `f3ab849784` | 0.0002 | SalmaA kter | Most. Salma Akter | Md. Shah Alam sharkar | Shahidul Sarkar | Dokkhin Para | Dokkhin Para | — | 1614595962 | club_formation | microfinance_group |
+| 10 | `147cd7c4d6` | `472428f68c` | 0.0003 | Amena | Amina Begum | Shahidul Mondal | Nurul Islam Sheikh | Uttor Poro | UttarPara | 01553471968 | — | microfinance_group | livelihood_support |
+| 11 | `2d0497a3e0` | `f3f856ff59` | 0.0003 | zesmin Akter | Mst. Jesmin | Mohd. Yunus Ali Sarkar | Jalal Uddeen Hossai | Mondal Para | Mondal Para | — | — | microfinance_group | upg_enrolment |
+| 12 | `d9d41b04b0` | `e5bb6a96d8` | 0.0004 | Nasima Akter | Nasima Akter | Ibrahim Ali Hossain | Altaf Hussain Mondal | MondalPara | Mondal Para | — | — | microfinance_group | livelihood_support |
+| 13 | `5640b839c8` | `fe1c69d29b` | 0.0004 | Mosammat Ayesha Akter | Ayesha Bibi | Mohammad Anisur Rahman Chowdhury | Jahangir Alam Mondal | Mondal Para | Mondal Para | — | — | microfinance_group | upg_enrolment |
+| 14 | `6a72dd71e3` | `c45ae61523` | 0.0004 | Most. Shahida Khatun | Mosammat Shahida Khatun | Muhammad Waliur Rahman Mondal | Waliur Rahman Mondal | Mondal Para | Mondal Para | — | — | club_formation | livelihood_support |
+| 15 | `8e8964b390` | `cd3683de8b` | 0.0004 | Nasima Khatun | Nasima | Nurul Islam Hossazin | Rafiqol Islam Sarkar | — | Majher char | 01987877147 | — | microfinance_group | upg_enrolment |
 
 ---
 

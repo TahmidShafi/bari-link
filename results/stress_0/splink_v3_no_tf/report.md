@@ -12,32 +12,32 @@
 
 | Metric | Cluster-Level (Headline) | Edge-Level (Diagnostic) | B-cubed |
 | :--- | :--- | :--- | :--- |
-| **Precision** | **0.6235** | 0.6705 | 0.9413 |
-| **Recall** | **0.5490** | 0.4951 | 0.8984 |
-| **F1 Score** | **0.5839** | 0.5696 | **0.9193** |
+| **Precision** | **0.6328** | 0.6735 | 0.9434 |
+| **Recall** | **0.5253** | 0.4853 | 0.8919 |
+| **F1 Score** | **0.5741** | 0.5641 | **0.9169** |
 
 | Safety & Cluster Entity Resolution Metrics | Value |
 | :--- | :--- |
-| **Doppelganger False-Merge Rate** | **54.56%** |
-| **False-Merge Clusters** | 239 |
-| **False-Merged Records (Minority)** | 244 |
-| **Split Persons** | 453 |
-| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 3,015.0 |
-| **Clerical Review Load (per 10k records)** | 2179.8 |
+| **Doppelganger False-Merge Rate** | **50.17%** |
+| **False-Merge Clusters** | 229 |
+| **False-Merged Records (Minority)** | 236 |
+| **Split Persons** | 477 |
+| **Asymmetric Expected Cost ($5 \cdot FP + 1 \cdot FN$)** | 2,846.0 |
+| **Clerical Review Load (per 10k records)** | 2185.9 |
 
 ## Deduplicated Beneficiary Reach
 
 | Administrative Scope | Naive Records | De-duplicated Reach | True Beneficiaries | Reach Error % |
 | :--- | :--- | :--- | :--- | :--- |
-| **Overall Population** | **5,207** | **4,331** | **4,079** | **+6.18%** |
-| `club_formation` | 400 | 400 | 386 | +3.63% |
-| `livelihood_support` | 2,163 | 2,106 | 2,108 | -0.09% |
-| `microfinance_group` | 1,733 | 1,707 | 1,678 | +1.73% |
-| `upg_enrolment` | 911 | 705 | 891 | -20.88% |
+| **Overall Population** | **5,142** | **4,291** | **4,003** | **+7.19%** |
+| `club_formation` | 365 | 364 | 353 | +3.12% |
+| `livelihood_support` | 2,179 | 2,115 | 2,109 | +0.28% |
+| `microfinance_group` | 1,709 | 1,691 | 1,659 | +1.93% |
+| `upg_enrolment` | 889 | 694 | 876 | -20.78% |
 
 ## Candidate Generation & Blocking Performance
 
-- **Candidate Pairs Evaluated**: 58,120 / 13,553,821
-- **Reduction Ratio**: 99.5712%
-- **Pair Completeness (Recall Ceiling)**: 90.21%
-- **Pair Quality**: 2.22%
+- **Candidate Pairs Evaluated**: 57,243 / 13,217,511
+- **Reduction Ratio**: 99.5669%
+- **Pair Completeness (Recall Ceiling)**: 89.54%
+- **Pair Quality**: 2.23%

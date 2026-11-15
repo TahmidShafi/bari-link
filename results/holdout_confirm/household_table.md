@@ -15,7 +15,7 @@ Operating point frozen at DEV-selected edge threshold **$t_{\text{hh}}^* = 5.0$*
 | Ablation: Drop E4 (roster_overlap, w=0) | 0.3411 +/- 0.0083 | 0.6555 +/- 0.0118 | 0.2305 +/- 0.0064 | 0.7178 +/- 0.0034 | +69.57% +/- 1.17% | 2.03 +/- 0.06 |
 | Ablation: Drop E5 (shared_phone, w=0) | 0.4568 +/- 0.0055 | 0.6886 +/- 0.0159 | 0.3418 +/- 0.0042 | 0.7516 +/- 0.0020 | +59.51% +/- 1.18% | 2.06 +/- 0.06 |
 | Weight Robustness: All Weights x0.5 | 0.3069 +/- 0.0086 | 0.9982 +/- 0.0019 | 0.1814 +/- 0.0060 | 0.7105 +/- 0.0033 | +81.52% +/- 1.30% | 1.70 +/- 0.03 |
-| Weight Robustness: All Weights x2.0 | 0.2127 +/- 0.0030 | 0.1490 +/- 0.0023 | 0.3718 +/- 0.0085 | 0.6376 +/- 0.0035 | +2.69% +/- 1.62% | 7.26 +/- 0.10 |
+| Weight Robustness: All Weights x2.0 | 0.2129 +/- 0.0027 | 0.1491 +/- 0.0020 | 0.3718 +/- 0.0077 | 0.6374 +/- 0.0036 | +2.64% +/- 1.67% | 7.21 +/- 0.10 |
 
 ### 2. Error Decomposition: Person Linkage vs Household Inference
 
@@ -55,14 +55,14 @@ For Stratum (b), the indirect reach estimator is structurally zero because no ro
 | Ablation: Drop E4 (roster_overlap, w=0) | +64.88% +/- 0.84% | +14.76% +/- 1.16% | 1.27 +/- 0.07 | +35.12% +/- 0.84% | *Structurally zero* |
 | Ablation: Drop E5 (shared_phone, w=0) | +65.36% +/- 0.90% | +13.52% +/- 1.51% | 1.34 +/- 0.08 | +34.64% +/- 0.90% | *Structurally zero* |
 | Weight Robustness: All Weights x0.5 | +63.88% +/- 0.78% | +0.36% +/- 0.92% | 0.71 +/- 0.03 | +36.12% +/- 0.78% | *Structurally zero* |
-| Weight Robustness: All Weights x2.0 | +78.45% +/- 0.36% | +150.07% +/- 5.33% | 8.31 +/- 0.12 | +21.55% +/- 0.36% | *Structurally zero* |
+| Weight Robustness: All Weights x2.0 | +78.42% +/- 0.34% | +148.47% +/- 5.94% | 8.25 +/- 0.14 | +21.58% +/- 0.34% | *Structurally zero* |
 
 ### 6. Weight Robustness Analysis (Amendment 5)
 
 Sensitivity of the Champion K pipeline to a-priori weights at frozen $t_{\text{hh}} = 5.0$:
 - **Base Weights (1.0x)**: Record F1 = `0.4601 +/- 0.0063`
 - **Halved Weights (0.5x)**: Record F1 = `0.3069 +/- 0.0086`
-- **Doubled Weights (2.0x)**: Record F1 = `0.2127 +/- 0.0030`
+- **Doubled Weights (2.0x)**: Record F1 = `0.2129 +/- 0.0027`
 
 Results are highly sensitive to the a-priori weights (F1 0.46 -> 0.31 at x0.5, 0.21 at x2). The operating point depends on the threshold sitting just above the E1 weight, so single-channel E1 links are excluded and multi-channel links are kept. This is a fragility, not a robustness result.
 
