@@ -114,40 +114,46 @@ The 5:1 penalty ratio is an assumed [Assumed] operational parameter reflecting t
 
 ## 8. Reproducing the Experiments
 
-The `pytest -q -m artifacts` verification suite evaluates the full set of multi-seed experiment outputs stored in `results/` and `data/generated/`. To re-execute the entire research experiment sweep from scratch:
+To re-execute the entire research experiment sweep from scratch in one command, run: `python scripts/reproduce_all.py`.
+
+If running the stages manually (with `--threads 1` for DuckDB determinism):
 
 ### 8.1 Synthetic Data Generation
 ```bash
-# Generate development, holdout, and stress populations
-python -m barilink.cli generate --config configs/default.yaml --run-name dev_0
-for seed in 0 1 2 3 4 5 6 7 8 9; do
-    python -m barilink.cli generate --config configs/default.yaml --run-name holdout_$seed
+python -m barilink.cli build --config configs/default.yaml --run-name demo --seed-offset 0 --role dev
+for i in 0 1 2 3 4 5 6 7 8 9; do
+    python -m barilink.cli build --config configs/default.yaml --run-name holdout_$i --seed-offset $((1000 + i)) --role holdout
 done
-python -m barilink.cli generate --config configs/default.yaml --run-name stress_0
+python -m barilink.cli build --config configs/stress.yaml --run-name stress_0 --seed-offset 0 --role stress
 ```
 
-### 8.2 Model Training
+### 8.2 Model Training and Dev Threshold Selection
 ```bash
-# Train Fellegi-Sunter models on dev_0
-python -m barilink.cli link train-splink --config configs/default.yaml --run-name dev_0 --model-name splink_v1
-python -m barilink.cli link train-splink --config configs/default.yaml --run-name dev_0 --model-name splink_v2
-python -m barilink.cli link train-splink --config configs/default.yaml --run-name dev_0 --model-name splink_v3
-python -m barilink.cli link train-splink --config configs/default.yaml --run-name dev_0 --model-name splink_k
+for m in splink_v1 splink_v2 splink_v3 splink_v3_no_tf splink_v3_no_kinship splink_v3_1 splink_k; do
+    python -m barilink.cli link train --config configs/default.yaml --run-name demo --model $m --threads 1
+done
+for m in splink_v1 splink_v2 splink_v3 splink_v3_1 splink_k; do
+    python -m barilink.cli link predict --config configs/default.yaml --run-name demo --model $m --threads 1
+    python -m barilink.cli resolve --mode select --run-name demo --base-method $m --config configs/default.yaml
+done
 ```
 
-### 8.3 Holdout Predictions and Kinship Resolution
+### 8.3 Holdout, Baseline, Stress, and Household Evaluations
 ```bash
-# Run prediction and graph resolution across confirmation holdouts (holdout_5..9)
-for seed in 5 6 7 8 9; do
-    python -m barilink.cli link predict --run-name holdout_$seed --model-name splink_k
-    python -m barilink.cli resolve graph --run-name holdout_$seed --model-name splink_k --t-link 2.0 --t-bridge 4.0
-    python -m barilink.cli household infer --run-name holdout_$seed --t-hh 5.0
+for i in 5 6 7 8 9; do
+    python -m barilink.cli baseline --method exact_or_phone --run-name holdout_$i
+    python -m barilink.cli evaluate --run-name holdout_$i --method exact_or_phone --mode report
 done
+python -m barilink.cli evaluate batch --runs holdout_0..holdout_4 --methods splink_v1 splink_v1_resolved --threads 1
+python -m barilink.cli evaluate batch --runs holdout_5..holdout_9 --methods splink_v3_1 splink_v3_1_resolved splink_k splink_k_resolved --threads 1
+python -m barilink.cli evaluate batch --runs stress_0 --methods splink_v1 splink_v2 splink_v3 splink_v3_no_tf splink_v3_no_kinship splink_v3_resolved splink_v3_1_resolved splink_k_resolved --threads 1
+python -m barilink.cli evaluate stress --run-name stress_0
+python -m barilink.cli evaluate confirm --runs holdout_5..holdout_9
+python -m barilink.cli evaluate household-confirm --runs holdout_5 holdout_6 holdout_7 holdout_8 holdout_9 --threshold 5.0
 ```
 
 ### 8.4 Evaluation Summaries
 ```bash
-# Recompute summary JSON tables from experiment results
 python -m barilink.cli evaluate summarize --results-dir results --data-dir data/generated --output-dir results/summary
 python scripts/generate_preregistration_json.py
 python -m barilink.evaluate.audit_untrained

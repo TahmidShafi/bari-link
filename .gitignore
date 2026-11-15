@@ -30,6 +30,7 @@ results/**
 !results/**/*.md
 !results/**/selected_thresholds.json
 !results/**/model.json
+!results/**/provenance.json
 !results/publish/**
 !results/summary/**
 !results/holdout_confirm/**

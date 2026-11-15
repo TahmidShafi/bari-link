@@ -1533,8 +1533,73 @@ def main(argv: Sequence[str] | None = None) -> int:
         "untrained", help="Audit untrained Splink parameters and perform sensitivity analysis"
     )
 
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
     args = parser.parse_args(argv)
+    ret = _dispatch(args)
+    if ret == 0:
+        _record_sweep_provenance(args, raw_argv)
+    return ret
 
+
+def _record_sweep_provenance(args: argparse.Namespace, raw_argv: list[str]) -> None:
+    """Write results/<run>/provenance.json for per-run sweep stages (never pipeline/summarize)."""
+    from barilink.provenance import write_run_provenance
+
+    cmd = args.command
+    eval_sub = getattr(args, "eval_subcommand", None)
+    results_dir = Path(getattr(args, "results_dir", "results"))
+    data_dir = Path(getattr(args, "data_dir", "data/generated"))
+    config_path = getattr(args, "config", None)
+
+    if cmd == "build":
+        write_run_provenance(
+            run_dir=results_dir / args.run_name,
+            command="build",
+            cli_args=raw_argv,
+            seed_offset=args.seed_offset,
+            config_path=config_path,
+            data_dir=args.output_dir,
+            run_name=args.run_name,
+        )
+    elif cmd in ("baseline", "link", "resolve", "household"):
+        if cmd == "household" and getattr(args, "household_subcommand", None) != "infer":
+            return
+        sub = getattr(args, "action", None) or getattr(args, "household_subcommand", None)
+        full_cmd = f"{cmd} {sub}" if sub else cmd
+        write_run_provenance(
+            run_dir=results_dir / args.run_name,
+            command=full_cmd,
+            cli_args=raw_argv,
+            config_path=config_path,
+            data_dir=data_dir,
+            run_name=args.run_name,
+        )
+    elif cmd == "evaluate":
+        if eval_sub in (None, "blocking", "diagnose", "stress", "household"):
+            full_cmd = f"evaluate {eval_sub}" if eval_sub else "evaluate"
+            write_run_provenance(
+                run_dir=results_dir / args.run_name,
+                command=full_cmd,
+                cli_args=raw_argv,
+                config_path=config_path,
+                data_dir=data_dir,
+                run_name=args.run_name,
+            )
+        elif eval_sub == "batch":
+            from barilink.evaluate.batch import parse_runs_argument
+
+            for run_name in parse_runs_argument(args.runs):
+                write_run_provenance(
+                    run_dir=results_dir / run_name,
+                    command="evaluate batch",
+                    cli_args=raw_argv,
+                    config_path=config_path,
+                    data_dir=data_dir,
+                    run_name=run_name,
+                )
+
+
+def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "generate":
         return run_generate(
             config_path=args.config,

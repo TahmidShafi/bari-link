@@ -7,7 +7,7 @@ name = "barilink"
 version = "0.1.0"
 description = "Kinship-aware probabilistic deduplication of NGO beneficiary registries in rural Bangladesh"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.26.0",
     "pandas>=2.1.0",
