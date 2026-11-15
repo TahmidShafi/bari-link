@@ -354,24 +354,47 @@ def _compute_cluster_pairwise_fp_fn(clusters_p: Path, truth_p: Path) -> tuple[in
 
 
 def _read_stress_fm_at_recall_50(results_dir: Path) -> tuple[float, float, float]:
-    """Read Pooled FM @ R=0.50 from results/stress_0/stress_table.md."""
-    stress_table = results_dir / "stress_0" / "stress_table.md"
-    if not stress_table.exists():
-        stress_table = Path("results/stress_0/stress_table.md")
-
+    """Read unrounded Pooled FM @ R=0.50 from stress_curves.parquet (fallback: stress_table.md)."""
     k_fm: float = 0.0
     ref_fm: float = 0.0
-    if stress_table.exists():
-        with open(stress_table, "r", encoding="utf-8") as f:
-            for line in f:
-                if "splink_k_resolved" in line and "%" in line:
-                    cols = [c.strip() for c in line.split("|")]
-                    if len(cols) > 5 and "%" in cols[5]:
-                        k_fm = float(cols[5].rstrip("%")) / 100.0
-                elif "splink_v3_1_resolved" in line and "%" in line:
-                    cols = [c.strip() for c in line.split("|")]
-                    if len(cols) > 5 and "%" in cols[5]:
-                        ref_fm = float(cols[5].rstrip("%")) / 100.0
+    curves_p = results_dir / "stress_0" / "stress_curves.parquet"
+    if not curves_p.exists():
+        curves_p = Path("results/stress_0/stress_curves.parquet")
+
+    target_recall = 1.0 / 2
+    if curves_p.exists():
+        sc_df = pd.read_parquet(curves_p)
+        for m_id, target in (("splink_k_resolved", "k"), ("splink_v3_1_resolved", "ref")):
+            sub = (
+                sc_df[sc_df["method"] == m_id]
+                .sort_values("cluster_recall")
+                .drop_duplicates("cluster_recall")
+            )
+            if not sub.empty:
+                r_min, r_max = sub["cluster_recall"].min(), sub["cluster_recall"].max()
+                if r_min <= target_recall <= r_max:
+                    val = float(
+                        np.interp(target_recall, sub["cluster_recall"], sub["pooled_fm_rate"])
+                    )
+                    if target == "k":
+                        k_fm = val
+                    else:
+                        ref_fm = val
+    else:
+        stress_table = results_dir / "stress_0" / "stress_table.md"
+        if not stress_table.exists():
+            stress_table = Path("results/stress_0/stress_table.md")
+        if stress_table.exists():
+            with open(stress_table, "r", encoding="utf-8") as f:
+                for line in f:
+                    if "splink_k_resolved" in line and "%" in line:
+                        cols = [c.strip() for c in line.split("|")]
+                        if len(cols) > 5 and "%" in cols[5]:
+                            k_fm = float(cols[5].rstrip("%")) / 100.0
+                    elif "splink_v3_1_resolved" in line and "%" in line:
+                        cols = [c.strip() for c in line.split("|")]
+                        if len(cols) > 5 and "%" in cols[5]:
+                            ref_fm = float(cols[5].rstrip("%")) / 100.0
 
     gap_pp = round((k_fm - ref_fm) * 100.0, 1) if (k_fm and ref_fm) else 0.0
     return k_fm, ref_fm, gap_pp
@@ -528,8 +551,21 @@ def generate_confirm_summary(results_dir: Path, data_dir: Path) -> dict[str, Any
     k_stress_fm, ref_stress_fm, gap_pp = _read_stress_fm_at_recall_50(results_dir)
 
     # Same household false merges demo
-    ref_c, k_c = 25, 14
-    ref_p, k_p = 24, 16
+    from barilink.evaluate.confirm import compute_same_hh_false_merges
+
+    demo_truth_p = data_dir / "demo" / "truth" / "record_truth.parquet"
+    ref_hh = compute_same_hh_false_merges(
+        results_dir / "demo" / "splink_v3_1_resolved" / "clusters.parquet", demo_truth_p
+    )
+    k_hh = compute_same_hh_false_merges(
+        results_dir / "demo" / "splink_k_resolved" / "clusters.parquet", demo_truth_p
+    )
+    if ref_hh is None or k_hh is None:
+        raise FileNotFoundError(
+            "Missing demo clusters.parquet or truth/record_truth.parquet for same-HH FM summary."
+        )
+    ref_c, ref_p = ref_hh[0], ref_hh[1]
+    k_c, k_p = k_hh[0], k_hh[1]
     c_red_pct = round((ref_c - k_c) / ref_c * 100.0, 1)
     p_red_pct = round((ref_p - k_p) / ref_p * 100.0, 1)
 

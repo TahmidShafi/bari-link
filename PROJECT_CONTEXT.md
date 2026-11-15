@@ -647,6 +647,6 @@ This section records all architectural, demographic, and technical design decisi
 
 - **2026-11-15 Fresh-Clone Audit:**
   - Verified that the post-fix `holdout_0..4` `splink_v1` numbers reported in Entry 008a (`cluster precision = 0.6068`, `recall = 0.7564`) could not be reproduced from a clean rebuild; the clean `demo`-trained values on `holdout_0..4` are **`0.9243`** cluster precision and **`0.4408`** cluster recall (with `splink_v1_resolved` at `0.9188` precision / `0.4500` recall).
-  - Re-baselined `stress_0` explicitly with `--seed-offset 0` (at recall `0.50`: Pipeline K `55.6%` vs Reference `49.0%`, gap `6.6` pp).
+  - Re-baselined `stress_0` explicitly with `--seed-offset 0` (at recall `0.50`: Pipeline K `55.6%` vs Reference `49.0%`, gap `6.5` pp).
   - Applied the household `2.0x` determinism fix (commit `897b32e` + 30-node tied-min-cut regression test in `tests/test_pipeline_determinism.py`), producing deterministic `doubled_2_0x` outputs (`F1 = 0.2129`, `Size MAE = 7.2092`).
   - Regenerated all `demo`, `holdout_0..9`, `stress_0`, and `results/summary/*.json` artifacts in one clean sweep via `scripts/reproduce_all.py` in a locked Python `3.14.6` environment (`requirements-lock.txt`); see the **Change Log** in `README.md` for the full itemised diff.

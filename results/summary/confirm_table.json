@@ -115,9 +115,9 @@
   "cost_ratio_summary_verdict": "K is preferred when false merges cost at least 2x missed duplicates",
   "secondary_outcomes": {
     "doppelganger_stress_0_at_recall_50": {
-      "pipeline_k_fm": 0.556,
-      "reference_fm": 0.49,
-      "gap_pp": 6.6,
+      "pipeline_k_fm": 0.5557491289198606,
+      "reference_fm": 0.4904887465863076,
+      "gap_pp": 6.5,
       "theoretical_mechanism": "listed_as_other_member constraints act strictly within households and cannot prevent merges between distinct individuals in different households."
     },
     "same_household_false_merges_demo": {

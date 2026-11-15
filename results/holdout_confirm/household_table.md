@@ -28,17 +28,17 @@ Decomposes total household error into error from household inference logic itsel
 - **HH Reached Error % Delta**: `+20.40% +/- 1.18%`
 - **Household Size MAE Delta**: `0.05 +/- 0.03`
 
-Oracle persons reach only F1 0.61 (0.6062 +/- 0.0109) and +38.74% +/- 0.93% households-reached error, so most household error is intrinsic to household inference. Inherited person-linkage error accounts for about 0.15 F1 (-0.1470 +/- 0.0104, predominantly lost recall).
+Oracle persons reach only F1 0.61 (0.6066 +/- 0.0116) and +38.74% +/- 0.93% households-reached error, so most household error is intrinsic to household inference. Inherited person-linkage error accounts for about 0.15 F1 (-0.1465 +/- 0.0121, predominantly lost recall).
 
 ### 3. Ablation Findings & Consumption of Holdouts
 
-- **Ablation on E2 (`husband_link`)**: Dropping E2 raises F1 (0.459 -> 0.476; precision 0.68 -> 0.93), indicating husband-name skeleton matching causes false household merges.
-- **Ablation on E3 (`father_link`)**: Dropping E3 has no measurable effect (F1 0.4597 +/- 0.0069 vs 0.4592 +/- 0.0049).
+- **Ablation on E2 (`husband_link`)**: Dropping E2 raises F1 (0.460 -> 0.476; precision 0.69 -> 0.93), indicating husband-name skeleton matching causes false household merges.
+- **Ablation on E3 (`father_link`)**: Dropping E3 has no measurable effect (F1 0.4597 +/- 0.0068 vs 0.4601 +/- 0.0063).
 - **Protocol**: Do not re-tune; holdout_5..9 are consumed for household decisions.
 
 ### 4. Graph Partitioning & Max-Size Split Behavior
 
-At $t_{\text{hh}} = 5.0$, the max-size split fired on only 2 components across all 5 holdout seeds: `holdout_5` had 1 component of size 15 (cut weight 6.0), and `holdout_9` had 1 component of size 13 (cut weight 7.0), while `holdout_6`, `holdout_7`, and `holdout_8` had 0 oversize components. Both components (<= 25 nodes) were partitioned via exact Stoer-Wagner min-cut. Note: the sorted-bisection fallback (which splits components > 25 nodes by arbitrary node index) is a heuristic, not a min-cut.
+At $t_{\text{hh}} = 5.0$, components exceeding `max_size` (<= 25 nodes) are partitioned via exact Stoer-Wagner min-cut. Note: the sorted-bisection fallback (which splits components > 25 nodes by sorted node index) is a heuristic, not a min-cut.
 
 ### 5. Stratified Indirect Reach & Household Size (Amendment 3)
 

@@ -25,6 +25,36 @@ from barilink.evaluate.ablation import compute_wilson_ci
 from barilink.evaluate.aggregate import parse_runs_argument
 
 
+def compute_same_hh_false_merges(
+    clusters_p: Path, truth_p: Path
+) -> Optional[tuple[int, int, int, int]]:
+    """Compute (total_fm_clusters, same_hh_fm_pairs, diff_hh_fm_pairs, fm_clusters_same_hh)."""
+    if not clusters_p.exists() or not truth_p.exists():
+        return None
+    truth = pd.read_parquet(truth_p)[["record_id", "person_id", "household_id"]]
+    cl = pd.read_parquet(clusters_p).merge(truth, on="record_id")
+    fm_clusters = 0
+    same_hh_pairs = 0
+    diff_hh_pairs = 0
+    fm_clusters_same_hh = 0
+    for _, grp in cl.groupby("cluster_id"):
+        if grp["person_id"].nunique() > 1:
+            fm_clusters += 1
+            recs = grp[["person_id", "household_id"]].to_records(index=False)
+            has_same = False
+            for i in range(len(recs)):
+                for j in range(i + 1, len(recs)):
+                    if recs[i][0] != recs[j][0]:
+                        if recs[i][1] == recs[j][1]:
+                            same_hh_pairs += 1
+                            has_same = True
+                        else:
+                            diff_hh_pairs += 1
+            if has_same:
+                fm_clusters_same_hh += 1
+    return fm_clusters, same_hh_pairs, diff_hh_pairs, fm_clusters_same_hh
+
+
 def generate_confirm_table(
     runs: Sequence[str] | str = "holdout_5..holdout_9",
     methods: Optional[Sequence[str]] = None,
@@ -250,15 +280,25 @@ def generate_confirm_table(
             }
         )
 
+    row_by_method = {r["method"]: r for r in rows}
+    k_row = row_by_method.get("splink_k_resolved", {})
+    ref_row = row_by_method.get(reference_method, {})
+
     # Note on holdout doppelganger FM
+    k_dp = k_row.get("doppel_pooled_rate", 0.0) * 100
+    k_dp_l = k_row.get("doppel_ci_low", 0.0) * 100
+    k_dp_u = k_row.get("doppel_ci_high", 0.0) * 100
+    r_dp = ref_row.get("doppel_pooled_rate", 0.0) * 100
+    r_dp_l = ref_row.get("doppel_ci_low", 0.0) * 100
+    r_dp_u = ref_row.get("doppel_ci_high", 0.0) * 100
     lines.extend(
         [
             "",
             "> [!NOTE]",
             (
-                "> **Doppelganger False Merges on Holdouts**: Pipeline K achieves 1.32% "
-                "[0.56%, 3.04%] vs Reference 1.58% [0.73%, 3.40%]. There is no detectable "
-                "difference; CIs overlap."
+                f"> **Doppelganger False Merges on Holdouts**: Pipeline K achieves {k_dp:.2f}% "
+                f"[{k_dp_l:.2f}%, {k_dp_u:.2f}%] vs Reference {r_dp:.2f}% "
+                f"[{r_dp_l:.2f}%, {r_dp_u:.2f}%]. There is no detectable difference; CIs overlap."
             ),
         ]
     )
@@ -303,7 +343,73 @@ def generate_confirm_table(
     sd_d = float(np.std(k_ref_deltas, ddof=1)) if len(k_ref_deltas) > 1 else 0.0
     ref_costs_list = data_by_method[reference_method]["costs"]
     ref_mean_cost = float(np.mean(ref_costs_list)) if ref_costs_list else 0.0
+    k_costs_list = data_by_method.get("splink_k_resolved", {}).get("costs", [])
+    k_mean_cost = float(np.mean(k_costs_list)) if k_costs_list else 0.0
     rel_pct = (mean_d / ref_mean_cost * 100.0) if ref_mean_cost > 0 else 0.0
+
+    n_seeds = len(k_ref_deltas)
+    n_won = sum(1 for d in k_ref_deltas if d < 0)
+    p_one = (0.5**n_seeds) if n_seeds > 0 and n_won == n_seeds else 1.0
+    p_two = min(1.0, 2.0 * p_one)
+    k_prec = k_row.get("precision_mean", 0.0)
+    r_prec = ref_row.get("precision_mean", 0.0)
+    d_f1_mean = k_row.get("delta_f1_vs_ref_mean", 0.0)
+
+    # Compute cost-ratio sensitivity from clusters.parquet + truth/record_truth.parquet
+    from barilink.evaluate.summary import _compute_cluster_pairwise_fp_fn
+
+    ref_fp_fn: list[tuple[int, int]] = []
+    k_fp_fn: list[tuple[int, int]] = []
+    for r in run_list:
+        rc_p = Path(base_results_dir) / r / reference_method / "clusters.parquet"
+        kc_p = Path(base_results_dir) / r / "splink_k_resolved" / "clusters.parquet"
+        rt_p = Path(base_data_dir) / r / "truth" / "record_truth.parquet"
+        if rc_p.exists() and kc_p.exists() and rt_p.exists():
+            ref_fp_fn.append(_compute_cluster_pairwise_fp_fn(rc_p, rt_p))
+            k_fp_fn.append(_compute_cluster_pairwise_fp_fn(kc_p, rt_p))
+
+    ratio_rows_md: list[str] = []
+    ratio_deltas: dict[int, float] = {}
+    ratio_wins: dict[int, int] = {}
+    if ref_fp_fn and len(ref_fp_fn) == len(run_list):
+        for ratio_val, label in (
+            (1, "**1:1** (Balanced)"),
+            (2, "**2:1**"),
+            (5, "**5:1** (Pre-Registered)"),
+            (10, "**10:1** (Heavy FP Penalty)"),
+        ):
+            r_cs = [ratio_val * fp + fn for fp, fn in ref_fp_fn]
+            k_cs = [ratio_val * fp + fn for fp, fn in k_fp_fn]
+            d_cs = [kc - rc for kc, rc in zip(k_cs, r_cs)]
+            w = sum(1 for d in d_cs if d < 0)
+            dm = float(np.mean(d_cs))
+            ds = float(np.std(d_cs, ddof=1)) if len(d_cs) > 1 else 0.0
+            rm = float(np.mean(r_cs))
+            rs = float(np.std(r_cs, ddof=1)) if len(r_cs) > 1 else 0.0
+            km = float(np.mean(k_cs))
+            ks = float(np.std(k_cs, ddof=1)) if len(k_cs) > 1 else 0.0
+            ratio_deltas[ratio_val] = dm
+            ratio_wins[ratio_val] = w
+            ratio_rows_md.append(
+                f"| {label} | {rm:.1f} ± {rs:.1f} | {km:.1f} ± {ks:.1f} | "
+                f"{dm:+.1f} ± {ds:.1f} | {w}/{len(run_list)} seeds |"
+            )
+        ref_fp_m = float(np.mean([fp for fp, _ in ref_fp_fn]))
+        k_fp_m = float(np.mean([fp for fp, _ in k_fp_fn]))
+        ref_fn_m = float(np.mean([fn for _, fn in ref_fp_fn]))
+        k_fn_m = float(np.mean([fn for _, fn in k_fp_fn]))
+        ranking_line = (
+            f"- **Ranking Sensitivity**: At 1:1, Pipeline K holds a small advantage "
+            f"({ratio_deltas[1]:+.1f} cost points, winning {ratio_wins[1]}/{len(run_list)} seeds). "
+            f"As the false-merge penalty $\\lambda$ increases, Pipeline K's precision advantage "
+            f"(pairwise FP: {k_fp_m:.1f} vs {ref_fp_m:.1f}) heavily offsets its slight false "
+            f"negative difference (FN: {k_fn_m:.1f} vs {ref_fn_m:.1f}), widening the cost margin "
+            f"monotonically to {ratio_deltas[2]:+.1f} (2:1), {ratio_deltas[5]:+.1f} (5:1), and "
+            f"{ratio_deltas[10]:+.1f} (10:1), winning {ratio_wins[5]}/{len(run_list)} seeds."
+        )
+    else:
+        ratio_rows_md.append("| n/a | n/a | n/a | n/a | n/a |")
+        ranking_line = "- **Ranking Sensitivity**: Pairwise cluster/truth files unavailable."
 
     lines.extend(
         [
@@ -313,13 +419,13 @@ def generate_confirm_table(
                 f"cost points ({rel_pct:+.2f}%)."
             ),
             (
-                "- **Direction Consistency**: **5/5 seeds; one-sided sign test p = 0.031 "
-                "(two-sided 0.0625)** strictly favoured Pipeline K."
+                f"- **Direction Consistency**: **{n_won}/{n_seeds} seeds; one-sided sign test "
+                f"p = {p_one:.3f} (two-sided {p_two:.4f})** strictly favoured Pipeline K."
             ),
             (
-                "- **Precision vs Recall Trade-Off**: K's cost advantage comes from precision "
-                "(0.966 vs 0.946) at equal recall (F1 difference +0.0004), and the ranking "
-                "depends on the cost ratio."
+                f"- **Precision vs Recall Trade-Off**: K's cost advantage comes from precision "
+                f"({k_prec:.3f} vs {r_prec:.3f}) at equal recall (F1 difference {d_f1_mean:+.4f}), "
+                f"and the ranking depends on the cost ratio."
             ),
             (
                 "- **Verdict on H3**: **CONFIRMED**. Pipeline K achieves consistent operational "
@@ -342,24 +448,9 @@ def generate_confirm_table(
                 "Seeds Won (K < Ref) |"
             ),
             "| :--- | :--- | :--- | :--- | :--- |",
-            "| **1:1** (Balanced) | 713.0 ± 34.7 | 704.2 ± 26.6 | -8.8 ± 12.4 | 3/5 seeds |",
-            "| **2:1** | 756.8 ± 35.7 | 731.2 ± 23.1 | -25.6 ± 13.7 | 5/5 seeds |",
-            (
-                "| **5:1** (Pre-Registered) | 888.2 ± 51.2 | 812.2 ± 29.2 | "
-                "-76.0 ± 27.3 | 5/5 seeds |"
-            ),
-            (
-                "| **10:1** (Heavy FP Penalty) | 1107.2 ± 93.0 | 947.2 ± 64.5 | "
-                "-160.0 ± 56.4 | 5/5 seeds |"
-            ),
+            *ratio_rows_md,
             "",
-            (
-                "- **Ranking Sensitivity**: At 1:1, Pipeline K holds a small advantage (-8.8 cost "
-                "points, winning 3/5 seeds). As the false-merge penalty $\\lambda$ increases, "
-                "Pipeline K's precision advantage (pairwise FP: 27.0 vs 43.8) heavily offsets its "
-                "slight false negative difference (FN: 677.2 vs 669.2), widening the cost margin "
-                "monotonically to -25.6 (2:1), -76.0 (5:1), and -160.0 (10:1), winning 5/5 seeds."
-            ),
+            ranking_line,
             "",
             "---",
             "",
@@ -384,6 +475,7 @@ def generate_confirm_table(
     )
 
     # Read matched recall numbers from stress curves
+    stress_p05: dict[str, float] = {}
     stress_curves_p = Path(base_results_dir) / "stress_0" / "stress_curves.parquet"
     if stress_curves_p.exists():
         sc_df = pd.read_parquet(stress_curves_p)
@@ -410,20 +502,62 @@ def generate_confirm_table(
                         ival = float(np.interp(tr, sub["cluster_recall"], sub["injected_fm_rate"]))
                         vals[f"p_{tr}"] = f"{pval * 100:.1f}%"
                         vals[f"i_{tr}"] = f"{ival * 100:.1f}%"
+                        if tr == 0.50:
+                            stress_p05[m_id] = pval
                 lines.append(
                     f"| `{m_id}` | {desc} | {vals['p_0.4']} | {vals['i_0.4']} | "
                     f"{vals['p_0.5']} | {vals['i_0.5']} | {vals['p_0.6']} | {vals['i_0.6']} |"
                 )
 
+    k_s05 = stress_p05.get("splink_k_resolved")
+    r_s05 = stress_p05.get("splink_v3_1_resolved")
+    if k_s05 is not None and r_s05 is not None:
+        gap_pp = round((k_s05 - r_s05) * 100.0, 1)
+        sec_a_summary = (
+            f"- As anticipated in the pre-registration, Pipeline K exhibits higher "
+            f"doppelganger false-merge rates on cross-household collisions at matched recall "
+            f"({k_s05 * 100:.1f}% vs {r_s05 * 100:.1f}% at $R=0.50$, a gap of {gap_pp:+.1f} pp)."
+        )
+        stress_tradeoff_nums = f"({k_s05 * 100:.1f}% vs {r_s05 * 100:.1f}% at $R=0.50$) "
+    else:
+        sec_a_summary = (
+            "- As anticipated in the pre-registration, Pipeline K exhibits higher "
+            "doppelganger false-merge rates on cross-household collisions at matched recall "
+            "(stress_curves.parquet unavailable)."
+        )
+        stress_tradeoff_nums = ""
+
+    demo_truth_p = Path(base_data_dir) / dev_run / "truth" / "record_truth.parquet"
+    ref_hh = compute_same_hh_false_merges(
+        Path(base_results_dir) / dev_run / reference_method / "clusters.parquet", demo_truth_p
+    )
+    k_hh = compute_same_hh_false_merges(
+        Path(base_results_dir) / dev_run / "splink_k_resolved" / "clusters.parquet", demo_truth_p
+    )
+    if ref_hh and k_hh:
+        ref_hh_row = (
+            f"| `{reference_method}` (Reference) | {ref_hh[0]} | {ref_hh[1]} | "
+            f"{ref_hh[2]} | {ref_hh[3]} |"
+        )
+        k_hh_row = (
+            f"| `splink_k_resolved` (Pipeline K) | **{k_hh[0]}** | **{k_hh[1]}** | "
+            f"**{k_hh[2]}** | **{k_hh[3]}** |"
+        )
+        same_hh_pair_note = f"({k_hh[1]} vs {ref_hh[1]} pairs)"
+    else:
+        ref_hh_row = f"| `{reference_method}` (Reference) | n/a | n/a | n/a | n/a |"
+        k_hh_row = "| `splink_k_resolved` (Pipeline K) | n/a | n/a | n/a | n/a |"
+        same_hh_pair_note = "(clusters unavailable)"
+
+    ref_dev_c = data_by_method[reference_method]["dev_cost"] or 0.0
+    k_dev_c = data_by_method.get("splink_k_resolved", {}).get("dev_cost") or 0.0
+    dev_rel_pct = ((k_dev_c - ref_dev_c) / ref_dev_c * 100.0) if ref_dev_c > 0 else 0.0
+
     lines.extend(
         [
             "",
             "**Analysis of Secondary Outcome (a)**:",
-            (
-                "- As anticipated in the pre-registration, Pipeline K exhibits higher "
-                "doppelganger false-merge rates on cross-household collisions at matched recall "
-                "(62.1% vs 52.3% at $R=0.50$, a gap of +9.8 pp)."
-            ),
+            sec_a_summary,
             (
                 "- *Theoretical Mechanism*: `listed_as_other_member` cannot-link constraints act "
                 "strictly within households (where roster members are co-residents). They cannot "
@@ -441,8 +575,8 @@ def generate_confirm_table(
                 "Different-Household FM Pairs | FM Clusters Containing Same-HH Persons |"
             ),
             "| :--- | :--- | :--- | :--- | :--- |",
-            "| `splink_v3_1_resolved` (Reference) | 25 | 24 | 2 | 23 |",
-            "| `splink_k_resolved` (Pipeline K) | **14** | **16** | **1** | **13** |",
+            ref_hh_row,
+            k_hh_row,
             "",
             (
                 "- **Hypothesized Mechanism (not yet confirmed)**: Operating at lower match "
@@ -464,22 +598,23 @@ def generate_confirm_table(
             "",
             "### Analysis of the Trade-Off",
             (
-                "1. **Operational Cost**: Under the project's pre-registered 5:1 asymmetric loss "
-                "function ($5 \\cdot \\text{FP} + 1 \\cdot \\text{FN}$), Pipeline K lowers DEV "
-                "expected cost from 828.0 to 782.0 (-5.56%), and lowers 5-seed holdout cost "
-                "from 888.2 to 812.2 (-8.55%, saving an average of 76.0 cost points per seed "
-                "with 5/5 direction consistency)."
+                "1. **Operational Cost**: Under the project's pre-registered 5:1 asymmetric "
+                "loss function ($5 \\cdot \\text{FP} + 1 \\cdot \\text{FN}$), Pipeline K lowers "
+                f"DEV expected cost from {ref_dev_c:.1f} to {k_dev_c:.1f} ({dev_rel_pct:+.2f}%), "
+                f"and lowers {n_seeds}-seed holdout cost from {ref_mean_cost:.1f} to "
+                f"{k_mean_cost:.1f} ({rel_pct:+.2f}%, saving an average of {abs(mean_d):.1f} "
+                f"cost points per seed with {n_won}/{n_seeds} direction consistency)."
             ),
             (
-                "2. **Precision and Disambiguation**: Pipeline K achieves higher cluster precision "
-                "(0.9656 vs 0.9457) and cuts same-household false merges substantially "
-                "(16 vs 24 pairs)."
+                "2. **Precision and Disambiguation**: Pipeline K achieves higher cluster "
+                f"precision ({k_prec:.4f} vs {r_prec:.4f}) and cuts same-household false merges "
+                f"substantially {same_hh_pair_note}."
             ),
             (
-                "3. **Doppelganger Stress Penalty**: Under an extreme synthetic stress scenario "
-                "with 400+ injected cross-household doppelgangers, Pipeline K is more vulnerable "
-                "to cross-household name collisions (62.1% vs 52.3% at $R=0.50$) because its "
-                "roster constraints are structural rather than probabilistic."
+                f"3. **Doppelganger Stress Penalty**: Under an extreme synthetic stress scenario "
+                f"with 400+ injected cross-household doppelgangers, Pipeline K is more vulnerable "
+                f"to cross-household name collisions {stress_tradeoff_nums}because its "
+                f"roster constraints are structural rather than probabilistic."
             ),
             "",
             "### Recommendation",

@@ -48,10 +48,10 @@ Holdout mean costs recomputed from existing threshold tables at each pipeline's 
 
 | Cost Ratio ($\lambda : 1$) | Reference Cost (mean ± sd) | Pipeline K Cost (mean ± sd) | Paired $\Delta\text{Cost}$ ($C_{\text{K}} - C_{\text{ref}}$) | Seeds Won (K < Ref) |
 | :--- | :--- | :--- | :--- | :--- |
-| **1:1** (Balanced) | 713.0 ± 34.7 | 704.2 ± 26.6 | -8.8 ± 12.4 | 3/5 seeds |
-| **2:1** | 756.8 ± 35.7 | 731.2 ± 23.1 | -25.6 ± 13.7 | 5/5 seeds |
+| **1:1** (Balanced) | 713.0 ± 34.7 | 704.2 ± 26.6 | -8.8 ± 11.8 | 3/5 seeds |
+| **2:1** | 756.8 ± 35.7 | 731.2 ± 23.1 | -25.6 ± 13.6 | 5/5 seeds |
 | **5:1** (Pre-Registered) | 888.2 ± 51.2 | 812.2 ± 29.2 | -76.0 ± 27.3 | 5/5 seeds |
-| **10:1** (Heavy FP Penalty) | 1107.2 ± 93.0 | 947.2 ± 64.5 | -160.0 ± 56.4 | 5/5 seeds |
+| **10:1** (Heavy FP Penalty) | 1107.2 ± 93.0 | 947.2 ± 64.5 | -160.0 ± 55.5 | 5/5 seeds |
 
 - **Ranking Sensitivity**: At 1:1, Pipeline K holds a small advantage (-8.8 cost points, winning 3/5 seeds). As the false-merge penalty $\lambda$ increases, Pipeline K's precision advantage (pairwise FP: 27.0 vs 43.8) heavily offsets its slight false negative difference (FN: 677.2 vs 669.2), widening the cost margin monotonically to -25.6 (2:1), -76.0 (5:1), and -160.0 (10:1), winning 5/5 seeds.
 
@@ -70,7 +70,7 @@ Because doppelganger discrimination operates at different selected score scales,
 | `splink_v3_no_kinship` | Unresolved Baseline (No Kinship Evidence) | 50.2% | 57.8% | 55.1% | 63.5% | 60.7% | 69.5% |
 
 **Analysis of Secondary Outcome (a)**:
-- As anticipated in the pre-registration, Pipeline K exhibits higher doppelganger false-merge rates on cross-household collisions at matched recall (62.1% vs 52.3% at $R=0.50$, a gap of +9.8 pp).
+- As anticipated in the pre-registration, Pipeline K exhibits higher doppelganger false-merge rates on cross-household collisions at matched recall (55.6% vs 49.0% at $R=0.50$, a gap of +6.5 pp).
 - *Theoretical Mechanism*: `listed_as_other_member` cannot-link constraints act strictly within households (where roster members are co-residents). They cannot prevent merges between distinct individuals in different households who share names and locations. Probabilistic kinship evidence provides weak negative evidence against cross-household doppelgangers when rosters do not overlap, but at the cost of severe conditional independence violations and spurious link penalties across the broader beneficiary population.
 
 ### (b) Same-Household False Merges on DEV (`demo`)
@@ -90,9 +90,9 @@ Because doppelganger discrimination operates at different selected score scales,
 > **Pre-Registered Policy**: *"If K wins on cost but loses on (a), the project reports this as a trade-off and recommends the pipeline by the stated cost ratio, not by the better-looking metric."*
 
 ### Analysis of the Trade-Off
-1. **Operational Cost**: Under the project's pre-registered 5:1 asymmetric loss function ($5 \cdot \text{FP} + 1 \cdot \text{FN}$), Pipeline K lowers DEV expected cost from 828.0 to 782.0 (-5.56%), and lowers 5-seed holdout cost from 888.2 to 812.2 (-8.55%, saving an average of 76.0 cost points per seed with 5/5 direction consistency).
+1. **Operational Cost**: Under the project's pre-registered 5:1 asymmetric loss function ($5 \cdot \text{FP} + 1 \cdot \text{FN}$), Pipeline K lowers DEV expected cost from 828.0 to 782.0 (-5.56%), and lowers 5-seed holdout cost from 888.2 to 812.2 (-8.56%, saving an average of 76.0 cost points per seed with 5/5 direction consistency).
 2. **Precision and Disambiguation**: Pipeline K achieves higher cluster precision (0.9656 vs 0.9457) and cuts same-household false merges substantially (16 vs 24 pairs).
-3. **Doppelganger Stress Penalty**: Under an extreme synthetic stress scenario with 400+ injected cross-household doppelgangers, Pipeline K is more vulnerable to cross-household name collisions (62.1% vs 52.3% at $R=0.50$) because its roster constraints are structural rather than probabilistic.
+3. **Doppelganger Stress Penalty**: Under an extreme synthetic stress scenario with 400+ injected cross-household doppelgangers, Pipeline K is more vulnerable to cross-household name collisions (55.6% vs 49.0% at $R=0.50$) because its roster constraints are structural rather than probabilistic.
 
 ### Recommendation
 - **Pipeline K (`splink_k_resolved`) is preferred under this synthetic benchmark and the assumed 5:1 cost ratio; not validated on real registry data.**

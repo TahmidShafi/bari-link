@@ -682,24 +682,39 @@ def run_household_confirmation(
     md.append(f"- **HH Reached Error % Delta**: `{fmt_stat(diff_hh_err, pct=True)}`")
     md.append(f"- **Household Size MAE Delta**: `{fmt_stat(diff_mae, decimals=2)}`")
     md.append("")
+    ora_f1_s = fmt_stat([m.record_pairwise_f1 for m in ora_list])
+    ora_f1_m = float(np.mean([m.record_pairwise_f1 for m in ora_list]))
+    ora_hh_s = fmt_stat([m.households_reached_error_pct for m in ora_list], pct=True)
+    diff_f1_m = float(np.mean(diff_f1))
+    diff_f1_s = fmt_stat(diff_f1)
     md.append(
-        "Oracle persons reach only F1 0.61 (0.6062 +/- 0.0109) and +38.74% +/- 0.93% "
-        "households-reached error, so most household error is intrinsic to household inference. "
-        "Inherited person-linkage error accounts for about 0.15 F1 (-0.1470 +/- 0.0104, "
-        "predominantly lost recall)."
+        f"Oracle persons reach only F1 {ora_f1_m:.2f} ({ora_f1_s}) and {ora_hh_s} "
+        f"households-reached error, so most household error is intrinsic to household inference. "
+        f"Inherited person-linkage error accounts for about {abs(diff_f1_m):.2f} F1 ({diff_f1_s}, "
+        f"predominantly lost recall)."
     )
     md.append("")
     md.append("### 3. Ablation Findings & Consumption of Holdouts")
     md.append("")
-    md.append(
-        "- **Ablation on E2 (`husband_link`)**: Dropping E2 raises F1 (0.459 -> 0.476; "
-        "precision 0.68 -> 0.93), indicating husband-name skeleton matching causes false "
-        "household merges."
-    )
-    md.append(
-        "- **Ablation on E3 (`father_link`)**: Dropping E3 has no measurable effect "
-        "(F1 0.4597 +/- 0.0069 vs 0.4592 +/- 0.0049)."
-    )
+    k_f1_m = float(np.mean([m.record_pairwise_f1 for m in k_list]))
+    k_p_m = float(np.mean([m.record_pairwise_precision for m in k_list]))
+    e2_list = all_metrics.get("ablation_no_e2", [])
+    e3_list = all_metrics.get("ablation_no_e3", [])
+    if e2_list:
+        e2_f1_m = float(np.mean([m.record_pairwise_f1 for m in e2_list]))
+        e2_p_m = float(np.mean([m.record_pairwise_precision for m in e2_list]))
+        md.append(
+            f"- **Ablation on E2 (`husband_link`)**: Dropping E2 raises F1 "
+            f"({k_f1_m:.3f} -> {e2_f1_m:.3f}; precision {k_p_m:.2f} -> {e2_p_m:.2f}), "
+            f"indicating husband-name skeleton matching causes false household merges."
+        )
+    if e3_list:
+        e3_f1_s = fmt_stat([m.record_pairwise_f1 for m in e3_list])
+        k_f1_s = fmt_stat([m.record_pairwise_f1 for m in k_list])
+        md.append(
+            f"- **Ablation on E3 (`father_link`)**: Dropping E3 has no measurable effect "
+            f"(F1 {e3_f1_s} vs {k_f1_s})."
+        )
     md.append(
         "- **Protocol**: Do not re-tune; holdout_5..9 are consumed for household decisions."
     )
@@ -707,12 +722,9 @@ def run_household_confirmation(
     md.append("### 4. Graph Partitioning & Max-Size Split Behavior")
     md.append("")
     md.append(
-        "At $t_{\\text{hh}} = 5.0$, the max-size split fired on only 2 components across all "
-        "5 holdout seeds: `holdout_5` had 1 component of size 15 (cut weight 6.0), and `holdout_9` "
-        "had 1 component of size 13 (cut weight 7.0), while `holdout_6`, `holdout_7`, and "
-        "`holdout_8` had 0 oversize components. Both components (<= 25 nodes) were partitioned "
-        "via exact Stoer-Wagner min-cut. Note: the sorted-bisection fallback (which splits "
-        "components > 25 nodes by arbitrary node index) is a heuristic, not a min-cut."
+        f"At $t_{{\\text{{hh}}}} = {t_hh:.1f}$, components exceeding `max_size` (<= 25 nodes) "
+        f"are partitioned via exact Stoer-Wagner min-cut. Note: the sorted-bisection fallback "
+        f"(which splits components > 25 nodes by sorted node index) is a heuristic, not a min-cut."
     )
     md.append("")
     md.append("### 5. Stratified Indirect Reach & Household Size (Amendment 3)")
@@ -759,11 +771,18 @@ def run_household_confirmation(
     md.append(f"- **Halved Weights (0.5x)**: Record F1 = `{half_f1}`")
     md.append(f"- **Doubled Weights (2.0x)**: Record F1 = `{double_f1}`")
     md.append("")
+    half_f1_m = float(
+        np.mean([m.record_pairwise_f1 for m in all_metrics["robustness_weights_x0_5"]])
+    )
+    double_f1_m = float(
+        np.mean([m.record_pairwise_f1 for m in all_metrics["robustness_weights_x2_0"]])
+    )
     md.append(
-        "Results are highly sensitive to the a-priori weights (F1 0.46 -> 0.31 at x0.5, "
-        "0.21 at x2). The operating point depends on the threshold sitting just above the "
-        "E1 weight, so single-channel E1 links are excluded and multi-channel links are kept. "
-        "This is a fragility, not a robustness result."
+        f"Results are highly sensitive to the a-priori weights "
+        f"(F1 {k_f1_m:.2f} -> {half_f1_m:.2f} at x0.5, {double_f1_m:.2f} at x2). "
+        f"The operating point depends on the threshold sitting just above the "
+        f"E1 weight, so single-channel E1 links are excluded and multi-channel links are kept. "
+        f"This is a fragility, not a robustness result."
     )
     md.append("")
     md.append("### 7. Future Work")

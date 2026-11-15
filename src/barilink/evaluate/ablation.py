@@ -270,6 +270,29 @@ def generate_ablation_table(
             }
         )
 
+    def _m_mean_cost(m: str) -> float:
+        c = data_by_method.get(m, {}).get("cost", [])
+        return float(np.mean(c)) if c else 0.0
+
+    def _m_dev_cost(m: str) -> float:
+        v = data_by_method.get(m, {}).get("dev_cost")
+        return float(v) if v is not None else 0.0
+
+    v1_dev = _m_dev_cost("splink_v1")
+    v2_dev = _m_dev_cost("splink_v2")
+    v3_dev = _m_dev_cost("splink_v3")
+    v3r_dev = _m_dev_cost("splink_v3_resolved")
+    v1_hc = _m_mean_cost("splink_v1")
+    v2_hc = _m_mean_cost("splink_v2")
+    v3_hc = _m_mean_cost("splink_v3")
+    v3_ntf_hc = _m_mean_cost("splink_v3_no_tf")
+    v3r_hc = _m_mean_cost("splink_v3_resolved")
+    v2_dev_pct = ((v2_dev - v1_dev) / v1_dev * 100.0) if v1_dev else 0.0
+    v3_dev_pct = ((v3_dev - v2_dev) / v2_dev * 100.0) if v2_dev else 0.0
+    v3_nok_w = data_by_method.get("splink_v3_no_kinship", {}).get("t_cost_weight") or 0.0
+    v3r_tl = data_by_method.get("splink_v3_resolved", {}).get("t_link") or 0.0
+    v3r_tb = data_by_method.get("splink_v3_resolved", {}).get("t_bridge") or 0.0
+
     lines.extend(
         [
             "",
@@ -279,36 +302,39 @@ def generate_ablation_table(
             "",
             "1. **Guardian Type Disambiguation (H1: `splink_v2`)**:",
             (
-                "   - Separating different/unknown guardian types from matching guardian types "
-                "reduced dev expected cost from 960.0 to 937.0 (-2.4%), lowering holdout cost "
-                "by over 2,800 points."
+                f"   - Separating different/unknown guardian types from matching guardian types "
+                f"reduced dev expected cost from {v1_dev:.1f} to {v2_dev:.1f} "
+                f"({v2_dev_pct:+.1f}%), changing holdout cost by {v2_hc - v1_hc:+.1f} points."
             ),
             "",
             "2. **Household vs Individual Kinship Disambiguation (H2: `splink_v3`)**:",
             (
-                "   - Filtering the participant's own name from roster arrays and penalising "
-                "co-residents listed in the other member's roster (`listed_as_other_member`) "
-                "lowered dev expected cost to 875.0 (-6.6% vs v2), dropping holdout cost to 928.6."
+                f"   - Filtering the participant's own name from roster arrays and penalising "
+                f"co-residents listed in the other member's roster (`listed_as_other_member`) "
+                f"lowered dev expected cost to {v3_dev:.1f} ({v3_dev_pct:+.1f}% vs v2), "
+                f"with holdout cost at {v3_hc:.1f}."
             ),
             "",
             "3. **Impact of Term Frequency (`splink_v3_no_tf`)**:",
             (
-                "   - Removing TF weights slightly increases holdout cost (+21.0 vs v3) due to "
-                "reduced discrimination on frequent Bangladeshi given names."
+                f"   - Removing TF weights changes holdout cost by {v3_ntf_hc - v3_hc:+.1f} "
+                f"vs v3 due to reduced discrimination on frequent Bangladeshi given names."
             ),
             "",
             "4. **Kinship Evidence as Fellegi-Sunter (`splink_v3_no_kinship`)**:",
             (
-                "   - Disabling the kinship comparison optimizes at a lower match-weight threshold "
-                "($w=1.25$), reducing false negatives on holdout registries but increasing "
-                "vulnerability under stress."
+                "   - Disabling the kinship comparison optimizes at a lower match-weight "
+                f"threshold ($w={v3_nok_w:.2f}$), reducing false negatives on holdout registries "
+                "but increasing vulnerability under stress."
             ),
             "",
             "5. **Entity Resolution (`splink_v3_resolved`)**:",
             (
-                "   - Deterministic `listed_as_other_member` cannot-link cuts and weak-bridge "
-                "pruning with frozen parameters ($t_{\\text{link}}=6.5, t_{\\text{bridge}}=8.0$) "
-                "lower dev cost to 830.0 and holdout cost to 862.6 (-66.0 vs v3, -3067.2 vs v1)."
+                f"   - Deterministic `listed_as_other_member` cannot-link cuts and weak-bridge "
+                f"pruning with frozen parameters ($t_{{\\text{{link}}}}={v3r_tl:.1f}, "
+                f"t_{{\\text{{bridge}}}}={v3r_tb:.1f}$) set dev cost to {v3r_dev:.1f} and "
+                f"holdout cost to {v3r_hc:.1f} ({v3r_hc - v3_hc:+.1f} vs v3, "
+                f"{v3r_hc - v1_hc:+.1f} vs v1)."
             ),
             "",
         ]
@@ -964,15 +990,48 @@ def generate_stress_table(
             f"{p60} | {n60} | {i60} |"
         )
 
+    holdout_note = (
+        "- On natural demographic holdouts (`holdout_5` .. `holdout_9`), doppelganger "
+        "false-merge rates for Pipeline K vs Reference show no detectable difference; CIs overlap."
+    )
+    k_hm, k_ht, r_hm, r_ht = 0, 0, 0, 0
+    for h_run in [f"holdout_{i}" for i in range(5, 10)]:
+        dp_p = Path(base_data_dir) / h_run / "truth" / "doppelganger_person_pairs.parquet"
+        km_p = Path(base_results_dir) / h_run / "splink_k_resolved" / "metrics.json"
+        rm_p = Path(base_results_dir) / h_run / "splink_v3_1_resolved" / "metrics.json"
+        if dp_p.exists() and km_p.exists() and rm_p.exists():
+            n_dp = len(pd.read_parquet(dp_p))
+            with open(km_p, "r", encoding="utf-8") as f:
+                k_fm = float(
+                    json.load(f)["headline_metrics_at_t_cost"].get(
+                        "doppelganger_false_merge_rate", 0.0
+                    )
+                )
+            with open(rm_p, "r", encoding="utf-8") as f:
+                r_fm = float(
+                    json.load(f)["headline_metrics_at_t_cost"].get(
+                        "doppelganger_false_merge_rate", 0.0
+                    )
+                )
+            k_hm += int(round(k_fm * n_dp))
+            k_ht += n_dp
+            r_hm += int(round(r_fm * n_dp))
+            r_ht += n_dp
+    if k_ht > 0 and r_ht > 0:
+        kp, kcl, kcu = compute_wilson_ci(k_hm, k_ht)
+        rp, rcl, rcu = compute_wilson_ci(r_hm, r_ht)
+        holdout_note = (
+            "- On natural demographic holdouts (`holdout_5` .. `holdout_9`), doppelganger "
+            f"false-merge rates for Pipeline K ({kp * 100:.2f}% "
+            f"[{kcl * 100:.2f}%, {kcu * 100:.2f}%]) vs Reference ({rp * 100:.2f}% "
+            f"[{rcl * 100:.2f}%, {rcu * 100:.2f}%]) show no detectable difference; CIs overlap."
+        )
+
     lines.extend(
         [
             "",
             "### Evaluation Benchmark Note",
-            (
-                "- On natural demographic holdouts (`holdout_5` .. `holdout_9`), doppelganger "
-                "false-merge rates for Pipeline K (1.32% [0.56%, 3.04%]) vs Reference "
-                "(1.58% [0.73%, 3.40%]) show no detectable difference; CIs overlap."
-            ),
+            holdout_note,
             (
                 "- Pipeline K (`splink_k_resolved`) is preferred under this synthetic benchmark "
                 "and the assumed 5:1 cost ratio; not validated on real registry data."

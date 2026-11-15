@@ -750,6 +750,83 @@ def test_confirm_table_function_correctness(tmp_path):
     assert out_file.stat().st_size > 0
 
 
+def test_confirm_table_secondary_outcome_a_matches_stress_table(tmp_path):
+    """Verify Secondary Outcome (a) prose matches the table's R=0.50 stress_0 values."""
+    import re
+
+    from barilink.evaluate.confirm import generate_confirm_table
+
+    for run_name in ("demo", "holdout_toy"):
+        for method in ("splink_k_resolved", "splink_v3_1_resolved"):
+            d = tmp_path / "results" / run_name / method
+            d.mkdir(parents=True, exist_ok=True)
+            with open(d / "metrics.json", "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "headline_metrics_at_t_cost": {
+                            "expected_cost": 800.0,
+                            "cluster_precision": 0.95,
+                            "cluster_recall": 0.55,
+                            "cluster_f1": 0.70,
+                            "reach_error_pct": 10.0,
+                            "doppelganger_false_merge_rate": 0.01,
+                        },
+                        "operational_thresholds": {"t_link": 2.0, "t_bridge": 4.0},
+                    },
+                    f,
+                )
+
+    truth_p = tmp_path / "data" / "holdout_toy" / "truth"
+    truth_p.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(columns=["person_id_1", "person_id_2"]).to_parquet(
+        truth_p / "doppelganger_person_pairs.parquet", index=False
+    )
+
+    stress_dir = tmp_path / "results" / "stress_0"
+    stress_dir.mkdir(parents=True, exist_ok=True)
+    rows = [
+        ("splink_v3_1_resolved", 0.40, 0.410, 0.470),
+        ("splink_v3_1_resolved", 0.50, 0.490, 0.563),
+        ("splink_v3_1_resolved", 0.60, 0.562, 0.646),
+        ("splink_k_resolved", 0.40, 0.502, 0.579),
+        ("splink_k_resolved", 0.50, 0.556, 0.639),
+        ("splink_k_resolved", 0.60, 0.603, 0.691),
+    ]
+    pd.DataFrame(
+        rows,
+        columns=["method", "cluster_recall", "pooled_fm_rate", "injected_fm_rate"],
+    ).to_parquet(stress_dir / "stress_curves.parquet", index=False)
+
+    out_file = tmp_path / "confirm_output.md"
+    generate_confirm_table(
+        runs=["holdout_toy"],
+        methods=["splink_k_resolved", "splink_v3_1_resolved"],
+        reference_method="splink_v3_1_resolved",
+        dev_run="demo",
+        base_data_dir=tmp_path / "data",
+        base_results_dir=tmp_path / "results",
+        output_path=out_file,
+    )
+    text = out_file.read_text(encoding="utf-8")
+
+    # Extract table R=0.50 pooled FM values for Reference and Pipeline K
+    ref_row = re.search(r"\| `splink_v3_1_resolved` \|[^|]+\|[^|]+\|[^|]+\|\s*([\d.]+)%", text)
+    k_row = re.search(r"\| `splink_k_resolved` \|[^|]+\|[^|]+\|[^|]+\|\s*([\d.]+)%", text)
+    assert ref_row and k_row
+    ref_p05, k_p05 = float(ref_row.group(1)), float(k_row.group(1))
+    gap_pp = k_p05 - ref_p05
+
+    sec_a_match = re.search(
+        r"\*\*Analysis of Secondary Outcome \(a\)\*\*:\s*\n"
+        r"-\s*[^\n]*\(([\d.]+)% vs ([\d.]+)% at \$R=0\.50\$, a gap of ([+-]?[\d.]+) pp\)",
+        text,
+    )
+    assert sec_a_match is not None, f"Secondary Outcome (a) sentence missing or unparsed:\n{text}"
+    assert float(sec_a_match.group(1)) == pytest.approx(k_p05, abs=0.1)
+    assert float(sec_a_match.group(2)) == pytest.approx(ref_p05, abs=0.1)
+    assert float(sec_a_match.group(3)) == pytest.approx(gap_pp, abs=0.1)
+
+
 @pytest.mark.artifacts
 def test_confirm_table_generation_and_direction():
     """Verify Hypothesis H3 confirmation table generation and 5/5 seed direction."""
