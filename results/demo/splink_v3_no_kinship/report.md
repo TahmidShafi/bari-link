@@ -1,10 +1,8 @@
 # Evaluation Report: splink_v3_no_kinship (demo)
 
 - **Dataset Role**: `dev`
-- **Evaluation Mode**: `report`
+- **Evaluation Mode**: `select`
 - **Threshold Grid**: `weight`
-- **Threshold Source Run**: `demo`
-- **Thresholds SHA-256**: `6a46c7aeeed1d046...`
 - **Selected $t_{\text{cost}}$**: `Weight = 1.25 (p = 0.704003)`
 - **Selected $t_{p99}$**: `Weight = 9.25 (p = 0.998360)`
 

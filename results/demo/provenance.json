@@ -1,5 +1,5 @@
 {
-  "git_commit": "6c0c96dd1d77c9c312ad104dc948d4059acd0c24",
+  "git_commit": "bf66753c7d1e16a19ccfa90091a508a417e8975e",
   "git_dirty": false,
   "packages": {
     "duckdb": "2.0.0",
@@ -175,6 +175,21 @@
     },
     {
       "cli_args": [
+        "evaluate",
+        "--run-name",
+        "demo",
+        "--method",
+        "splink_v1",
+        "--mode",
+        "select"
+      ],
+      "command": "evaluate",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
         "resolve",
         "--mode",
         "select",
@@ -199,11 +214,59 @@
         "--run-name",
         "demo",
         "--model",
+        "splink_v2",
+        "--threads",
+        "1"
+      ],
+      "command": "link predict",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "--run-name",
+        "demo",
+        "--method",
+        "splink_v2",
+        "--mode",
+        "select"
+      ],
+      "command": "evaluate",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "link",
+        "predict",
+        "--config",
+        "configs/default.yaml",
+        "--run-name",
+        "demo",
+        "--model",
         "splink_v3",
         "--threads",
         "1"
       ],
       "command": "link predict",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "--run-name",
+        "demo",
+        "--method",
+        "splink_v3",
+        "--mode",
+        "select"
+      ],
+      "command": "evaluate",
       "config_path": "configs/default.yaml",
       "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
       "seed_offset": 0
@@ -234,11 +297,92 @@
         "--run-name",
         "demo",
         "--model",
+        "splink_v3_no_tf",
+        "--threads",
+        "1"
+      ],
+      "command": "link predict",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "--run-name",
+        "demo",
+        "--method",
+        "splink_v3_no_tf",
+        "--mode",
+        "select"
+      ],
+      "command": "evaluate",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "link",
+        "predict",
+        "--config",
+        "configs/default.yaml",
+        "--run-name",
+        "demo",
+        "--model",
+        "splink_v3_no_kinship",
+        "--threads",
+        "1"
+      ],
+      "command": "link predict",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "--run-name",
+        "demo",
+        "--method",
+        "splink_v3_no_kinship",
+        "--mode",
+        "select"
+      ],
+      "command": "evaluate",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "link",
+        "predict",
+        "--config",
+        "configs/default.yaml",
+        "--run-name",
+        "demo",
+        "--model",
         "splink_v3_1",
         "--threads",
         "1"
       ],
       "command": "link predict",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "--run-name",
+        "demo",
+        "--method",
+        "splink_v3_1",
+        "--mode",
+        "select"
+      ],
+      "command": "evaluate",
       "config_path": "configs/default.yaml",
       "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
       "seed_offset": 0
@@ -274,6 +418,21 @@
         "1"
       ],
       "command": "link predict",
+      "config_path": "configs/default.yaml",
+      "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
+      "seed_offset": 0
+    },
+    {
+      "cli_args": [
+        "evaluate",
+        "--run-name",
+        "demo",
+        "--method",
+        "splink_k",
+        "--mode",
+        "select"
+      ],
+      "command": "evaluate",
       "config_path": "configs/default.yaml",
       "config_sha256": "801c63adfac8ecd203a3b534213e52a062f1177333a4d81bbf065a1a5f937d25",
       "seed_offset": 0
@@ -302,16 +461,9 @@
         "--runs",
         "demo",
         "--methods",
-        "splink_v1",
         "splink_v1_resolved",
-        "splink_v2",
-        "splink_v3",
-        "splink_v3_no_kinship",
-        "splink_v3_no_tf",
         "splink_v3_resolved",
-        "splink_v3_1",
         "splink_v3_1_resolved",
-        "splink_k",
         "splink_k_resolved",
         "--threads",
         "1"

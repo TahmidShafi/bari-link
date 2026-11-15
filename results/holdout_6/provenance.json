@@ -1,5 +1,5 @@
 {
-  "git_commit": "6c0c96dd1d77c9c312ad104dc948d4059acd0c24",
+  "git_commit": "bf66753c7d1e16a19ccfa90091a508a417e8975e",
   "git_dirty": false,
   "packages": {
     "duckdb": "2.0.0",

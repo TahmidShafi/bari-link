@@ -4,7 +4,7 @@
 - **Evaluation Mode**: `report`
 - **Threshold Grid**: `weight`
 - **Threshold Source Run**: `demo`
-- **Thresholds SHA-256**: `5b19102078e953a8...`
+- **Thresholds SHA-256**: `e4bdaee9d038dfc0...`
 - **Selected $t_{\text{cost}}$**: `Weight = 8.00 (p = 0.996109)`
 - **Selected $t_{p99}$**: `Weight = 20.00 (p = 0.999999)`
 
