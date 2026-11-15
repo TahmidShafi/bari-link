@@ -166,8 +166,17 @@ def main() -> int:
             ]
         )
 
-    # 3. Predict & resolve on demo (dev threshold selection)
-    for model in ("splink_v1", "splink_v3", "splink_v3_1", "splink_k"):
+    # 3. Predict, select thresholds, & resolve on demo (dev threshold selection)
+    resolved_bases = {"splink_v1", "splink_v3", "splink_v3_1", "splink_k"}
+    for model in (
+        "splink_v1",
+        "splink_v2",
+        "splink_v3",
+        "splink_v3_no_tf",
+        "splink_v3_no_kinship",
+        "splink_v3_1",
+        "splink_k",
+    ):
         run_cmd(
             [
                 "-m",
@@ -197,21 +206,22 @@ def main() -> int:
                 "select",
             ]
         )
-        run_cmd(
-            [
-                "-m",
-                "barilink.cli",
-                "resolve",
-                "--mode",
-                "select",
-                "--run-name",
-                "demo",
-                "--base-method",
-                model,
-                "--config",
-                "configs/default.yaml",
-            ]
-        )
+        if model in resolved_bases:
+            run_cmd(
+                [
+                    "-m",
+                    "barilink.cli",
+                    "resolve",
+                    "--mode",
+                    "select",
+                    "--run-name",
+                    "demo",
+                    "--base-method",
+                    model,
+                    "--config",
+                    "configs/default.yaml",
+                ]
+            )
     run_cmd(
         [
             "-m",
