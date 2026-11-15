@@ -32,15 +32,30 @@ def clean_sweep_outputs() -> None:
     ):
         shutil.rmtree(Path("results/models") / model, ignore_errors=True)
 
-    for resolved in (
+    for method_or_resolved in (
+        "exact",
+        "exact_or_phone",
+        "phone",
+        "no_link",
+        "splink_v1",
+        "splink_v2",
+        "splink_v3",
+        "splink_v3_no_tf",
+        "splink_v3_no_kinship",
+        "splink_v3_1",
+        "splink_k",
         "splink_v1_resolved",
         "splink_v3_resolved",
         "splink_v3_1_resolved",
         "splink_k_resolved",
     ):
-        sel = Path("results") / resolved / "selected_thresholds.json"
+        sel = Path("results") / method_or_resolved / "selected_thresholds.json"
         if sel.exists():
             sel.unlink()
+
+    ablation_md = Path("results/holdout/ablation_table.md")
+    if ablation_md.exists():
+        ablation_md.unlink()
 
     shutil.rmtree(Path("results/holdout_confirm"), ignore_errors=True)
     for summary_file in (
@@ -173,6 +188,19 @@ def main() -> int:
             [
                 "-m",
                 "barilink.cli",
+                "evaluate",
+                "--run-name",
+                "demo",
+                "--method",
+                model,
+                "--mode",
+                "select",
+            ]
+        )
+        run_cmd(
+            [
+                "-m",
+                "barilink.cli",
                 "resolve",
                 "--mode",
                 "select",
@@ -193,16 +221,9 @@ def main() -> int:
             "--runs",
             "demo",
             "--methods",
-            "splink_v1",
             "splink_v1_resolved",
-            "splink_v2",
-            "splink_v3",
-            "splink_v3_no_kinship",
-            "splink_v3_no_tf",
             "splink_v3_resolved",
-            "splink_v3_1",
             "splink_v3_1_resolved",
-            "splink_k",
             "splink_k_resolved",
             "--threads",
             "1",
@@ -395,7 +416,8 @@ def main() -> int:
         ]
     )
 
-    # 6. Stress table & curves, H3 confirm table, household confirmation
+    # 6. Ablation table, stress table & curves, H3 confirm table, household confirmation
+    run_cmd(["-m", "barilink.cli", "evaluate", "ablation", "--runs", "holdout_0..holdout_4"])
     run_cmd(["-m", "barilink.cli", "evaluate", "stress", "--run-name", "stress_0"])
     run_cmd(["-m", "barilink.cli", "evaluate", "confirm", "--runs", "holdout_5..holdout_9"])
     run_cmd(
