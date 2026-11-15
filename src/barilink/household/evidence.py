@@ -454,8 +454,8 @@ def build_household_evidence(
             lineage: dict[str, Any] = {}
 
             # E1: listed_member
-            e1_ab = list(u_a.name_skels & u_b.roster_skels)
-            e1_ba = list(u_b.name_skels & u_a.roster_skels)
+            e1_ab = sorted(u_a.name_skels & u_b.roster_skels)
+            e1_ba = sorted(u_b.name_skels & u_a.roster_skels)
             e1_active = bool(e1_ab or e1_ba)
             if e1_active:
                 lineage["E1"] = {
@@ -520,7 +520,7 @@ def build_household_evidence(
                 }
 
             # E4: roster_overlap (share >= 2 member skeletons)
-            shared_roster = list(u_a.roster_skels & u_b.roster_skels)
+            shared_roster = sorted(u_a.roster_skels & u_b.roster_skels)
             e4_active = bool(len(shared_roster) >= 2)
             if e4_active:
                 lineage["E4"] = {
@@ -529,7 +529,7 @@ def build_household_evidence(
                 }
 
             # E5: shared_phone (share >= 1 normalized phone)
-            shared_ph = list(u_a.phones & u_b.phones)
+            shared_ph = sorted(u_a.phones & u_b.phones)
             e5_active = bool(len(shared_ph) >= 1)
             if e5_active:
                 lineage["E5"] = {

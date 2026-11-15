@@ -115,3 +115,85 @@ def test_pipeline_determinism_across_hashseeds(tmp_path):
         hh_m999 = json.load(f)
 
     assert hh_m1 == hh_m999
+
+
+def test_household_2x_determinism_across_hashseeds(tmp_path):
+    """Subprocess PYTHONHASHSEED=0 vs 12345 test for 2.0x household evidence & inference."""
+    script = tmp_path / "run_hh_2x.py"
+    script.write_text(
+        """
+import sys
+from pathlib import Path
+import pandas as pd
+from barilink.household.evidence import (
+    DEFAULT_HOUSEHOLD_WEIGHTS,
+    UnitProfile,
+    build_household_evidence,
+)
+from barilink.household.infer import infer_households
+
+out_dir = Path(sys.argv[1])
+out_dir.mkdir(parents=True, exist_ok=True)
+
+# 16-unit component (> max_size=12, <= 25) with tied 2.0x weights + 2 distinct husbands
+profiles = {}
+for i in range(16):
+    cid = f"c_{i:04d}"
+    husb = "h_alpha" if i == 0 else ("h_beta" if i == 15 else None)
+    name_sk = "h_alpha" if i == 1 else ("h_beta" if i == 14 else f"n_{i}")
+    profiles[cid] = UnitProfile(
+        cluster_id=cid,
+        record_ids=[f"r_{i}"],
+        village_canon="v1",
+        village_raw="v1",
+        union_raw="u1",
+        display_name=name_sk,
+        display_name_skeleton=name_sk,
+        name_skels={name_sk},
+        roster_skels={"shared_a", "shared_b"},
+        husband_name=husb,
+        husband_skeleton=husb,
+        has_husband=husb is not None,
+        father_name=None,
+        father_skeleton=None,
+        inferred_sex="F" if husb is not None else "M",
+        birth_year=1990,
+        age=35.0,
+        phones={"01700000000"},
+        phone_sources={},
+        modules={"upg_enrolment"},
+        first_enrolment="2025-01-01",
+        last_enrolment="2025-01-01",
+    )
+
+w2 = {k: v * 2.0 for k, v in DEFAULT_HOUSEHOLD_WEIGHTS.items()}
+edges_df = build_household_evidence(profiles, weights=w2)
+hh_df, log_df = infer_households(profiles, edges_df, t_hh=5.0)
+edges_df.to_parquet(out_dir / "edges.parquet", index=False)
+hh_df.to_parquet(out_dir / "hh.parquet", index=False)
+log_df.to_parquet(out_dir / "log.parquet", index=False)
+""",
+        encoding="utf-8",
+    )
+
+    for seed in ("0", "12345"):
+        env = os.environ.copy()
+        env["PYTHONHASHSEED"] = seed
+        proc = subprocess.run(
+            [sys.executable, str(script), str(tmp_path / f"seed_{seed}")],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert proc.returncode == 0, f"PYTHONHASHSEED={seed} failed:\n{proc.stderr}"
+
+    for fname in ("edges.parquet", "hh.parquet", "log.parquet"):
+        df0 = pd.read_parquet(tmp_path / "seed_0" / fname)
+        df1 = pd.read_parquet(tmp_path / "seed_12345" / fname)
+        pd.testing.assert_frame_equal(df0, df1, check_like=False)
+
+    log0 = pd.read_parquet(tmp_path / "seed_0" / "log.parquet")
+    assert (log0["action"] == "max_size_cut").any()
+    assert (log0["action"] == "cannot_household_cut").any()
+

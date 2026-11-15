@@ -76,7 +76,10 @@ def infer_households(
         H = nx.Graph()
         for n in comp:
             H.add_node(n)
-        for u, v, d in G.subgraph(comp).edges(data=True):
+        for u, v, d in sorted(
+            (min(u, v), max(u, v), d)
+            for u, v, d in G.subgraph(comp).edges(data=True)
+        ):
             H.add_edge(u, v, **d)
 
         if len(H) <= 25:
@@ -150,7 +153,10 @@ def infer_households(
             subH = nx.Graph()
             for n in comp:
                 subH.add_node(n)
-            for u, v, d in G.subgraph(comp).edges(data=True):
+            for u, v, d in sorted(
+                (min(u, v), max(u, v), d)
+                for u, v, d in G.subgraph(comp).edges(data=True)
+            ):
                 subH.add_edge(u, v, **d)
 
             cut_val, (sa, sb) = nx.minimum_cut(subH, w1, w2, capacity="capacity")
